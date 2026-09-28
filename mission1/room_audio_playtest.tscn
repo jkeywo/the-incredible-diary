@@ -1,0 +1,30 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://mission1/room_audio_playtest.gd" id="1"]
+[ext_resource type="Script" path="res://mission1/room_audio.gd" id="2"]
+
+[node name="RoomAudioPlaytest" type="Node2D"]
+process_mode = 3
+script = ExtResource("1")
+
+[node name="RoomSlot" type="Node2D" parent="."]
+process_mode = 1
+
+[node name="RoomAudio" type="Node" parent="."]
+process_mode = 1
+script = ExtResource("2")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+process_mode = 3
+
+[node name="HelpBackground" type="ColorRect" parent="CanvasLayer"]
+offset_right = 630.0
+offset_bottom = 58.0
+color = Color(0.025, 0.05, 0.075, 0.82)
+
+[node name="HelpLabel" type="Label" parent="CanvasLayer"]
+offset_left = 12.0
+offset_top = 7.0
+offset_right = 620.0
+offset_bottom = 55.0
+theme_override_font_sizes/font_size = 16

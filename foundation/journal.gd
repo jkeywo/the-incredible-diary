@@ -2,7 +2,7 @@ extends RefCounted
 class_name FoundationJournal
 
 const Content = preload("res://foundation/content.gd")
-const SCHEMA := 1
+const SCHEMA := 2
 var path: String
 var saved_count := 0
 var last_content_version := ""
@@ -10,7 +10,7 @@ var last_content_version := ""
 func _init(save_path: String) -> void:
 	path = save_path
 
-func save(simulation: FoundationSimulation) -> Dictionary:
+func save(simulation) -> Dictionary:
 	if OS.has_feature("web") and not OS.is_userfs_persistent():
 		return {"ok": false, "reason": "Browser storage is not persistent; enable IndexedDB/cookies"}
 	if simulation.history.is_empty():
@@ -33,7 +33,7 @@ func save(simulation: FoundationSimulation) -> Dictionary:
 	saved_count = simulation.history.size()
 	return {"ok": true, "reason": "Saved tick %d" % simulation.state.tick}
 
-func _rewrite(simulation: FoundationSimulation) -> Dictionary:
+func _rewrite(simulation) -> Dictionary:
 	var next_path := path + ".next"
 	var file := FileAccess.open(next_path, FileAccess.WRITE)
 	if file == null:

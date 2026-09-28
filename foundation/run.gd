@@ -1,8 +1,9 @@
 extends RefCounted
-class_name FoundationSimulation
+class_name FoundationRun
 
 const Content = preload("res://foundation/content.gd")
 const Scenario = preload("res://foundation/scenario.gd")
+const Journal = preload("res://foundation/journal.gd")
 
 const TICKS_PER_HOUR := 1800
 const LEG_TICKS := TICKS_PER_HOUR * 6
@@ -15,6 +16,7 @@ var events: Array[Dictionary] = []
 var dialogue_steps: Array[Dictionary] = []
 var history: Array[Dictionary] = []
 var content_versions: Dictionary = {}
+var journal: RefCounted
 
 func _init(scenario: Dictionary = {}) -> void:
 	content = scenario.duplicate(true) if not scenario.is_empty() else Content.scenario()
@@ -93,7 +95,7 @@ func _normalize_snapshot(source: Dictionary) -> Dictionary:
 func reset_loop() -> void:
 	var observations: Array = state.diary_observations.duplicate(true)
 	var next_loop: int = int(state.loop_index) + 1
-	var fresh := FoundationSimulation.new(content)
+	var fresh := FoundationRun.new(content)
 	state = fresh.state.duplicate(true)
 	state.diary_observations = observations
 	state.loop_index = next_loop
@@ -102,6 +104,26 @@ func reset_loop() -> void:
 	history.append(inspect())
 	events.clear()
 	content_versions = {content.version: content.duplicate(true)}
+
+func attach_journal(save_path: String) -> void:
+	journal = Journal.new(save_path)
+
+func load_saved() -> Dictionary:
+	if journal == null:
+		return {"ok": false, "reason": "No journal attached"}
+	var loaded := Journal.load(journal.path)
+	if not loaded.ok:
+		return loaded
+	if not restore_record(loaded):
+		return {"ok": false, "reason": "Saved run could not be restored"}
+	journal.saved_count = history.size() if str(loaded.reason).is_empty() and loaded.source == journal.path else 0
+	journal.last_content_version = content.version
+	return loaded
+
+func persist() -> Dictionary:
+	if journal == null:
+		return {"ok": false, "reason": "No journal attached"}
+	return journal.save(self)
 
 func _code_for_loop(index: int) -> String:
 	var value := 32541 + index * 7919

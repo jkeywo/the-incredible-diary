@@ -1,14 +1,13 @@
 extends Control
 
-const Simulation = preload("res://foundation/simulation.gd")
+const Simulation = preload("res://foundation/run.gd")
 const Journal = preload("res://foundation/journal.gd")
 const Benchmark = preload("res://foundation/benchmark.gd")
 const CharacterSprite = preload("res://assets/characters/character_sprite.gd")
 const ValveSheet = preload("res://assets/props/valve_states.png")
 const ACTOR_ART := {"amelia": "player", "chatterbox": "matron", "guest": "rake"}
 const ACTOR_LABELS := {"amelia": "Amelia", "chatterbox": "Chatter Box", "guest": "Guest"}
-var simulation: FoundationSimulation
-var journal: FoundationJournal
+var simulation: FoundationRun
 var save_enabled := true
 var paused := false
 var accumulator := 0.0
@@ -33,14 +32,11 @@ func _ready() -> void:
 	simulation = Simulation.new()
 	for actor_id in ACTOR_ART:
 		actor_frames[actor_id] = CharacterSprite.make_frames(ACTOR_ART[actor_id])
-	journal = Journal.new("user://foundation_run.jsonl")
-	if FileAccess.file_exists(journal.path) or FileAccess.file_exists(journal.path + ".bak") or FileAccess.file_exists(journal.path + ".next"):
-		var loaded := Journal.load(journal.path)
-		if loaded.ok:
-			simulation.restore_record(loaded)
-			journal.saved_count = simulation.history.size() if str(loaded.reason).is_empty() and loaded.source == journal.path else 0
-			journal.last_content_version = simulation.content.version
-		else:
+	simulation.attach_journal("user://foundation_run_v2.jsonl")
+	var save_path: String = simulation.journal.path
+	if FileAccess.file_exists(save_path) or FileAccess.file_exists(save_path + ".bak") or FileAccess.file_exists(save_path + ".next"):
+		var loaded := simulation.load_saved()
+		if not loaded.ok:
 			save_enabled = false
 	_build_ui()
 	if not save_enabled:
@@ -351,7 +347,7 @@ func _apply_pending(target_tick: int) -> bool:
 
 func _save() -> void:
 	if not save_enabled: return
-	var result := journal.save(simulation)
+	var result := simulation.persist()
 	if not result.ok:
 		save_enabled = false
 		if is_instance_valid(status_label):

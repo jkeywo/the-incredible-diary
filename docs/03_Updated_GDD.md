@@ -466,7 +466,11 @@ Implementation implication: retain enough simulation history to reconstruct prio
 
 ## 13. First-playable and editor readiness review
 
-Status reviewed 28 September 2026. This is an implementation assessment, not additional approved scope. The working code is the authoring feasibility probe: it demonstrates runtime scene compilation and line-boundary save/restore in Windows and web exports. It does not implement the agreed game or operational editor.
+### Foundation implementation note (issues #3–10, 28 September 2026)
+
+The current branch adds a separate two-room foundation harness. It implements fixed-tick movement and NPC commitments, a local timed valve action, a narrow Dialogue Manager scene adapter, per-tick whole-world history with recorded diagnostics, validated historical continuation, a checksummed single-slot journal, and visual reset through recorded snapshots. The source box edits only the scene script. This note reports implementation scope; it does not amend the agreed Mission 1 or editor requirements. Evidence and limits are in [the foundation demonstration](foundation/README.md). The original `main.gd` remains the feasibility probe.
+
+Status reviewed 28 September 2026, before the foundation implementation above. This is an implementation assessment, not additional approved scope. At that review the working code was the authoring feasibility probe: it demonstrated runtime scene compilation and line-boundary save/restore in Windows and web exports. The foundation harness still does not implement the agreed Mission 1 or operational editor.
 
 ### Remaining first-playable specification
 

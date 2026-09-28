@@ -2,7 +2,7 @@
 
 Godot 4 / GDScript game and integrated authoring editor for Windows PC and web.
 
-**Current build:** the live-authoring feasibility probe, not Mission 1 or the completed editor. See [the design](docs/03_Updated_GDD.md) for the agreed production behaviour and [probe results](docs/authoring-probe/README.md) for tested capabilities and limitations.
+**Current build:** a two-room simulation foundation harness. It is not Mission 1 or the completed editor. See [the design](docs/03_Updated_GDD.md), [foundation demonstration](docs/foundation/README.md), and [earlier probe results](docs/authoring-probe/README.md).
 
 ## Windows development
 
@@ -23,13 +23,13 @@ Open `project.godot` to edit. The Windows executable exports to `build/windows/A
 
 ## Builds and GitHub Pages
 
-`.github/workflows/build.yml` imports the project, runs the probe checks and exports Windows and web on pull requests and pushes to `main`. Pushes to `main` then deploy the web build to https://jkeywo.github.io/the-incredible-diary/ . Windows exports are downloadable as the `amelia-windows` workflow artifact. Manual runs are also supported; only `main` deploys.
+`.github/workflows/build.yml` imports the project, runs probe and foundation checks plus a full simulated-leg benchmark, and exports Windows and web on pull requests and pushes to `main`. Pushes to `main` then deploy the web build to https://jkeywo.github.io/the-incredible-diary/ . Windows exports are downloadable as the `amelia-windows` workflow artifact. Manual runs are also supported; only `main` deploys.
 
 The web export uses Compatibility rendering and no threads, so it does not depend on cross-origin isolation headers unavailable on ordinary GitHub Pages hosting. No repository credentials are embedded in the game. GitHub Pages serves the static game; the planned in-game GitHub authoring integration/authentication is separate and not yet implemented.
 
 ## Save/history requirement
 
-The production game save must include the full current-leg simulation history as well as current world state and diary. Closing/reopening must preserve the ability to rewind the played run when restarting a level. The probe's small snapshot save does not yet implement this. See the GDD for history, editing, validation and reset rules.
+The foundation harness now records and journals its full current leg, including historical diagnostics. The earlier probe's small snapshot save remains separate. See the GDD and foundation demonstration for current scope and limitations.
 
 ## Design records
 

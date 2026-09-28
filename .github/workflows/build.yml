@@ -34,8 +34,13 @@ jobs:
       - name: Run authoring probe checks
         run: |
           mkdir -p build/web build/windows
-          .tools/godot/godot --headless --path . -- --probe-test --save-path="$PWD/build/probe-save.json" --report="$PWD/build/probe-results.json"
+          .tools/godot/godot --headless --path . res://main.tscn -- --probe-test --save-path="$PWD/build/probe-save.json" --report="$PWD/build/probe-results.json"
           python -c "import json; assert json.load(open('build/probe-results.json'))['passed']"
+          .tools/godot/godot --headless --path . --script res://tests/foundation_test.gd
+      - name: Record and reload a full simulated leg
+        run: |
+          .tools/godot/godot --headless --path . -- --foundation-benchmark --benchmark-save-path="$PWD/build/foundation-benchmark.jsonl" --benchmark-report="$PWD/build/foundation-benchmark-result.json"
+          python -c "import json; r=json.load(open('build/foundation-benchmark-result.json')); assert r['passed'] and r['ticks'] == 10800"
       - name: Export Web and Windows
         run: |
           .tools/godot/godot --headless --path . --export-release Web build/web/index.html

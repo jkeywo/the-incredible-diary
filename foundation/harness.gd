@@ -399,7 +399,9 @@ func _run_benchmark() -> void:
 		get_tree().quit(0 if report.passed else 1)
 
 func _verify_benchmark() -> void:
-	var loaded := Journal.load("user://foundation_benchmark.jsonl")
+	var reopened := Simulation.new()
+	reopened.attach_journal("user://foundation_benchmark.jsonl")
+	var loaded := reopened.load_saved()
 	var passed: bool = loaded.ok and loaded.history.size() == Simulation.LEG_TICKS + 1 and loaded.history[-1].tick == Simulation.LEG_TICKS
 	var report := {"passed": passed, "states": loaded.history.size() if loaded.ok else 0, "reason": loaded.reason, "platform": OS.get_name()}
 	var encoded := JSON.stringify(report)

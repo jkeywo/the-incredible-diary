@@ -207,6 +207,93 @@ func run() -> void:
 	expect(reopened_document.undo_stack.size() == undo_before_same_head, "unchanged_head_retains_authoring_history")
 	reopened_document.change_head("remote-main-2")
 	expect(reopened_document.undo_stack.is_empty() and reopened_document.redo_stack.is_empty() and reopened_document.source_draft == draft_before_head, "head_change_clears_history_preserves_draft")
+	var schedule_ui := Harness.new()
+	schedule_ui.simulation = Simulation.new(scenario)
+	schedule_ui.session = AuthoringSession.new(schedule_ui.simulation)
+	schedule_ui.document = schedule_ui.session.document
+	schedule_ui.session.pause()
+	schedule_ui.status_label = Label.new()
+	schedule_ui.source_editor = CodeEdit.new()
+	schedule_ui.source_editor.text = schedule_ui.document.source_draft
+	schedule_ui.scenario_source_editor = CodeEdit.new()
+	schedule_ui.actor_id_edit = LineEdit.new()
+	schedule_ui.actor_id_edit.text = "porter"
+	schedule_ui.actor_sprite_edit = OptionButton.new()
+	for sprite_id in ["player", "rake", "glamorous", "ex_army", "matron"]:
+		schedule_ui.actor_sprite_edit.add_item(sprite_id)
+	schedule_ui.actor_sprite_edit.select(2)
+	schedule_ui._place_actor(Vector2(100, 100))
+	expect(schedule_ui.document.content.actors.size() == 4 and schedule_ui.document.content.actors[-1].sprite == "glamorous", "actor_created_in_visual_view")
+	schedule_ui.inspected_room = "corridor"
+	schedule_ui.commitment_id_edit = LineEdit.new()
+	schedule_ui.commitment_id_edit.text = "porter_cross"
+	schedule_ui.commitment_speed_edit = SpinBox.new()
+	schedule_ui.commitment_speed_edit.value = 6
+	schedule_ui.schedule_timeline = HSlider.new()
+	schedule_ui.schedule_timeline.min_value = 1
+	schedule_ui.schedule_timeline.max_value = Simulation.LEG_TICKS
+	schedule_ui.schedule_timeline.value = 5
+	schedule_ui._place_commitment(Vector2(300, 100))
+	expect(schedule_ui.document.content.commitments[-1].actor == "porter" and schedule_ui.document.content.commitments[-1].at_tick == 5, "commitment_created_in_visual_view")
+	schedule_ui._move_commitment_on_timeline("porter_cross", 10)
+	expect(schedule_ui.document.content.commitments[-1].at_tick == 10, "timeline_drag_updates_shared_document")
+	var source_schedule := schedule_ui.document.content.duplicate(true)
+	source_schedule.commitments[-1].speed = 8.0
+	source_schedule.dialogue = str(source_schedule.dialogue).replace("coming soon", "arriving soon")
+	schedule_ui.document.set_scenario_source(JSON.stringify(source_schedule, "\t"))
+	schedule_ui._sync_scenario_source()
+	expect(schedule_ui.document.content.commitments[-1].speed == 8.0 and schedule_ui.source_editor.text.contains("arriving soon"), "scenario_source_updates_visual_and_dialogue_views")
+	schedule_ui.document.finish_scenario_group()
+	var valid_schedule := schedule_ui.document.content.duplicate(true)
+	schedule_ui.document.set_scenario_source("{broken")
+	var schedule_run := Simulation.new(scenario)
+	var prior_schedule_history := schedule_run.history.duplicate(true)
+	expect(not schedule_ui.document.apply_to(schedule_run).ok and schedule_run.history == prior_schedule_history and schedule_ui.document.content == valid_schedule, "invalid_schedule_source_preserves_applied_run")
+	var draft_reopen := AuthoringDocument.new(scenario)
+	expect(draft_reopen.restore(schedule_ui.document.serialize()) and draft_reopen.scenario_draft == "{broken" and not draft_reopen.scenario_error.is_empty(), "invalid_schedule_source_survives_reopen")
+	expect(schedule_ui.document.undo() == "Edit scenario source" and schedule_ui.document.scenario_error.is_empty(), "invalid_schedule_source_undo")
+	expect(schedule_ui.document.undo() == "Edit scenario source" and schedule_ui.document.content.commitments[-1].speed == 6.0, "valid_source_edit_undo")
+	expect(schedule_ui.document.undo() == "Move porter_cross to tick 10" and schedule_ui.document.content.commitments[-1].at_tick == 5, "timeline_drag_undo")
+	expect(schedule_ui.document.undo() == "Schedule porter_cross at tick 5" and schedule_ui.document.content.commitments.size() == 3, "commitment_form_undo")
+	expect(schedule_ui.document.undo() == "Place actor porter" and schedule_ui.document.content.actors.size() == 3, "actor_form_undo")
+	for i in range(5): schedule_ui.document.redo()
+	expect(schedule_ui.document.scenario_draft == "{broken", "mixed_schedule_redo_chronological")
+	schedule_ui.document.undo()
+	expect(schedule_ui.document.apply_to(schedule_run).ok and schedule_run.state.actors.has("porter"), "new_actor_applies_at_leg_start")
+	for i in range(145): schedule_run.tick()
+	expect(schedule_run.state.actors.porter.room == "corridor" and absf(float(schedule_run.state.actors.porter.x) - 300.0) < 0.01, "authored_npc_schedule_runs_across_rooms")
+	var porter_path := "res://build/porter-schedule-%d.jsonl" % OS.get_process_id()
+	schedule_run.attach_journal(porter_path)
+	expect(schedule_run.persist().ok, "authored_npc_schedule_saved")
+	var porter_reopened := Simulation.new(scenario)
+	porter_reopened.attach_journal(porter_path)
+	expect(porter_reopened.load_saved().ok and porter_reopened.state.actors.porter == schedule_run.state.actors.porter and porter_reopened.history.size() == schedule_run.history.size(), "authored_npc_schedule_reloaded_with_history")
+	var late_roster := schedule_run.content.duplicate(true)
+	late_roster.version = "late-roster"
+	late_roster.actors.append({"id": "runner", "room": "service", "x": 80.0, "y": 100.0})
+	var late_history := schedule_run.history.duplicate(true)
+	expect(schedule_run.continue_with_content(late_roster).restart and schedule_run.history == late_history, "active_roster_edit_requires_restart_without_history_loss")
+	var late_position := schedule_run.content.duplicate(true)
+	late_position.version = "late-position"
+	late_position.actors[-1].x = 110.0
+	expect(schedule_run.continue_with_content(late_position).restart and schedule_run.history == late_history, "active_actor_definition_edit_requires_restart")
+	var travelling_porter := Simulation.new(schedule_run.content)
+	for i in range(20): travelling_porter.tick()
+	var retargeted_porter := travelling_porter.content.duplicate(true)
+	retargeted_porter.version = "retargeted-porter"
+	retargeted_porter.commitments[-1].x = 260.0
+	var travelling_history := travelling_porter.history.duplicate(true)
+	expect(travelling_porter.continue_with_content(retargeted_porter).restart and travelling_porter.history == travelling_history and travelling_porter.state.actors.porter.destination == "porter_cross", "active_commitment_edit_requires_restart")
+	var conflicting_schedule := schedule_run.content.duplicate(true)
+	conflicting_schedule.commitments.append({"id": "porter_conflict", "actor": "porter", "at_tick": 10, "room": "corridor", "x": 300.0, "y": 100.0, "speed": 4.0})
+	expect("; ".join(Content.validate(conflicting_schedule)).contains("Actor porter has two commitments at tick"), "same_tick_schedule_conflict_explained")
+	var preempted_schedule := schedule_run.content.duplicate(true)
+	preempted_schedule.commitments.append({"id": "porter_followup", "actor": "porter", "at_tick": 11, "room": "service", "x": 100.0, "y": 100.0, "speed": 4.0})
+	expect(Content.validate(preempted_schedule).is_empty() and str(Content.schedule_warnings(preempted_schedule)).contains("porter_followup") and str(Content.schedule_warnings(preempted_schedule)).contains("preempt"), "nearby_schedule_preemption_explained")
+	var fractional_schedule := schedule_run.content.duplicate(true)
+	fractional_schedule.commitments[-1].at_tick = 10.5
+	expect("; ".join(Content.validate(fractional_schedule)).contains("invalid timing or speed"), "fractional_schedule_tick_rejected")
+	schedule_ui.free()
 	var broken := scenario.duplicate(true)
 	broken.connections[0].to = "missing"
 	expect(not Content.validate(broken).is_empty(), "broken_connection_rejected")

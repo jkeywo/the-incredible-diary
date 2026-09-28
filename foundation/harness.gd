@@ -7,6 +7,7 @@ const AuthoringDocument = preload("res://foundation/authoring_document.gd")
 const ProjectAssets = preload("res://foundation/project_assets.gd")
 const RoomGeometry = preload("res://foundation/room_geometry.gd")
 const AuthoringStore = preload("res://foundation/authoring_store.gd")
+const Content = preload("res://foundation/content.gd")
 const CharacterSprite = preload("res://assets/characters/character_sprite.gd")
 const ValveSheet = preload("res://assets/props/valve_states.png")
 const ACTOR_ART := {"amelia": "player", "chatterbox": "matron", "guest": "rake"}
@@ -31,6 +32,8 @@ var queued_dialogue_advance := false
 var wheel_selection := 0
 var scrubber: HSlider
 var source_editor: CodeEdit
+var scenario_source_editor: CodeEdit
+var suppress_scenario_signal := false
 var rewinding := false
 var rewind_tick := 0
 var actor_frames: Dictionary = {}
@@ -44,6 +47,11 @@ var interaction_label_edit: LineEdit
 var interaction_duration_edit: SpinBox
 var interaction_effect_edit: OptionButton
 var interaction_effect_ticks_edit: SpinBox
+var actor_id_edit: LineEdit
+var actor_sprite_edit: OptionButton
+var commitment_id_edit: LineEdit
+var commitment_speed_edit: SpinBox
+var schedule_timeline: HSlider
 var image_dialog: FileDialog
 var web_file_callback: JavaScriptObject
 
@@ -55,8 +63,6 @@ func _ready() -> void:
 		authoring_verify_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('authoring_verify')"))
 	var authoring_test_mode := authoring_seed_requested or authoring_verify_requested
 	simulation = Simulation.new()
-	for actor_id in ACTOR_ART:
-		actor_frames[actor_id] = CharacterSprite.make_frames(ACTOR_ART[actor_id])
 	simulation.attach_journal(("user://foundation_authoring_smoke_run.jsonl" if OS.has_feature("web") else "res://build/foundation_authoring_smoke_run.jsonl") if authoring_test_mode else "user://foundation_run_v2.jsonl")
 	var save_path: String = simulation.journal.path
 	var has_new_save := FileAccess.file_exists(save_path) or FileAccess.file_exists(save_path + ".bak") or FileAccess.file_exists(save_path + ".next")
@@ -80,6 +86,7 @@ func _ready() -> void:
 	authoring_timer.timeout.connect(_save_authoring)
 	add_child(authoring_timer)
 	document.changed.connect(_schedule_authoring_save)
+	document.changed.connect(_sync_scenario_source)
 	_build_ui()
 	if not save_enabled:
 		status_label.text = "Save unavailable: existing save invalid. It was not overwritten."
@@ -245,6 +252,37 @@ func _build_ui() -> void:
 	interaction_effect_ticks_edit.value = 60
 	interaction_effect_ticks_edit.suffix = "delay ticks"
 	controls.add_child(interaction_effect_ticks_edit)
+	actor_id_edit = LineEdit.new()
+	actor_id_edit.placeholder_text = "Actor ID"
+	actor_id_edit.custom_minimum_size.x = 90
+	controls.add_child(actor_id_edit)
+	actor_sprite_edit = OptionButton.new()
+	for sprite_id in CharacterSprite.CHARACTERS:
+		actor_sprite_edit.add_item(sprite_id)
+	actor_sprite_edit.select(1)
+	controls.add_child(actor_sprite_edit)
+	_button(controls, "Place actor", func(): _set_geometry_mode("actor"))
+	commitment_id_edit = LineEdit.new()
+	commitment_id_edit.placeholder_text = "Commitment ID"
+	commitment_id_edit.custom_minimum_size.x = 120
+	controls.add_child(commitment_id_edit)
+	commitment_speed_edit = SpinBox.new()
+	commitment_speed_edit.min_value = 0.1
+	commitment_speed_edit.max_value = 40
+	commitment_speed_edit.step = 0.1
+	commitment_speed_edit.value = 4
+	commitment_speed_edit.suffix = "units/tick"
+	controls.add_child(commitment_speed_edit)
+	_button(controls, "Schedule target", func(): _set_geometry_mode("schedule"))
+	schedule_timeline = HSlider.new()
+	schedule_timeline.min_value = 1
+	schedule_timeline.max_value = Simulation.LEG_TICKS
+	schedule_timeline.step = 1
+	schedule_timeline.value = 20
+	schedule_timeline.custom_minimum_size.x = 240
+	schedule_timeline.drag_ended.connect(func(changed: bool):
+		if changed: _move_commitment_on_timeline(commitment_id_edit.text.strip_edges(), int(schedule_timeline.value)))
+	controls.add_child(schedule_timeline)
 	image_dialog = FileDialog.new()
 	image_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	image_dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -259,6 +297,13 @@ func _build_ui() -> void:
 	source_editor.custom_minimum_size.y = 110
 	source_editor.visible = false
 	column.add_child(source_editor)
+	scenario_source_editor = CodeEdit.new()
+	scenario_source_editor.text = document.scenario_draft
+	scenario_source_editor.text_changed.connect(_on_scenario_source_changed)
+	scenario_source_editor.focus_exited.connect(func(): document.finish_scenario_group())
+	scenario_source_editor.custom_minimum_size.y = 150
+	scenario_source_editor.visible = false
+	column.add_child(scenario_source_editor)
 	status_label = Label.new()
 	status_label.text = "WASD / left stick moves Amelia. 1–2 / right stick + RB chooses a local action."
 	column.add_child(status_label)
@@ -334,6 +379,15 @@ func _draw_world() -> void:
 				var rect := Rect2(top_left, bottom_right - top_left)
 				canvas.draw_rect(rect, Color(0.35, 0.75, 0.55, 0.15))
 				canvas.draw_rect(rect, Color("75d9ad"), false, 2.0)
+			for definition in document.content.actors:
+				if definition.room == inspected_room:
+					var marker := _world_to_canvas(room, Vector2(float(definition.x), float(definition.y)))
+					canvas.draw_circle(marker, 5, Color("86b4ee"))
+			for commitment in document.content.commitments:
+				if commitment.room == inspected_room:
+					var marker := _world_to_canvas(room, Vector2(float(commitment.x), float(commitment.get("y", 160.0))))
+					canvas.draw_circle(marker, 6, Color("e8a6d0"))
+					canvas.draw_string(ThemeDB.fallback_font, marker + Vector2(8, -8), "%s @ %d" % [commitment.id, int(commitment.at_tick)], HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
 	var font := ThemeDB.fallback_font
 	canvas.draw_string(font, Vector2(35, 50), inspected_room.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
 	for actor_id in shown.actors:
@@ -377,9 +431,15 @@ func _draw_world() -> void:
 
 
 func _draw_actor(actor_id: String, shown: Dictionary, before: Dictionary, point: Vector2) -> void:
-	if not actor_frames.has(actor_id):
-		return
-	var frames: SpriteFrames = actor_frames[actor_id]
+	var art_id := str(ACTOR_ART.get(actor_id, "rake"))
+	var historical_content: Dictionary = simulation.content_versions.get(shown.content_version, simulation.content)
+	for definition in historical_content.actors:
+		if definition.id == actor_id:
+			art_id = str(definition.get("sprite", art_id))
+			break
+	if not actor_frames.has(art_id):
+		actor_frames[art_id] = CharacterSprite.make_frames(art_id)
+	var frames: SpriteFrames = actor_frames[art_id]
 	var direction := _recorded_facing(actor_id, int(shown.tick))
 	var action := "idle"
 	if before.has("actors"):
@@ -455,7 +515,9 @@ func _local_choices() -> Array[Dictionary]:
 func _pause() -> void:
 	session.pause()
 	_show_source(document.source_draft)
+	_show_scenario_source(document.scenario_draft)
 	source_editor.visible = true
+	scenario_source_editor.visible = true
 	status_label.text = "Paused. Edit the Dialogue Manager scene, then resume to validate and apply."
 
 func _resume(from_history: bool) -> void:
@@ -469,9 +531,9 @@ func _resume(from_history: bool) -> void:
 	_save()
 	geometry_mode = ""
 	source_editor.visible = false
+	scenario_source_editor.visible = false
 	status_label.text = "Continued from recorded time" if target_tick >= 0 else "Running"
-	if target_tick >= 0:
-		facing_history.clear()
+	facing_history.clear()
 
 func _undo_edit() -> void:
 	if not session.paused or rewinding:
@@ -482,6 +544,7 @@ func _undo_edit() -> void:
 		status_label.text = "No authoring edit to undo."
 		return
 	_show_source(document.source_draft)
+	_show_scenario_source(document.scenario_draft)
 	if _room_in(document.content, inspected_room).is_empty():
 		inspected_room = str(document.content.rooms[0].id)
 	status_label.text = "Undid: " + label
@@ -495,12 +558,48 @@ func _redo_edit() -> void:
 		status_label.text = "No authoring edit to redo."
 		return
 	_show_source(document.source_draft)
+	_show_scenario_source(document.scenario_draft)
 	status_label.text = "Redid: " + label
 
 func _show_source(source: String) -> void:
 	suppress_source_signal = true
 	source_editor.text = source
 	suppress_source_signal = false
+
+func _show_scenario_source(source: String) -> void:
+	if not is_instance_valid(scenario_source_editor):
+		return
+	suppress_scenario_signal = true
+	scenario_source_editor.text = source
+	suppress_scenario_signal = false
+
+func _sync_scenario_source() -> void:
+	if is_instance_valid(scenario_source_editor) and not scenario_source_editor.has_focus():
+		_show_scenario_source(document.scenario_draft)
+	if is_instance_valid(source_editor) and not source_editor.has_focus() and source_editor.text != document.source_draft:
+		_show_source(document.source_draft)
+	if is_instance_valid(actor_id_edit) and is_instance_valid(actor_sprite_edit):
+		for actor in document.content.actors:
+			if actor.id == actor_id_edit.text.strip_edges():
+				for index in actor_sprite_edit.item_count:
+					if actor_sprite_edit.get_item_text(index) == str(actor.get("sprite", ACTOR_ART.get(actor.id, "rake"))):
+						actor_sprite_edit.select(index)
+						break
+	if is_instance_valid(commitment_id_edit) and is_instance_valid(schedule_timeline):
+		for commitment in document.content.commitments:
+			if commitment.id == commitment_id_edit.text.strip_edges():
+				schedule_timeline.set_value_no_signal(float(commitment.at_tick))
+				commitment_speed_edit.value = float(commitment.speed)
+				break
+
+func _on_scenario_source_changed() -> void:
+	if session.paused and not suppress_scenario_signal:
+		document.set_scenario_source(scenario_source_editor.text)
+		if not document.scenario_error.is_empty():
+			status_label.text = "Scenario draft: " + document.scenario_error
+		else:
+			_show_schedule_warning(actor_id_edit.text.strip_edges())
+		_refresh()
 
 func _on_source_text_changed() -> void:
 	if session.paused and not suppress_source_signal:
@@ -625,6 +724,12 @@ func _on_canvas_input(event: InputEvent) -> void:
 	if event.pressed and geometry_mode == "interaction":
 		_place_interaction(point)
 		return
+	if event.pressed and geometry_mode == "actor":
+		_place_actor(point)
+		return
+	if event.pressed and geometry_mode == "schedule":
+		_place_commitment(point)
+		return
 	if event.pressed:
 		geometry_start = point
 		geometry_region = _region_at(room, point)
@@ -736,6 +841,74 @@ func _place_interaction(point: Vector2) -> void:
 	status_label.text = "Placed interaction. Resume validates reachability, effect and duration."
 	_refresh()
 
+func _place_actor(point: Vector2) -> void:
+	var actor_id := actor_id_edit.text.strip_edges()
+	if actor_id.is_empty() or actor_id == "amelia":
+		status_label.text = "Enter a non-player actor ID before placement."
+		return
+	var next_content := document.content.duplicate(true)
+	var definition: Dictionary = {}
+	for actor in next_content.actors:
+		if actor.id == actor_id:
+			definition = actor
+			break
+	if definition.is_empty():
+		definition = {"id": actor_id}
+		next_content.actors.append(definition)
+	definition.room = inspected_room
+	definition.x = point.x
+	definition.y = point.y
+	definition.sprite = actor_sprite_edit.get_item_text(actor_sprite_edit.selected)
+	document.replace_content(next_content, "Place actor %s" % actor_id)
+	status_label.text = "Placed %s. Resume validates actor references." % actor_id
+	_refresh()
+
+func _place_commitment(point: Vector2) -> void:
+	var commitment_id := commitment_id_edit.text.strip_edges()
+	var actor_id := actor_id_edit.text.strip_edges()
+	if commitment_id.is_empty() or actor_id.is_empty():
+		status_label.text = "Enter an actor ID and commitment ID before scheduling."
+		return
+	var next_content := document.content.duplicate(true)
+	var commitment: Dictionary = {}
+	for item in next_content.commitments:
+		if item.id == commitment_id:
+			commitment = item
+			break
+	if commitment.is_empty():
+		commitment = {"id": commitment_id}
+		next_content.commitments.append(commitment)
+	commitment.actor = actor_id
+	commitment.at_tick = int(schedule_timeline.value)
+	commitment.room = inspected_room
+	commitment.x = point.x
+	commitment.y = point.y
+	commitment.speed = float(commitment_speed_edit.value)
+	document.replace_content(next_content, "Schedule %s at tick %d" % [commitment_id, int(schedule_timeline.value)])
+	status_label.text = "Scheduled %s. Resume validates actor, timing and route." % commitment_id
+	_show_schedule_warning(actor_id)
+	_refresh()
+
+func _move_commitment_on_timeline(commitment_id: String, at_tick: int) -> void:
+	if not session.paused or commitment_id.is_empty():
+		return
+	var next_content := document.content.duplicate(true)
+	for commitment in next_content.commitments:
+		if commitment.id == commitment_id:
+			commitment.at_tick = at_tick
+			document.replace_content(next_content, "Move %s to tick %d" % [commitment_id, at_tick])
+			status_label.text = "Moved %s on the schedule." % commitment_id
+			_show_schedule_warning(str(commitment.actor))
+			_refresh()
+			return
+	status_label.text = "Commitment %s does not exist; place its target first." % commitment_id
+
+func _show_schedule_warning(actor_id: String) -> void:
+	for warning in Content.schedule_warnings(document.candidate()):
+		if actor_id.is_empty() or warning.actor == actor_id:
+			status_label.text = str(warning.message)
+			return
+
 func _import_background() -> void:
 	if not session.paused or rewinding:
 		status_label.text = "Pause before importing a room background."
@@ -807,6 +980,7 @@ func _reset_pressed() -> void:
 	session.begin_rewind()
 	rewind_tick = simulation.state.tick
 	source_editor.visible = false
+	scenario_source_editor.visible = false
 	status_label.text = "Rewinding recorded history. Press R again to skip."
 	if rewind_tick == 0: _finish_rewind()
 

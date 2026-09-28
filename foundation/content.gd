@@ -79,6 +79,8 @@ static func validate(data: Dictionary) -> Array[String]:
 		if id.is_empty() or actors.has(id):
 			errors.append("Actor ID missing or duplicated: " + id)
 		actors[id] = true
+		if not str(actor.get("sprite", "rake")) in ["player", "rake", "glamorous", "ex_army", "matron"]:
+			errors.append("Actor %s has unsupported sprite" % id)
 		if not rooms.has(actor.get("room", "")):
 			errors.append("Actor %s has missing room %s" % [id, actor.get("room", "")])
 		if not _number(actor.get("x")) or not _number(actor.get("y")):
@@ -117,6 +119,7 @@ static func validate(data: Dictionary) -> Array[String]:
 						errors.append("Connection %s %s endpoint is outside walkable geometry" % [id, side])
 	if connections.is_empty(): errors.append("At least one room connection is required")
 	var commitments := {}
+	var actor_times := {}
 	for commitment in data.commitments:
 		if not commitment is Dictionary:
 			errors.append("Commitment entry must be an object")
@@ -125,13 +128,18 @@ static func validate(data: Dictionary) -> Array[String]:
 		if id.is_empty() or commitments.has(id):
 			errors.append("Commitment ID missing or duplicated: " + id)
 		commitments[id] = true
+		var tick_value: Variant = commitment.get("at_tick", "")
+		var timing_key := "%s:%s" % [commitment.get("actor", ""), int(tick_value) if _number(tick_value) else tick_value]
+		if actor_times.has(timing_key):
+			errors.append("Actor %s has two commitments at tick %s (%s and %s); choose distinct start times" % [commitment.get("actor", ""), commitment.get("at_tick", ""), actor_times[timing_key], id])
+		actor_times[timing_key] = id
 		if not actors.has(commitment.get("actor", "")):
 			errors.append("Commitment %s has missing actor" % id)
 		if not rooms.has(commitment.get("room", "")):
 			errors.append("Commitment %s has missing room" % id)
-		if not _number(commitment.get("at_tick")) or not _number(commitment.get("speed")) or not _number(commitment.get("x")):
+		if not _number(commitment.get("at_tick")) or not _number(commitment.get("speed")) or not _number(commitment.get("x")) or not _number(commitment.get("y", 160.0)):
 			errors.append("Commitment %s needs numeric timing, speed and target" % id)
-		elif int(commitment.at_tick) < 0 or float(commitment.speed) <= 0.0:
+		elif float(commitment.at_tick) != float(int(commitment.at_tick)) or int(commitment.at_tick) < 1 or int(commitment.at_tick) > 10800 or float(commitment.speed) <= 0.0:
 			errors.append("Commitment %s has invalid timing or speed" % id)
 		elif room_data.has(commitment.get("room", "")) and Geometry.validate(room_data[commitment.room]).is_empty() and not Geometry.contains(room_data[commitment.room], Vector2(float(commitment.x), float(commitment.get("y", 160.0)))):
 			errors.append("Commitment %s ends outside walkable geometry" % id)
@@ -178,3 +186,45 @@ static func validate(data: Dictionary) -> Array[String]:
 
 static func _number(value: Variant) -> bool:
 	return value is int or value is float
+
+static func schedule_warnings(data: Dictionary) -> Array[Dictionary]:
+	var warnings: Array[Dictionary] = []
+	var actors := {}
+	for actor in data.get("actors", []):
+		if actor is Dictionary and actor.has("id"):
+			actors[actor.id] = actor
+	for actor_id in actors:
+		var entries: Array[Dictionary] = []
+		for commitment in data.get("commitments", []):
+			if commitment is Dictionary and commitment.get("actor") == actor_id and _number(commitment.get("at_tick")) and _number(commitment.get("speed")):
+				entries.append(commitment)
+		entries.sort_custom(func(left: Dictionary, right: Dictionary): return float(left.at_tick) < float(right.at_tick))
+		var origin_room := str(actors[actor_id].get("room", ""))
+		var origin := Vector2(float(actors[actor_id].get("x", 0.0)), float(actors[actor_id].get("y", 0.0)))
+		for index in entries.size():
+			var commitment: Dictionary = entries[index]
+			var target_room := str(commitment.get("room", ""))
+			var target := Vector2(float(commitment.get("x", 0.0)), float(commitment.get("y", 160.0)))
+			var minimum_distance := _minimum_route_distance(data, origin_room, origin, target_room, target)
+			if index + 1 < entries.size() and minimum_distance >= 0.0 and float(commitment.speed) > 0.0:
+				var earliest_arrival := int(commitment.at_tick) + int(ceilf(minimum_distance / float(commitment.speed)))
+				var following: Dictionary = entries[index + 1]
+				if int(following.at_tick) < earliest_arrival:
+					warnings.append({"actor": actor_id, "previous": commitment.id, "next": following.id, "message": "Actor %s: %s starts at tick %d before %s can arrive near tick %d; the later commitment will preempt travel" % [actor_id, following.id, int(following.at_tick), commitment.id, earliest_arrival]})
+			origin_room = target_room
+			origin = target
+	return warnings
+
+static func _minimum_route_distance(data: Dictionary, from_room: String, origin: Vector2, to_room: String, target: Vector2) -> float:
+	if from_room == to_room:
+		return origin.distance_to(target)
+	var shortest := INF
+	for connection in data.get("connections", []):
+		var exit_side := "from" if connection.get("from") == from_room and connection.get("to") == to_room else "to" if connection.get("to") == from_room and connection.get("from") == to_room else ""
+		if exit_side.is_empty():
+			continue
+		var entry_side := "to" if exit_side == "from" else "from"
+		var exit_point := Vector2(float(connection.get(exit_side + "_x", 0.0)), float(connection.get(exit_side + "_y", 160.0)))
+		var entry_point := Vector2(float(connection.get(entry_side + "_x", 0.0)), float(connection.get(entry_side + "_y", 160.0)))
+		shortest = minf(shortest, origin.distance_to(exit_point) + entry_point.distance_to(target))
+	return shortest if shortest < INF else -1.0

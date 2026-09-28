@@ -161,11 +161,33 @@ func continue_with_content(next_content: Dictionary, from_tick: int = -1) -> Dic
 	for actor in next_content.actors: new_actor_ids.append(actor.id)
 	old_actor_ids.sort()
 	new_actor_ids.sort()
+	if target_tick == 0 and int(state.tick) == 0 and next_content.actors != content.actors:
+		var fresh := FoundationRun.new(next_content)
+		fresh.state.loop_index = state.loop_index
+		fresh.state.code = state.code
+		fresh.state.diary_observations = state.diary_observations.duplicate(true)
+		fresh.history[0] = fresh.inspect()
+		content = fresh.content.duplicate(true)
+		authored = fresh.authored
+		state = fresh.state.duplicate(true)
+		history = fresh.history.duplicate(true)
+		content_versions = fresh.content_versions.duplicate(true)
+		dialogue_steps = fresh.dialogue_steps.duplicate(true)
+		events.clear()
+		return {"ok": true, "reason": "Started with the authored actor definitions", "restart": false}
 	if old_actor_ids != new_actor_ids:
 		return {"ok": false, "reason": "Actor IDs changed; restart the leg", "restart": true}
+	if next_content.actors != content.actors:
+		return {"ok": false, "reason": "Actor definitions changed during the leg; restart before applying spawn positions or sprites", "restart": true}
 	var historical_content: Dictionary = content_versions.get(restored.content_version, {})
 	if historical_content.is_empty():
 		return {"ok": false, "reason": "Historical content version is unavailable; restart the leg", "restart": true}
+	for actor_id in restored.actors:
+		var active_id := str(restored.actors[actor_id].get("destination", ""))
+		if active_id.is_empty():
+			continue
+		if _find_commitment(historical_content, active_id) != _find_commitment(next_content, active_id):
+			return {"ok": false, "reason": "Active commitment %s for actor %s changed; restart the leg before altering its target or timing" % [active_id, actor_id], "restart": true}
 	if not restored.action.is_empty():
 		var old_interaction := _find_interaction(historical_content, str(restored.action.id))
 		var new_interaction := _find_interaction(next_content, str(restored.action.id))
@@ -187,6 +209,12 @@ func _find_interaction(in_content: Dictionary, id: String) -> Dictionary:
 	for interaction in in_content.interactions:
 		if interaction.id == id:
 			return interaction
+	return {}
+
+func _find_commitment(in_content: Dictionary, id: String) -> Dictionary:
+	for commitment in in_content.commitments:
+		if commitment.id == id:
+			return commitment
 	return {}
 
 func step_next_event() -> Dictionary:

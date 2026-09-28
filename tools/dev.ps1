@@ -19,10 +19,12 @@ try {
             & $godot --headless --path $root --editor --import
             if ($LASTEXITCODE -ne 0) { throw 'Project import failed.' }
             $report = Join-Path $root 'build/probe-results.json'
-            & $godot --headless --path $root -- --probe-test "--save-path=$root/build/probe-save.json" "--report=$report"
+            & $godot --headless --path $root res://main.tscn -- --probe-test "--save-path=$root/build/probe-save.json" "--report=$report"
             if ($LASTEXITCODE -ne 0) { throw 'Probe execution failed.' }
             $result = Get-Content -LiteralPath $report | ConvertFrom-Json
             if (-not $result.passed) { throw 'Probe checks failed.' }
+			& $godot --headless --path $root --script res://tests/foundation_test.gd
+			if ($LASTEXITCODE -ne 0) { throw 'Foundation checks failed.' }
         }
         'ExportWeb' {
             New-Item -ItemType Directory -Force build/web | Out-Null

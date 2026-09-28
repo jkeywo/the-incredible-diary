@@ -1,8 +1,8 @@
 config_version=5
 
 [application]
-config/name="Amelia Authoring Probe"
-run/main_scene="res://main.tscn"
+config/name="The Incredible Diary Foundation"
+run/main_scene="res://foundation/harness.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/use_custom_user_dir=true
 config/custom_user_dir_name="AmeliaAuthoringProbe"
@@ -14,6 +14,53 @@ DialogueManager="*res://addons/dialogue_manager/dialogue_manager.gd"
 window/size/viewport_width=1160
 window/size/viewport_height=740
 window/stretch/mode="canvas_items"
+
+[input]
+
+move_left={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":65), Object(InputEventJoypadMotion,"axis":0,"axis_value":-1.0)]
+}
+move_right={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":68), Object(InputEventJoypadMotion,"axis":0,"axis_value":1.0)]
+}
+move_up={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":87), Object(InputEventJoypadMotion,"axis":1,"axis_value":-1.0)]
+}
+move_down={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":83), Object(InputEventJoypadMotion,"axis":1,"axis_value":1.0)]
+}
+pause_game={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":32), Object(InputEventJoypadButton,"button_index":6)]
+}
+step_tick={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":46)]
+}
+interaction_one={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":49)]
+}
+interaction_two={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":50)]
+}
+wheel_confirm={
+"deadzone": 0.2,
+"events": [Object(InputEventJoypadButton,"button_index":5)]
+}
+cancel_action={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":27), Object(InputEventJoypadButton,"button_index":1)]
+}
+reset_loop={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":82), Object(InputEventJoypadButton,"button_index":7)]
+}
 
 [rendering]
 renderer/rendering_method="gl_compatibility"

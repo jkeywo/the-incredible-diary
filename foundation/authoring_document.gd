@@ -17,6 +17,7 @@ var scene_errors: Dictionary = {}
 var undo_stack: Array[Dictionary] = []
 var redo_stack: Array[Dictionary] = []
 var baseline_head := "local"
+var recovery_conflict := false
 var revision := 0
 var source_group_open := false
 var scenario_group_open := false
@@ -169,6 +170,8 @@ func validate() -> Array[String]:
 	return Content.validate(candidate())
 
 func apply_to(simulation: FoundationRun, from_tick: int = -1) -> Dictionary:
+	if recovery_conflict:
+		return {"ok": false, "reason": "Recovered draft differs from the saved run; review it and choose Allow recovered draft before continuing", "restart": false}
 	finish_source_group()
 	finish_scenario_group()
 	finish_scene_group()
@@ -199,8 +202,26 @@ func change_head(next_head: String) -> void:
 	redo_stack.clear()
 	_changed()
 
+func reconcile_runtime(runtime_content: Dictionary) -> bool:
+	if applied_content == runtime_content:
+		return false
+	finish_source_group()
+	finish_scenario_group()
+	finish_scene_group()
+	undo_stack.clear()
+	redo_stack.clear()
+	applied_content = runtime_content.duplicate(true)
+	recovery_conflict = content != runtime_content or source_draft != str(runtime_content.get("dialogue", ""))
+	_changed()
+	return recovery_conflict
+
+func allow_recovered_draft() -> void:
+	if recovery_conflict:
+		recovery_conflict = false
+		_changed()
+
 func serialize() -> Dictionary:
-	return {"schema": 1, "revision": revision, "baseline_head": baseline_head, "content": content.duplicate(true), "applied_content": applied_content.duplicate(true), "source_draft": source_draft, "scenario_draft": scenario_draft, "scenario_error": scenario_error, "scene_drafts": scene_drafts.duplicate(true), "scene_errors": scene_errors.duplicate(true), "undo_stack": undo_stack.duplicate(true), "redo_stack": redo_stack.duplicate(true)}
+	return {"schema": 1, "revision": revision, "baseline_head": baseline_head, "recovery_conflict": recovery_conflict, "content": content.duplicate(true), "applied_content": applied_content.duplicate(true), "source_draft": source_draft, "scenario_draft": scenario_draft, "scenario_error": scenario_error, "scene_drafts": scene_drafts.duplicate(true), "scene_errors": scene_errors.duplicate(true), "undo_stack": undo_stack.duplicate(true), "redo_stack": redo_stack.duplicate(true)}
 
 func restore(data: Dictionary) -> bool:
 	if data.get("schema") != 1 or not data.get("content") is Dictionary or not data.get("applied_content") is Dictionary or not data.get("source_draft") is String:
@@ -224,6 +245,7 @@ func restore(data: Dictionary) -> bool:
 	undo_stack.assign(data.undo_stack)
 	redo_stack.assign(data.redo_stack)
 	baseline_head = str(data.baseline_head)
+	recovery_conflict = bool(data.get("recovery_conflict", false))
 	revision = int(data.get("revision", 0))
 	source_group_open = false
 	scenario_group_open = false

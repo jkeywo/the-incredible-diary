@@ -29,22 +29,89 @@ func save(document: FoundationAuthoringDocument) -> Dictionary:
 	var absolute := ProjectSettings.globalize_path(path)
 	var staged_absolute := ProjectSettings.globalize_path(staging)
 	var backup_absolute := absolute + ".bak"
+	var corrupt_absolute := absolute + ".corrupt"
+	var quarantined_corrupt := false
 	if FileAccess.file_exists(path):
-		if FileAccess.file_exists(path + ".bak"):
-			var remove_error := DirAccess.remove_absolute(backup_absolute)
-			if remove_error != OK:
-				return {"ok": false, "reason": "Cannot rotate prior authoring backup: %s" % remove_error}
-		var backup_error := DirAccess.rename_absolute(absolute, backup_absolute)
-		if backup_error != OK:
-			return {"ok": false, "reason": "Cannot protect prior authoring draft: %s" % backup_error}
+		if not _read(path).ok:
+			if FileAccess.file_exists(path + ".corrupt"):
+				return {"ok": false, "reason": "Existing corrupt authoring draft needs manual recovery; saved copies were retained"}
+			var quarantine_error := DirAccess.rename_absolute(absolute, corrupt_absolute)
+			if quarantine_error != OK:
+				return {"ok": false, "reason": "Cannot preserve corrupt authoring draft: %s" % quarantine_error}
+			quarantined_corrupt = true
+		else:
+			if FileAccess.file_exists(path + ".bak"):
+				var remove_error := DirAccess.remove_absolute(backup_absolute)
+				if remove_error != OK:
+					return {"ok": false, "reason": "Cannot rotate prior authoring backup: %s" % remove_error}
+			var backup_error := DirAccess.rename_absolute(absolute, backup_absolute)
+			if backup_error != OK:
+				return {"ok": false, "reason": "Cannot protect prior authoring draft: %s" % backup_error}
 	var promote_error := DirAccess.rename_absolute(staged_absolute, absolute)
 	if promote_error != OK:
-		if FileAccess.file_exists(path + ".bak"):
+		if quarantined_corrupt:
+			DirAccess.rename_absolute(corrupt_absolute, absolute)
+		elif FileAccess.file_exists(path + ".bak"):
 			DirAccess.rename_absolute(backup_absolute, absolute)
 		return {"ok": false, "reason": "Cannot promote authoring draft: %s" % promote_error}
 	if OS.has_feature("web"):
 		JavaScriptBridge.force_fs_sync()
+		_start_web_verification(ProjectSettings.globalize_path(path), encoded.sha256_text(), document.revision)
 	return {"ok": true, "reason": "Saved authoring revision %d" % document.revision}
+
+static func web_verification() -> Dictionary:
+	if not OS.has_feature("web"):
+		return {}
+	var encoded: Variant = JavaScriptBridge.eval("JSON.stringify(window.__authoringDraftSync || {})")
+	var parsed: Variant = JSON.parse_string(str(encoded))
+	return parsed if parsed is Dictionary else {}
+
+static func _start_web_verification(virtual_path: String, expected_sha: String, revision: int) -> void:
+	# Godot 4.7 web exports use IDBFS at /userfs. Verify its stored bytes after sync,
+	# since force_fs_sync() has no success result and browser quota can fail later.
+	var script := """
+(() => {
+  const token = %d, path = %s, expected = %s;
+  const started = Date.now();
+  const report = (status, reason) => {
+    if (window.__authoringDraftSync?.token !== token || window.__authoringDraftSync?.status !== 'pending') return;
+    window.__authoringDraftSync = { token, status, reason };
+    document.body.dataset.authoringSync = JSON.stringify(window.__authoringDraftSync);
+  };
+  window.__authoringDraftSync = { token, status: 'pending', reason: '' };
+  document.body.dataset.authoringSync = JSON.stringify(window.__authoringDraftSync);
+  const deadline = setTimeout(() => report('failed', 'Browser storage did not confirm the authoring draft; check quota or site storage'), 5000);
+  const finish = (status, reason) => { clearTimeout(deadline); report(status, reason); };
+  let opened;
+  try { opened = indexedDB.open('/userfs'); }
+  catch (error) { finish('failed', 'Browser storage could not be opened: ' + error); return; }
+  opened.onerror = () => finish('failed', 'Browser storage could not be opened');
+  opened.onsuccess = () => {
+    const db = opened.result;
+    const check = () => {
+      if (window.__authoringDraftSync?.token !== token || window.__authoringDraftSync?.status !== 'pending') { db.close(); return; }
+      let request;
+      try { request = db.transaction('FILE_DATA', 'readonly').objectStore('FILE_DATA').get(path); }
+      catch (error) { db.close(); finish('failed', 'Browser storage read failed: ' + error); return; }
+      request.onerror = () => { db.close(); finish('failed', 'Browser storage read failed'); };
+      request.onsuccess = async () => {
+        const record = request.result;
+        if (record?.contents) {
+          try {
+            const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(record.contents));
+            const actual = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+            if (actual === expected) { db.close(); finish('saved', 'Authoring draft persisted in browser storage'); return; }
+          } catch (error) { db.close(); finish('failed', 'Browser storage verification failed: ' + error); return; }
+        }
+        if (Date.now() - started >= 5000) { db.close(); finish('failed', 'Browser storage did not persist the authoring draft; check quota or site storage'); }
+        else setTimeout(check, 100);
+      };
+    };
+    check();
+  };
+})()
+""" % [revision, JSON.stringify(virtual_path), JSON.stringify(expected_sha)]
+	JavaScriptBridge.eval(script)
 
 static func load(save_path: String) -> Dictionary:
 	var candidates := [save_path, save_path + ".next", save_path + ".bak"]

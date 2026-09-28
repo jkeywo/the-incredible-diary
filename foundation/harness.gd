@@ -19,6 +19,7 @@ var document: FoundationAuthoringDocument
 var authoring_store: FoundationAuthoringStore
 var authoring_timer: Timer
 var authoring_save_enabled := true
+var authoring_web_sync_pending := false
 var suppress_source_signal := false
 var save_enabled := true
 var accumulator := 0.0
@@ -68,12 +69,15 @@ var web_file_callback: JavaScriptObject
 func _ready() -> void:
 	var authoring_seed_requested := "--authoring-seed" in OS.get_cmdline_user_args()
 	var authoring_verify_requested := "--authoring-verify" in OS.get_cmdline_user_args()
+	var authoring_failure_requested := false
 	if OS.has_feature("web"):
 		authoring_seed_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('authoring_seed')"))
 		authoring_verify_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('authoring_verify')"))
-	var authoring_test_mode := authoring_seed_requested or authoring_verify_requested
+		authoring_failure_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('authoring_failure_smoke')"))
+	var authoring_test_mode := authoring_seed_requested or authoring_verify_requested or authoring_failure_requested
+	var smoke_directory := "user://" if OS.has_feature("web") else OS.get_executable_path().get_base_dir() + "/"
 	simulation = Simulation.new()
-	simulation.attach_journal(("user://foundation_authoring_smoke_run.jsonl" if OS.has_feature("web") else "res://build/foundation_authoring_smoke_run.jsonl") if authoring_test_mode else "user://foundation_run_v2.jsonl")
+	simulation.attach_journal(smoke_directory + "foundation_authoring_smoke_run.jsonl" if authoring_test_mode else "user://foundation_run_v2.jsonl")
 	var save_path: String = simulation.journal.path
 	var has_new_save := FileAccess.file_exists(save_path) or FileAccess.file_exists(save_path + ".bak") or FileAccess.file_exists(save_path + ".next")
 	var prior_foundation_save := FileAccess.file_exists("user://foundation_run.jsonl")
@@ -83,11 +87,18 @@ func _ready() -> void:
 			save_enabled = false
 	session = AuthoringSession.new(simulation)
 	document = session.document
-	authoring_store = AuthoringStore.new(("user://foundation_authoring_smoke.json" if OS.has_feature("web") else "res://build/foundation_authoring_smoke.json") if authoring_test_mode else "user://foundation_authoring.json")
+	authoring_store = AuthoringStore.new(smoke_directory + "foundation_authoring_smoke.json" if authoring_test_mode else "user://foundation_authoring.json")
 	var authored := AuthoringStore.load(authoring_store.path)
+	var authoring_recovery_notice := ""
 	if authored.ok:
 		if not document.restore(authored.data):
 			authoring_save_enabled = false
+		else:
+			if str(authored.source) != authoring_store.path:
+				authoring_recovery_notice = str(authored.reason) + ". Review the recovered draft before continuing."
+			document.reconcile_runtime(simulation.content)
+			if document.recovery_conflict:
+				authoring_recovery_notice = "Recovered draft differs from the saved run. Pause to review it, then choose Allow recovered draft."
 	elif str(authored.reason) != "No authoring draft found":
 		authoring_save_enabled = false
 	authoring_timer = Timer.new()
@@ -107,6 +118,8 @@ func _ready() -> void:
 		_save()
 		if prior_foundation_save and not has_new_save:
 			status_label.text = "Fresh foundation run. The previous save file remains untouched."
+	if not authoring_recovery_notice.is_empty():
+		status_label.text = authoring_recovery_notice
 	_refresh()
 	var benchmark_requested := "--foundation-benchmark" in OS.get_cmdline_user_args()
 	if OS.has_feature("web"):
@@ -127,8 +140,11 @@ func _ready() -> void:
 		call_deferred("_run_authoring_seed")
 	if authoring_verify_requested:
 		call_deferred("_run_authoring_verify")
+	if authoring_failure_requested:
+		call_deferred("_run_authoring_failure_smoke")
 
 func _process(delta: float) -> void:
+	_check_authoring_web_sync()
 	if rewinding:
 		rewind_tick = maxi(0, rewind_tick - maxi(1, int(600.0 * delta)))
 		session.view_tick(rewind_tick)
@@ -241,6 +257,7 @@ func _build_ui() -> void:
 	_button(controls, "Undo edit", _undo_edit)
 	_button(controls, "Redo edit", _redo_edit)
 	_button(controls, "Retry draft save", _retry_authoring_save)
+	_button(controls, "Allow recovered draft", _allow_recovered_draft)
 	_button(controls, "Import room background", _import_background)
 	_button(controls, "New room", _create_room)
 	_button(controls, "Draw walkable", func(): _set_geometry_mode("draw"))
@@ -724,10 +741,35 @@ func _save_authoring() -> void:
 		authoring_save_enabled = false
 		if is_instance_valid(status_label):
 			status_label.text = "Authoring save failed: " + str(result.reason)
+	elif OS.has_feature("web"):
+		authoring_web_sync_pending = true
+
+func _check_authoring_web_sync() -> void:
+	if not authoring_web_sync_pending:
+		return
+	var result := AuthoringStore.web_verification()
+	if str(result.get("status", "")) == "failed":
+		authoring_web_sync_pending = false
+		authoring_save_enabled = false
+		if is_instance_valid(status_label):
+			status_label.text = "Authoring save failed: " + str(result.get("reason", "Browser storage error"))
+	elif str(result.get("status", "")) == "saved":
+		authoring_web_sync_pending = false
 
 func _retry_authoring_save() -> void:
 	authoring_save_enabled = true
 	_save_authoring()
+
+func _allow_recovered_draft() -> void:
+	if not document.recovery_conflict:
+		status_label.text = "No recovered draft conflict is pending."
+		return
+	if not session.paused:
+		_pause()
+		status_label.text = "Review the recovered draft in the paused editors, then choose Allow recovered draft again."
+		return
+	document.allow_recovered_draft()
+	status_label.text = "Recovered draft may now be applied when you resume. Validation still runs."
 
 func _room_in(in_content: Dictionary, id: String) -> Dictionary:
 	for room in in_content.rooms:
@@ -1190,14 +1232,27 @@ func _run_editor_smoke() -> void:
 
 func _run_authoring_seed() -> void:
 	document = AuthoringDocument.new(Simulation.new().content)
+	document.change_head("fixture-head")
 	var invalid_source := "~ start\ndo unfinished("
 	document.set_source(invalid_source)
 	var content_change := document.content.duplicate(true)
-	content_change.rooms.append({"id": "gallery", "name": "Gallery", "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]]})
+	var sample_image := Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	sample_image.fill(Color("244060"))
+	var imported: Dictionary = ProjectAssets.import_image("gallery.png", sample_image.save_png_to_buffer())
+	if not imported.ok:
+		push_error("Cannot build authoring smoke image: " + str(imported.reason))
+		get_tree().quit(1)
+		return
+	content_change.assets[imported.id] = imported.asset
+	content_change.rooms.append({"id": "gallery", "name": "Gallery", "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]], "background_asset": imported.id})
 	document.replace_content(content_change, "Create gallery")
+	content_change = document.content.duplicate(true)
+	content_change.commitments.append({"id": "gallery_visit", "actor": "guest", "at_tick": 160, "room": "gallery", "x": 120.0, "y": 160.0, "speed": 4.0})
+	document.replace_content(content_change, "Schedule gallery visit")
+	document.set_scene_source("gallery_scene", "~ start\nGuest: I found the gallery.\n=> END")
 	document.undo()
 	var saved := authoring_store.save(document)
-	var report := {"passed": saved.ok, "reason": saved.reason, "platform": OS.get_name()}
+	var report := {"passed": saved.ok and document.undo_stack.size() == 3 and document.redo_stack.size() == 1 and document.source_draft == invalid_source, "reason": saved.reason, "platform": OS.get_name()}
 	var encoded := JSON.stringify(report)
 	print("AUTHORING_SEED ", encoded)
 	if OS.has_feature("web"):
@@ -1209,10 +1264,35 @@ func _run_authoring_verify() -> void:
 	authoring_save_enabled = false
 	var before := document.serialize()
 	var label := document.redo()
-	var report := {"passed": document.source_draft.contains("unfinished(") and before.undo_stack.size() == 1 and before.redo_stack.size() == 1 and label == "Create gallery" and document.content.rooms.size() == 3, "platform": OS.get_name(), "redo_label": label}
+	var schedule_label := document.undo()
+	schedule_label = document.undo()
+	var restored_schedule := document.redo()
+	var restored_scene := document.redo()
+	var gallery: Dictionary = document.content.rooms[2]
+	var report := {"passed": document.source_draft.contains("unfinished(") and before.baseline_head == "fixture-head" and before.undo_stack.size() == 3 and before.redo_stack.size() == 1 and label == "Edit scene gallery_scene" and schedule_label == "Schedule gallery visit" and restored_schedule == "Schedule gallery visit" and restored_scene == "Edit scene gallery_scene" and document.content.rooms.size() == 3 and document.content.commitments.size() == 4 and document.content.scenes.has("gallery_scene") and document.content.assets.has(gallery.background_asset) and ProjectAssets.validate(document.content.assets[gallery.background_asset]).is_empty() and simulation.content.rooms.size() == 2, "platform": OS.get_name(), "redo_label": label, "schedule_label": schedule_label}
 	var encoded := JSON.stringify(report)
 	print("AUTHORING_REOPEN ", encoded)
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval("document.body.dataset.authoringReopen = " + JSON.stringify(encoded) + ";")
 	else:
 		get_tree().quit(0 if report.passed else 1)
+
+func _run_authoring_failure_smoke() -> void:
+	if not OS.has_feature("web"):
+		return
+	authoring_save_enabled = false
+	JavaScriptBridge.eval("window.__originalIndexedDbOpen = indexedDB.open; indexedDB.open = () => { throw new DOMException('Denied for test', 'SecurityError'); };")
+	AuthoringStore._start_web_verification("/userfs/authoring-denied-test", "0".repeat(64), 9001)
+	JavaScriptBridge.eval("indexedDB.open = window.__originalIndexedDbOpen; delete window.__originalIndexedDbOpen;")
+	authoring_web_sync_pending = true
+	_check_authoring_web_sync()
+	var denied_reported := not authoring_save_enabled and status_label.text.contains("Browser storage could not be opened")
+	authoring_save_enabled = true
+	AuthoringStore._start_web_verification("/userfs/authoring-missing-test", "0".repeat(64), 9002)
+	authoring_web_sync_pending = true
+	await get_tree().create_timer(5.2).timeout
+	_check_authoring_web_sync()
+	var timeout_reported := not authoring_save_enabled and status_label.text.contains("check quota or site storage")
+	var report := {"passed": denied_reported and timeout_reported, "denied": denied_reported, "missing_durable_record": timeout_reported}
+	print("AUTHORING_STORAGE_FAILURE ", JSON.stringify(report))
+	JavaScriptBridge.eval("document.body.dataset.authoringStorageFailure = " + JSON.stringify(JSON.stringify(report)) + ";")

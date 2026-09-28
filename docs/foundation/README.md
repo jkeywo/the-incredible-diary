@@ -2,6 +2,8 @@
 
 This is the engineering harness for issues #3–10, not Mission 1 or the full in-game editor. It runs six simulated Hours at 1,800 fixed ticks per Hour (ten ticks per real second, about 18 minutes at normal speed). Tick 0 begins Hour 1; ticks 9,000–10,800 cover Hour 6, and tick 10,800 ends the leg. `main.tscn` remains the earlier authoring probe and can be run directly.
 
+The refactored foundation has an authored scenario module for the two-room rules, a run module for live state and recorded current-leg history, and an authoring session module for paused drafts, scrubbing and validated continuation. The save now uses `foundation_run_v2.jsonl`; the earlier foundation save remains untouched and a fresh run starts on this version.
+
 ## Scenario and controls
 
 The service room and party corridor have stable IDs and one connection. Amelia moves directly with WASD or the controller left stick. She crosses at the room edge. Local interaction options appear around her; number keys or the controller right stick and RB choose one. Selecting an option never moves her. Escape/B cancels a timed action. Space/controller Back pauses; period advances one tick while paused. R/controller Start begins visible rewind, and a second press skips it. The paused controls select the other room, step to the next event, scrub recorded ticks, and explicitly resume from the selected tick. The minimal source box edits only the Dialogue Manager scene.

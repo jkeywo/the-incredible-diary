@@ -1,15 +1,15 @@
 extends Control
 
 const Simulation = preload("res://foundation/run.gd")
-const Journal = preload("res://foundation/journal.gd")
+const AuthoringSession = preload("res://foundation/authoring_session.gd")
 const Benchmark = preload("res://foundation/benchmark.gd")
 const CharacterSprite = preload("res://assets/characters/character_sprite.gd")
 const ValveSheet = preload("res://assets/props/valve_states.png")
 const ACTOR_ART := {"amelia": "player", "chatterbox": "matron", "guest": "rake"}
 const ACTOR_LABELS := {"amelia": "Amelia", "chatterbox": "Chatter Box", "guest": "Guest"}
 var simulation: FoundationRun
+var session: FoundationAuthoringSession
 var save_enabled := true
-var paused := false
 var accumulator := 0.0
 var inspected_room := "service"
 var status_label: Label
@@ -20,7 +20,6 @@ var queued_cancel := false
 var queued_dialogue_start := false
 var queued_dialogue_advance := false
 var wheel_selection := 0
-var viewed_tick := -1
 var scrubber: HSlider
 var source_editor: CodeEdit
 var rewinding := false
@@ -32,17 +31,24 @@ func _ready() -> void:
 	simulation = Simulation.new()
 	for actor_id in ACTOR_ART:
 		actor_frames[actor_id] = CharacterSprite.make_frames(ACTOR_ART[actor_id])
+	session = AuthoringSession.new(simulation)
 	simulation.attach_journal("user://foundation_run_v2.jsonl")
 	var save_path: String = simulation.journal.path
-	if FileAccess.file_exists(save_path) or FileAccess.file_exists(save_path + ".bak") or FileAccess.file_exists(save_path + ".next"):
+	var has_new_save := FileAccess.file_exists(save_path) or FileAccess.file_exists(save_path + ".bak") or FileAccess.file_exists(save_path + ".next")
+	var prior_foundation_save := FileAccess.file_exists("user://foundation_run.jsonl")
+	if has_new_save:
 		var loaded := simulation.load_saved()
 		if not loaded.ok:
 			save_enabled = false
+		else:
+			session.set_draft(str(simulation.content.dialogue))
 	_build_ui()
 	if not save_enabled:
 		status_label.text = "Save unavailable: existing save invalid. It was not overwritten."
 	else:
 		_save()
+		if prior_foundation_save and not has_new_save:
+			status_label.text = "Fresh foundation run. The previous save file remains untouched."
 	_refresh()
 	var benchmark_requested := "--foundation-benchmark" in OS.get_cmdline_user_args()
 	if OS.has_feature("web"):
@@ -58,12 +64,12 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if rewinding:
 		rewind_tick = maxi(0, rewind_tick - maxi(1, int(600.0 * delta)))
-		viewed_tick = rewind_tick
+		session.view_tick(rewind_tick)
 		_refresh()
 		if rewind_tick == 0:
 			_finish_rewind()
 		return
-	if paused:
+	if session.paused:
 		return
 	accumulator += minf(delta, 0.25)
 	while accumulator >= 0.1:
@@ -100,10 +106,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if rewinding: return
 	if event.is_action_pressed("pause_game"):
-		if paused: _resume(false)
+		if session.paused: _resume(false)
 		else: _pause()
 		_refresh()
-	if paused and event.is_action_pressed("step_tick"):
+	if session.paused and event.is_action_pressed("step_tick"):
 		_step_tick()
 	if event.is_action_pressed("interaction_one") or event.is_action_pressed("interaction_two") or event.is_action_pressed("wheel_confirm"):
 		if not simulation.state.dialogue.is_empty():
@@ -157,6 +163,7 @@ func _build_ui() -> void:
 	_button(controls, "Rewind / skip (R)", _reset_pressed)
 	source_editor = CodeEdit.new()
 	source_editor.text = simulation.content.dialogue
+	source_editor.text_changed.connect(func(): session.set_draft(source_editor.text))
 	source_editor.custom_minimum_size.y = 110
 	source_editor.visible = false
 	column.add_child(source_editor)
@@ -171,22 +178,26 @@ func _button(parent: Node, caption: String, action: Callable) -> void:
 	parent.add_child(button)
 
 func _toggle_pause() -> void:
-	if paused: _resume(false)
+	if session.paused: _resume(false)
 	else: _pause()
 	_refresh()
 
 func _step_tick() -> void:
-	if paused and _apply_pending(-1):
-		simulation.tick()
+	if session.paused:
+		var result := session.step_tick()
+		if not result.ok:
+			status_label.text = "Step blocked: " + str(result.reason)
+			return
 		_save()
-		viewed_tick = -1
 	_refresh()
 
 func _next_event() -> void:
-	if paused and _apply_pending(-1):
-		simulation.step_next_event()
+	if session.paused:
+		var result := session.step_next_event()
+		if not result.ok:
+			status_label.text = "Step blocked: " + str(result.reason)
+			return
 		_save()
-		viewed_tick = -1
 	_refresh()
 
 func _other_room() -> void:
@@ -194,11 +205,11 @@ func _other_room() -> void:
 	_refresh()
 
 func _on_scrub(value: float) -> void:
-	viewed_tick = int(value)
+	session.view_tick(int(value))
 	_refresh()
 
 func _return_live() -> void:
-	viewed_tick = -1
+	session.return_live()
 	_refresh()
 
 func _resume_from_here() -> void:
@@ -227,7 +238,7 @@ func _draw_world() -> void:
 			else:
 				canvas.draw_rect(Rect2(point - Vector2(8, 8), Vector2(16, 16)), Color("cf7985"))
 			canvas.draw_string(font, point + Vector2(-20, 32), interaction.label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
-	if viewed_tick < 0 and inspected_room == simulation.state.actors.amelia.room:
+	if session.viewed_tick < 0 and inspected_room == simulation.state.actors.amelia.room:
 		var amelia: Dictionary = simulation.state.actors.amelia
 		var center := Vector2(20 + float(amelia.x) * 2.0, 20 + float(amelia.y))
 		var choices := _local_choices()
@@ -297,15 +308,15 @@ func _refresh() -> void:
 		return
 	var shown := _shown_state()
 	var actor: Dictionary = shown.actors.chatterbox
-	state_label.text = "Tick %d / %d  |  Hour %d  |  %s  |  Chatterbox: %s → %s  |  Viewing: %s  |  Valve: %s" % [shown.tick, simulation.state.tick, mini(6, 1 + int(shown.tick / Simulation.TICKS_PER_HOUR)), "PAUSED" if paused else "RUNNING", actor.room, actor.destination, inspected_room, "closed" if shown.flags.get("close_valve", false) else "open"]
+	state_label.text = "Tick %d / %d  |  Hour %d  |  %s  |  Chatterbox: %s → %s  |  Viewing: %s  |  Valve: %s" % [shown.tick, simulation.state.tick, mini(6, 1 + int(shown.tick / Simulation.TICKS_PER_HOUR)), "PAUSED" if session.paused else "RUNNING", actor.room, actor.destination, inspected_room, "closed" if shown.flags.get("close_valve", false) else "open"]
 	if is_instance_valid(scrubber):
 		scrubber.max_value = simulation.state.tick
-		if viewed_tick < 0:
+		if session.viewed_tick < 0:
 			scrubber.set_value_no_signal(simulation.state.tick)
 	canvas.queue_redraw()
 
 func _shown_state() -> Dictionary:
-	return simulation.inspect_at(viewed_tick) if viewed_tick >= 0 else simulation.inspect()
+	return session.inspect()
 
 func _local_choices() -> Array[Dictionary]:
 	var choices: Array[Dictionary] = []
@@ -316,34 +327,23 @@ func _local_choices() -> Array[Dictionary]:
 	return choices
 
 func _pause() -> void:
-	paused = true
+	session.pause()
 	source_editor.visible = true
 	status_label.text = "Paused. Edit the Dialogue Manager scene, then resume to validate and apply."
 
 func _resume(from_history: bool) -> void:
-	if not paused:
+	if not session.paused:
 		return
-	var target_tick := viewed_tick if from_history and viewed_tick >= 0 else -1
-	if not _apply_pending(target_tick):
-		return
-	_save()
-	paused = false
-	viewed_tick = -1
-	source_editor.visible = false
-	status_label.text = "Continued from recorded time" if target_tick >= 0 else "Running"
-
-func _apply_pending(target_tick: int) -> bool:
-	var next_content := simulation.content.duplicate(true)
-	if source_editor.text != simulation.content.dialogue:
-		next_content.dialogue = source_editor.text
-		next_content.version = "edit-%s" % source_editor.text.md5_text().substr(0, 10)
-	var result := simulation.continue_with_content(next_content, target_tick)
+	var target_tick := session.viewed_tick if from_history and session.viewed_tick >= 0 else -1
+	var result := session.resume(from_history)
 	if not result.ok:
 		status_label.text = "Resume blocked: " + str(result.reason)
-		return false
+		return
+	_save()
+	source_editor.visible = false
+	status_label.text = "Continued from recorded time" if target_tick >= 0 else "Running"
 	if target_tick >= 0:
 		facing_history.clear()
-	return true
 
 func _save() -> void:
 	if not save_enabled: return
@@ -362,20 +362,17 @@ func _reset_pressed() -> void:
 		_finish_rewind()
 		return
 	rewinding = true
-	paused = true
+	session.begin_rewind()
 	rewind_tick = simulation.state.tick
-	viewed_tick = rewind_tick
 	source_editor.visible = false
 	status_label.text = "Rewinding recorded history. Press R again to skip."
 	if rewind_tick == 0: _finish_rewind()
 
 func _finish_rewind() -> void:
 	rewinding = false
-	simulation.reset_loop()
+	session.finish_rewind()
 	facing_history.clear()
-	viewed_tick = -1
 	inspected_room = simulation.state.actors.amelia.room
-	paused = false
 	_save()
 	status_label.text = "New loop. Diary observations retained; world and current-loop knowledge reset."
 	_refresh()

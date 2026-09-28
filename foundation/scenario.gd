@@ -139,5 +139,41 @@ func diagnostics(state: Dictionary) -> Dictionary:
 		if actor_id == "amelia":
 			continue
 		var actor: Dictionary = state.actors[actor_id]
-		npc[actor_id] = {"room": actor.room, "activity": actor.activity, "destination": actor.destination, "reason": "Following authored commitment" if not str(actor.destination).is_empty() else "Waiting for next commitment"}
-	return {"npc": npc, "storylets": {"valve": "Completed" if state.flags.get("close_valve", false) else "Available when Amelia is nearby", "conversation": "Current-loop lead known" if state.current_knowledge.has("guest_will_wait") else "Lead not yet heard"}, "content_version": source.version}
+		var active: Dictionary = {}
+		var next: Dictionary = {}
+		for commitment in source.commitments:
+			if str(commitment.actor) != str(actor_id):
+				continue
+			if str(commitment.id) == str(actor.destination):
+				active = commitment
+			elif not state.commitments_started.has(commitment.id):
+				if next.is_empty() or commitment_start_tick(commitment, state) < commitment_start_tick(next, state):
+					next = commitment
+		var intended: Dictionary = active if not active.is_empty() else next
+		var target: Dictionary = {}
+		if not intended.is_empty():
+			target = {"commitment": intended.id, "room": intended.room, "at_tick": str(commitment_start_tick(intended, state))}
+		npc[actor_id] = {"room": actor.room, "activity": actor.activity, "destination": actor.destination, "target": target, "reason": "Following authored commitment" if not active.is_empty() else "Waiting for next commitment" if not next.is_empty() else "No remaining commitment"}
+	var storylets: Dictionary = {}
+	for storylet in source.get("storylets", []):
+		var conditions: Array[Dictionary] = []
+		var amelia: Dictionary = state.actors.amelia
+		conditions.append({"name": "time", "met": int(state.tick) >= int(storylet.start_tick) and int(state.tick) <= int(storylet.end_tick), "detail": "Ticks %d–%d" % [storylet.start_tick, storylet.end_tick]})
+		conditions.append({"name": "room", "met": str(amelia.room) == str(storylet.room), "detail": "Amelia in %s" % storylet.room})
+		for actor_id in storylet.required_actors:
+			var actor: Dictionary = state.actors[actor_id]
+			var nearby := str(actor.room) == str(storylet.room) and Vector2(float(amelia.x), float(amelia.y)).distance_to(Vector2(float(actor.x), float(actor.y))) <= 65.0
+			conditions.append({"name": "actor:%s" % actor_id, "met": nearby, "detail": "%s nearby in %s" % [actor_id, storylet.room]})
+		for flag in storylet.get("required_flags", {}):
+			conditions.append({"name": "flag:%s" % flag, "met": bool(state.flags.get(flag, false)) == bool(storylet.required_flags[flag]), "detail": "%s = %s" % [flag, str(storylet.required_flags[flag])]})
+		var unblocked: bool = state.dialogue.is_empty() and state.action.is_empty()
+		conditions.append({"name": "activity", "met": unblocked, "detail": "Amelia free to talk"})
+		var completed: bool = state.get("completed_storylets", []).has(storylet.id)
+		conditions.append({"name": "completion", "met": not completed, "detail": "Not already completed"})
+		var eligible := true
+		for condition in conditions:
+			if not condition.met:
+				eligible = false
+				break
+		storylets[storylet.id] = {"scene": storylet.scene, "label": storylet.get("label", storylet.id), "room": storylet.room, "status": "completed" if completed else "eligible" if eligible else "blocked", "conditions": conditions}
+	return {"npc": npc, "storylets": storylets, "content_version": source.version}

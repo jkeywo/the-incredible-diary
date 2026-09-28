@@ -8,6 +8,7 @@ const ProjectAssets = preload("res://foundation/project_assets.gd")
 const RoomGeometry = preload("res://foundation/room_geometry.gd")
 const AuthoringStore = preload("res://foundation/authoring_store.gd")
 const Content = preload("res://foundation/content.gd")
+const Inspector = preload("res://foundation/inspector.gd")
 const CharacterSprite = preload("res://assets/characters/character_sprite.gd")
 const ValveSheet = preload("res://assets/props/valve_states.png")
 const ACTOR_ART := {"amelia": "player", "chatterbox": "matron", "guest": "rake"}
@@ -24,6 +25,7 @@ var accumulator := 0.0
 var inspected_room := "service"
 var status_label: Label
 var state_label: Label
+var inspector_label: Label
 var canvas: Control
 var queued_interaction := ""
 var queued_cancel := false
@@ -224,6 +226,14 @@ func _build_ui() -> void:
 	scrubber.step = 1
 	scrubber.value_changed.connect(_on_scrub)
 	column.add_child(scrubber)
+	var inspector_scroll := ScrollContainer.new()
+	inspector_scroll.custom_minimum_size.y = 105
+	inspector_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(inspector_scroll)
+	inspector_label = Label.new()
+	inspector_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	inspector_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inspector_scroll.add_child(inspector_label)
 	_button(controls, "Return to live", _return_live)
 	_button(controls, "Resume from here", _resume_from_here)
 	_button(controls, "Retry save", _retry_save)
@@ -382,7 +392,9 @@ func _next_event() -> void:
 	_refresh()
 
 func _other_room() -> void:
-	var rooms: Array = document.content.rooms if session.paused else simulation.content.rooms
+	var rooms: Array = _shown_content(_shown_state()).rooms
+	if rooms.is_empty():
+		return
 	var index := -1
 	for i in rooms.size():
 		if rooms[i].id == inspected_room:
@@ -532,8 +544,9 @@ func _refresh() -> void:
 	if not is_instance_valid(state_label):
 		return
 	var shown := _shown_state()
-	var actor: Dictionary = shown.actors.chatterbox
-	state_label.text = "Tick %d / %d  |  Hour %d  |  %s  |  Chatterbox: %s → %s  |  Viewing: %s  |  Valve: %s" % [shown.tick, simulation.state.tick, mini(6, 1 + int(shown.tick / Simulation.TICKS_PER_HOUR)), "PAUSED" if session.paused else "RUNNING", actor.room, actor.destination, inspected_room, "closed" if shown.flags.get("close_valve", false) else "open"]
+	state_label.text = "Tick %d / %d  |  Hour %d  |  %s  |  Viewing: %s  |  Valve: %s" % [shown.tick, simulation.state.tick, mini(6, 1 + int(shown.tick / Simulation.TICKS_PER_HOUR)), "PAUSED" if session.paused else "RUNNING", inspected_room, "closed" if shown.flags.get("close_valve", false) else "open"]
+	if is_instance_valid(inspector_label):
+		inspector_label.text = Inspector.describe(shown, inspected_room)
 	if is_instance_valid(scrubber):
 		scrubber.max_value = simulation.state.tick
 		if session.viewed_tick < 0:

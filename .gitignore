@@ -15,3 +15,11 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# Local toolchain and outputs
+.tools/
+build/
+__pycache__/
+.env
+.env.*
+!.env.example

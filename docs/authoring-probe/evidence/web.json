@@ -1,0 +1,76 @@
+{
+  "checks": [
+    {
+      "name": "runtime_compile",
+      "passed": true
+    },
+    {
+      "name": "scene_ineligible_before_rescue",
+      "passed": true
+    },
+    {
+      "name": "character_escape",
+      "passed": true
+    },
+    {
+      "name": "first_character_line",
+      "passed": true
+    },
+    {
+      "name": "second_character_and_world_command",
+      "passed": true
+    },
+    {
+      "name": "restore_mid_conversation",
+      "passed": true
+    },
+    {
+      "name": "resume_runs_pending_command_once",
+      "passed": true
+    },
+    {
+      "name": "restore_after_mutation",
+      "passed": true
+    },
+    {
+      "name": "completed_mutation_not_repeated",
+      "passed": true
+    },
+    {
+      "name": "live_apply",
+      "passed": true
+    },
+    {
+      "name": "edited_line_runs",
+      "passed": true
+    },
+    {
+      "name": "edited_command_changes_world",
+      "passed": true
+    },
+    {
+      "name": "invalid_edit_rejected",
+      "passed": true
+    },
+    {
+      "name": "working_source_retained",
+      "passed": true
+    },
+    {
+      "name": "loop_reset_world",
+      "passed": true
+    },
+    {
+      "name": "loop_retains_knowledge_and_edits",
+      "passed": true
+    },
+    {
+      "name": "save_reload_edited_source",
+      "passed": true
+    }
+  ],
+  "dialogue_manager": "4.1.0",
+  "godot": "4.7.2-stable (official)",
+  "passed": true,
+  "platform": "Web"
+}

@@ -1,0 +1,71 @@
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Cache pinned Godot tools
+        uses: actions/cache@v4
+        with:
+          path: .tools
+          key: godot-linux-${{ hashFiles('.godot-version', 'tools/setup-godot.py') }}
+      - name: Install Godot and export templates
+        run: python tools/setup-godot.py
+      - name: Import project
+        run: .tools/godot/godot --headless --path . --editor --import
+      - name: Run authoring probe checks
+        run: |
+          mkdir -p build/web build/windows
+          .tools/godot/godot --headless --path . -- --probe-test --save-path="$PWD/build/probe-save.json" --report="$PWD/build/probe-results.json"
+          python -c "import json; assert json.load(open('build/probe-results.json'))['passed']"
+      - name: Export Web and Windows
+        run: |
+          .tools/godot/godot --headless --path . --export-release Web build/web/index.html
+          .tools/godot/godot --headless --path . --export-release Windows build/windows/Amelia.exe
+          test -s build/web/index.html
+          test -s build/web/index.wasm
+          test -s build/windows/Amelia.exe
+          touch build/web/.nojekyll
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: amelia-windows
+          path: build/windows/
+          if-no-files-found: error
+      - name: Upload Pages build
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/web/
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - uses: actions/deploy-pages@v4
+        id: deployment

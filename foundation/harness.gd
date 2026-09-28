@@ -27,13 +27,15 @@ var state_label: Label
 var canvas: Control
 var queued_interaction := ""
 var queued_cancel := false
-var queued_dialogue_start := false
+var queued_dialogue_id := ""
 var queued_dialogue_advance := false
 var wheel_selection := 0
 var scrubber: HSlider
 var source_editor: CodeEdit
 var scenario_source_editor: CodeEdit
 var suppress_scenario_signal := false
+var storylet_scene_editor: CodeEdit
+var suppress_storylet_scene_signal := false
 var rewinding := false
 var rewind_tick := 0
 var actor_frames: Dictionary = {}
@@ -52,6 +54,12 @@ var actor_sprite_edit: OptionButton
 var commitment_id_edit: LineEdit
 var commitment_speed_edit: SpinBox
 var schedule_timeline: HSlider
+var storylet_id_edit: LineEdit
+var scene_id_edit: LineEdit
+var required_actor_edit: LineEdit
+var storylet_start_edit: SpinBox
+var storylet_end_edit: SpinBox
+var storylet_flag_edit: OptionButton
 var image_dialog: FileDialog
 var web_file_callback: JavaScriptObject
 
@@ -87,6 +95,7 @@ func _ready() -> void:
 	add_child(authoring_timer)
 	document.changed.connect(_schedule_authoring_save)
 	document.changed.connect(_sync_scenario_source)
+	document.changed.connect(_sync_storylet_scene_source)
 	_build_ui()
 	if not save_enabled:
 		status_label.text = "Save unavailable: existing save invalid. It was not overwritten."
@@ -143,9 +152,9 @@ func _process(delta: float) -> void:
 		if queued_cancel:
 			command.cancel_action = true
 			queued_cancel = false
-		if queued_dialogue_start:
-			command.start_dialogue = true
-			queued_dialogue_start = false
+		if not queued_dialogue_id.is_empty():
+			command.start_dialogue = queued_dialogue_id
+			queued_dialogue_id = ""
 		if queued_dialogue_advance:
 			command.advance_dialogue = true
 			queued_dialogue_advance = false
@@ -174,7 +183,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			var choices := _local_choices()
 			var selection := 0 if event.is_action_pressed("interaction_one") else 1 if event.is_action_pressed("interaction_two") else wheel_selection
 			if selection < choices.size():
-				if choices[selection].kind == "dialogue": queued_dialogue_start = true
+				if choices[selection].kind == "dialogue": queued_dialogue_id = str(choices[selection].id)
 				else: queued_interaction = choices[selection].id
 			else:
 				status_label.text = "No local interaction is available."
@@ -283,6 +292,35 @@ func _build_ui() -> void:
 	schedule_timeline.drag_ended.connect(func(changed: bool):
 		if changed: _move_commitment_on_timeline(commitment_id_edit.text.strip_edges(), int(schedule_timeline.value)))
 	controls.add_child(schedule_timeline)
+	storylet_id_edit = LineEdit.new()
+	storylet_id_edit.placeholder_text = "Storylet ID"
+	storylet_id_edit.custom_minimum_size.x = 105
+	storylet_id_edit.text_changed.connect(func(_text: String): _sync_storylet_form())
+	controls.add_child(storylet_id_edit)
+	scene_id_edit = LineEdit.new()
+	scene_id_edit.placeholder_text = "Scene ID"
+	scene_id_edit.custom_minimum_size.x = 90
+	scene_id_edit.text_changed.connect(func(_text: String): _sync_storylet_scene_source())
+	controls.add_child(scene_id_edit)
+	required_actor_edit = LineEdit.new()
+	required_actor_edit.placeholder_text = "Required actor IDs"
+	required_actor_edit.custom_minimum_size.x = 135
+	controls.add_child(required_actor_edit)
+	storylet_start_edit = SpinBox.new()
+	storylet_start_edit.max_value = Simulation.LEG_TICKS
+	storylet_start_edit.suffix = "from tick"
+	controls.add_child(storylet_start_edit)
+	storylet_end_edit = SpinBox.new()
+	storylet_end_edit.max_value = Simulation.LEG_TICKS
+	storylet_end_edit.value = Simulation.LEG_TICKS
+	storylet_end_edit.suffix = "through tick"
+	controls.add_child(storylet_end_edit)
+	storylet_flag_edit = OptionButton.new()
+	storylet_flag_edit.add_item("Any valve state")
+	storylet_flag_edit.add_item("Valve closed")
+	storylet_flag_edit.add_item("Valve open")
+	controls.add_child(storylet_flag_edit)
+	_button(controls, "Save storylet", _save_storylet)
 	image_dialog = FileDialog.new()
 	image_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	image_dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -304,6 +342,12 @@ func _build_ui() -> void:
 	scenario_source_editor.custom_minimum_size.y = 150
 	scenario_source_editor.visible = false
 	column.add_child(scenario_source_editor)
+	storylet_scene_editor = CodeEdit.new()
+	storylet_scene_editor.text_changed.connect(_on_storylet_scene_changed)
+	storylet_scene_editor.focus_exited.connect(func(): document.finish_scene_group())
+	storylet_scene_editor.custom_minimum_size.y = 100
+	storylet_scene_editor.visible = false
+	column.add_child(storylet_scene_editor)
 	status_label = Label.new()
 	status_label.text = "WASD / left stick moves Amelia. 1–2 / right stick + RB chooses a local action."
 	column.add_child(status_label)
@@ -506,8 +550,8 @@ func _shown_content(shown: Dictionary) -> Dictionary:
 
 func _local_choices() -> Array[Dictionary]:
 	var choices: Array[Dictionary] = []
-	if simulation.dialogue_available():
-		choices.append({"kind": "dialogue", "id": "chatterbox", "label": "Talk"})
+	for storylet in simulation.available_storylets():
+		choices.append({"kind": "dialogue", "id": storylet.id, "label": storylet.label})
 	for interaction in simulation.available_interactions():
 		choices.append({"kind": "action", "id": interaction.id, "label": interaction.label})
 	return choices
@@ -516,8 +560,10 @@ func _pause() -> void:
 	session.pause()
 	_show_source(document.source_draft)
 	_show_scenario_source(document.scenario_draft)
+	_sync_storylet_scene_source()
 	source_editor.visible = true
 	scenario_source_editor.visible = true
+	storylet_scene_editor.visible = true
 	status_label.text = "Paused. Edit the Dialogue Manager scene, then resume to validate and apply."
 
 func _resume(from_history: bool) -> void:
@@ -532,6 +578,7 @@ func _resume(from_history: bool) -> void:
 	geometry_mode = ""
 	source_editor.visible = false
 	scenario_source_editor.visible = false
+	storylet_scene_editor.visible = false
 	status_label.text = "Continued from recorded time" if target_tick >= 0 else "Running"
 	facing_history.clear()
 
@@ -545,6 +592,7 @@ func _undo_edit() -> void:
 		return
 	_show_source(document.source_draft)
 	_show_scenario_source(document.scenario_draft)
+	_sync_storylet_scene_source()
 	if _room_in(document.content, inspected_room).is_empty():
 		inspected_room = str(document.content.rooms[0].id)
 	status_label.text = "Undid: " + label
@@ -559,6 +607,7 @@ func _redo_edit() -> void:
 		return
 	_show_source(document.source_draft)
 	_show_scenario_source(document.scenario_draft)
+	_sync_storylet_scene_source()
 	status_label.text = "Redid: " + label
 
 func _show_source(source: String) -> void:
@@ -572,6 +621,39 @@ func _show_scenario_source(source: String) -> void:
 	suppress_scenario_signal = true
 	scenario_source_editor.text = source
 	suppress_scenario_signal = false
+
+func _sync_storylet_scene_source() -> void:
+	if not is_instance_valid(storylet_scene_editor) or storylet_scene_editor.has_focus():
+		return
+	var scene_id := scene_id_edit.text.strip_edges() if is_instance_valid(scene_id_edit) else ""
+	suppress_storylet_scene_signal = true
+	storylet_scene_editor.text = str(document.scene_drafts.get(scene_id, ""))
+	suppress_storylet_scene_signal = false
+
+func _on_storylet_scene_changed() -> void:
+	if not session.paused or suppress_storylet_scene_signal:
+		return
+	var scene_id := scene_id_edit.text.strip_edges()
+	if scene_id.is_empty():
+		status_label.text = "Enter a scene ID before editing its source."
+		return
+	document.set_scene_source(scene_id, storylet_scene_editor.text)
+	if document.scene_errors.has(scene_id):
+		status_label.text = "Scene %s: %s" % [scene_id, document.scene_errors[scene_id]]
+	_refresh()
+
+func _sync_storylet_form() -> void:
+	if not is_instance_valid(storylet_id_edit) or not is_instance_valid(scene_id_edit):
+		return
+	for storylet in document.content.get("storylets", []):
+		if storylet.id == storylet_id_edit.text.strip_edges():
+			if not scene_id_edit.has_focus(): scene_id_edit.text = str(storylet.scene)
+			if not required_actor_edit.has_focus(): required_actor_edit.text = ", ".join(storylet.required_actors)
+			storylet_start_edit.value = int(storylet.start_tick)
+			storylet_end_edit.value = int(storylet.end_tick)
+			var required: Dictionary = storylet.get("required_flags", {})
+			storylet_flag_edit.select(0 if not required.has("close_valve") else 1 if required.close_valve else 2)
+			return
 
 func _sync_scenario_source() -> void:
 	if is_instance_valid(scenario_source_editor) and not scenario_source_editor.has_focus():
@@ -591,6 +673,7 @@ func _sync_scenario_source() -> void:
 				schedule_timeline.set_value_no_signal(float(commitment.at_tick))
 				commitment_speed_edit.value = float(commitment.speed)
 				break
+	_sync_storylet_form()
 
 func _on_scenario_source_changed() -> void:
 	if session.paused and not suppress_scenario_signal:
@@ -909,6 +992,44 @@ func _show_schedule_warning(actor_id: String) -> void:
 			status_label.text = str(warning.message)
 			return
 
+func _save_storylet() -> void:
+	if not session.paused or rewinding:
+		status_label.text = "Pause before authoring a storylet."
+		return
+	var storylet_id := storylet_id_edit.text.strip_edges()
+	var scene_id := scene_id_edit.text.strip_edges()
+	if storylet_id.is_empty() or scene_id.is_empty():
+		status_label.text = "Enter both a storylet ID and scene ID."
+		return
+	var required: Array[String] = []
+	for raw_id in required_actor_edit.text.split(","):
+		var actor_id := raw_id.strip_edges()
+		if not actor_id.is_empty() and not required.has(actor_id):
+			required.append(actor_id)
+	var next_content := document.content.duplicate(true)
+	var entry: Dictionary = {}
+	for storylet in next_content.get("storylets", []):
+		if storylet.id == storylet_id:
+			entry = storylet
+			break
+	if entry.is_empty():
+		entry = {"id": storylet_id}
+		next_content.storylets.append(entry)
+	entry.scene = scene_id
+	entry.label = storylet_id.capitalize()
+	entry.room = inspected_room
+	entry.required_actors = required
+	entry.start_tick = int(storylet_start_edit.value)
+	entry.end_tick = int(storylet_end_edit.value)
+	entry.required_flags = {}
+	if storylet_flag_edit.selected > 0:
+		entry.required_flags.close_valve = storylet_flag_edit.selected == 1
+	entry.priority = 0
+	document.replace_content(next_content, "Save storylet %s" % storylet_id)
+	var errors := document.validate()
+	status_label.text = "Saved storylet draft; resume checks eligibility." if errors.is_empty() else "Storylet draft: " + "; ".join(errors)
+	_refresh()
+
 func _import_background() -> void:
 	if not session.paused or rewinding:
 		status_label.text = "Pause before importing a room background."
@@ -981,6 +1102,7 @@ func _reset_pressed() -> void:
 	rewind_tick = simulation.state.tick
 	source_editor.visible = false
 	scenario_source_editor.visible = false
+	storylet_scene_editor.visible = false
 	status_label.text = "Rewinding recorded history. Press R again to skip."
 	if rewind_tick == 0: _finish_rewind()
 

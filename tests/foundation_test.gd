@@ -9,6 +9,7 @@ const ProjectAssets = preload("res://foundation/project_assets.gd")
 const RoomGeometry = preload("res://foundation/room_geometry.gd")
 const AuthoringStore = preload("res://foundation/authoring_store.gd")
 const Harness = preload("res://foundation/harness.gd")
+const Scenario = preload("res://foundation/scenario.gd")
 var failures: Array[String] = []
 
 func _initialize() -> void:
@@ -294,6 +295,128 @@ func run() -> void:
 	fractional_schedule.commitments[-1].at_tick = 10.5
 	expect("; ".join(Content.validate(fractional_schedule)).contains("invalid timing or speed"), "fractional_schedule_tick_rejected")
 	schedule_ui.free()
+	var story_scenario := scenario.duplicate(true)
+	story_scenario.actors.append({"id": "guard", "room": "service", "x": 330.0, "y": 160.0, "sprite": "ex_army"})
+	story_scenario.scenes.signal_scene = "~ start\nGuard: The signal is set.\ndo delay_guest(25)\nAmelia: Then we wait.\n=> END"
+	story_scenario.storylets.append({"id": "signal", "scene": "signal_scene", "label": "Signal the guest", "room": "service", "required_actors": ["guard"], "start_tick": 75, "end_tick": 150, "required_flags": {"close_valve": true}, "priority": 10})
+	expect(Content.validate(story_scenario).is_empty(), "conditioned_storylet_valid")
+	var story_run := Simulation.new(story_scenario)
+	for i in range(48): story_run.tick({"x": 1.0})
+	expect(not str(story_run.available_storylets()).contains("signal_scene"), "storylet_blocked_before_time_and_world_condition")
+	story_run.tick({"start_interaction": "valve"})
+	for i in range(30): story_run.tick()
+	expect(story_run.state.flags.close_valve and story_run.available_storylets().size() == 1 and story_run.available_storylets()[0].id == "signal", "storylet_eligible_after_character_time_and_flag")
+	var priority_story := story_scenario.duplicate(true)
+	priority_story.scenes.other_scene = "~ start\nGuard: Another lead.\n=> END"
+	var lower_priority: Dictionary = priority_story.storylets[0].duplicate(true)
+	lower_priority.id = "other"
+	lower_priority.scene = "other_scene"
+	lower_priority.priority = 5
+	priority_story.storylets.append(lower_priority)
+	var priority_compiled: Dictionary = Scenario.compile(priority_story)
+	expect(priority_compiled.ok and priority_compiled.scenario.available_storylets(story_run.inspect())[0].id == "signal", "eligible_storylet_order_deterministic")
+	story_run.tick({"start_dialogue": "signal"})
+	expect(story_run.state.dialogue.scene_id == "signal_scene" and str(story_run.state.dialogue.line).begins_with("Guard:"), "authored_scene_selected_deterministically")
+	var renamed_active_storylet := story_run.content.duplicate(true)
+	renamed_active_storylet.version = "renamed-active-storylet"
+	renamed_active_storylet.storylets[0].id = "signal_renamed"
+	var active_story_history := story_run.history.duplicate(true)
+	expect(story_run.continue_with_content(renamed_active_storylet).restart and story_run.history == active_story_history, "active_storylet_identity_change_rejected")
+	story_run.tick({"advance_dialogue": true})
+	for i in range(3): story_run.tick()
+	var story_path := "res://build/storylet-mid-scene-%d.jsonl" % OS.get_process_id()
+	story_run.attach_journal(story_path)
+	expect(story_run.persist().ok, "authored_scene_midline_saved")
+	var story_reopened := Simulation.new(story_scenario)
+	story_reopened.attach_journal(story_path)
+	expect(story_reopened.load_saved().ok and story_reopened.state.dialogue.scene_id == "signal_scene", "authored_scene_midline_reloaded")
+	for i in range(Simulation.DIALOGUE_TICKS - 3):
+		story_run.tick()
+		story_reopened.tick()
+	expect(story_reopened.inspect() == story_run.inspect(), "authored_scene_reload_keeps_deterministic_effect")
+	expect(story_run.state.flags.guest_delay_ticks == 25, "authored_scene_command_effect_runs")
+	story_run.tick({"advance_dialogue": true})
+	for i in range(Simulation.DIALOGUE_TICKS): story_run.tick()
+	expect(story_run.state.completed_storylets.has("signal") and not str(story_run.available_storylets()).contains("signal_scene"), "completed_storylet_not_reoffered")
+	var unrelated_scene := story_run.content.duplicate(true)
+	unrelated_scene.version = "unrelated-story-scene"
+	unrelated_scene.scenes.extra_scene = "~ start\nGuard: Another scene.\n=> END"
+	expect(story_run.continue_with_content(unrelated_scene).ok, "unrelated_scene_edit_applies_after_completion")
+	var effect_before: int = int(story_run.state.flags.guest_delay_ticks)
+	story_run.tick({"start_dialogue": "signal"})
+	expect(story_run.state.flags.guest_delay_ticks == effect_before and story_run.state.dialogue.is_empty(), "unrelated_scene_edit_does_not_replay_completed_effect")
+	var shared_scene_scenario := story_scenario.duplicate(true)
+	var second_shared: Dictionary = shared_scene_scenario.storylets[0].duplicate(true)
+	second_shared.id = "signal_again"
+	second_shared.priority = 5
+	shared_scene_scenario.storylets.append(second_shared)
+	var shared_scene_run := Simulation.new(shared_scene_scenario)
+	for i in range(48): shared_scene_run.tick({"x": 1.0})
+	shared_scene_run.tick({"start_interaction": "valve"})
+	for i in range(30): shared_scene_run.tick()
+	for storylet_id in ["signal", "signal_again"]:
+		shared_scene_run.tick({"start_dialogue": storylet_id})
+		shared_scene_run.tick({"advance_dialogue": true})
+		for i in range(Simulation.DIALOGUE_TICKS): shared_scene_run.tick()
+		shared_scene_run.tick({"advance_dialogue": true})
+		for i in range(Simulation.DIALOGUE_TICKS): shared_scene_run.tick()
+	expect(shared_scene_run.state.completed_storylets.has("signal") and shared_scene_run.state.completed_storylets.has("signal_again") and shared_scene_run.state.flags.guest_delay_ticks == 50, "shared_scene_effects_scoped_to_storylet_identity")
+	var missing_scene := story_scenario.duplicate(true)
+	missing_scene.storylets[0].scene = "missing"
+	expect("; ".join(Content.validate(missing_scene)).contains("references missing scene"), "missing_storylet_scene_rejected")
+	var missing_story_actor := story_scenario.duplicate(true)
+	missing_story_actor.storylets[0].required_actors = ["nobody"]
+	expect("; ".join(Content.validate(missing_story_actor)).contains("references missing actor"), "missing_storylet_actor_rejected")
+	var invalid_scene_command := story_scenario.duplicate(true)
+	invalid_scene_command.scenes.signal_scene = str(invalid_scene_command.scenes.signal_scene).replace("delay_guest(25)", "mutate_world(25)")
+	expect("; ".join(Content.validate(invalid_scene_command)).contains("Unknown world command"), "invalid_authored_command_rejected")
+	var intentionally_inaccessible := story_scenario.duplicate(true)
+	intentionally_inaccessible.storylets[0].start_tick = 0
+	intentionally_inaccessible.storylets[0].end_tick = 10
+	expect(Content.validate(intentionally_inaccessible).is_empty(), "intentional_inaccessible_storylet_does_not_fail_validation")
+	var story_ui := Harness.new()
+	var story_base := story_scenario.duplicate(true)
+	story_base.scenes.clear()
+	story_base.storylets.clear()
+	story_ui.simulation = Simulation.new(story_base)
+	story_ui.session = AuthoringSession.new(story_ui.simulation)
+	story_ui.document = story_ui.session.document
+	story_ui.session.pause()
+	story_ui.status_label = Label.new()
+	story_ui.storylet_id_edit = LineEdit.new()
+	story_ui.storylet_id_edit.text = "signal"
+	story_ui.scene_id_edit = LineEdit.new()
+	story_ui.scene_id_edit.text = "signal_scene"
+	story_ui.required_actor_edit = LineEdit.new()
+	story_ui.required_actor_edit.text = "guard"
+	story_ui.storylet_start_edit = SpinBox.new()
+	story_ui.storylet_start_edit.value = 75
+	story_ui.storylet_end_edit = SpinBox.new()
+	story_ui.storylet_end_edit.value = 150
+	story_ui.storylet_flag_edit = OptionButton.new()
+	for caption in ["Any valve state", "Valve closed", "Valve open"]:
+		story_ui.storylet_flag_edit.add_item(caption)
+	story_ui.storylet_flag_edit.select(1)
+	story_ui.storylet_scene_editor = CodeEdit.new()
+	story_ui.storylet_scene_editor.text = str(story_scenario.scenes.signal_scene)
+	story_ui._on_storylet_scene_changed()
+	story_ui.document.finish_scene_group()
+	story_ui._save_storylet()
+	expect(story_ui.document.content.storylets.size() == 1 and story_ui.document.content.storylets[0].required_flags.close_valve and story_ui.document.validate().is_empty(), "storylet_form_and_scene_share_document")
+	expect(story_ui.document.undo() == "Save storylet signal" and story_ui.document.content.storylets.is_empty(), "storylet_form_undo")
+	expect(story_ui.document.undo() == "Edit scene signal_scene" and story_ui.document.content.scenes.is_empty(), "storylet_scene_source_undo")
+	expect(story_ui.document.redo() == "Edit scene signal_scene" and story_ui.document.redo() == "Save storylet signal", "storylet_scene_and_form_redo")
+	story_ui.storylet_scene_editor.text = "~ start\nGuard: Broken.\ndo mutate_world(1)\n=> END"
+	story_ui._on_storylet_scene_changed()
+	var story_draft_run := Simulation.new(story_base)
+	var story_draft_history := story_draft_run.history.duplicate(true)
+	expect(not story_ui.document.apply_to(story_draft_run).ok and story_draft_run.history == story_draft_history and story_ui.document.content.scenes.signal_scene == story_scenario.scenes.signal_scene, "invalid_storylet_scene_preserves_valid_content")
+	var reopened_scene_draft := AuthoringDocument.new(story_base)
+	expect(reopened_scene_draft.restore(story_ui.document.serialize()) and reopened_scene_draft.scene_errors.has("signal_scene") and reopened_scene_draft.scene_drafts.signal_scene.contains("mutate_world"), "invalid_storylet_scene_draft_recovers")
+	story_ui.document.set_scenario_source(JSON.stringify(story_ui.document.content, "\t") + "\n")
+	expect(story_ui.document.scene_errors.is_empty() and story_ui.document.validate().is_empty() and story_ui.document.scene_drafts.signal_scene == story_scenario.scenes.signal_scene, "valid_scenario_source_repairs_invalid_scene_draft")
+	expect(story_ui.document.undo() == "Edit scenario source" and story_ui.document.scene_errors.has("signal_scene"), "scenario_source_repair_retains_invalid_scene_in_undo")
+	story_ui.free()
 	var broken := scenario.duplicate(true)
 	broken.connections[0].to = "missing"
 	expect(not Content.validate(broken).is_empty(), "broken_connection_rejected")

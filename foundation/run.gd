@@ -31,7 +31,7 @@ func _init(scenario: Dictionary = {}) -> void:
 	var actor_state := {}
 	for actor in content.actors:
 		actor_state[actor.id] = {"room": actor.room, "x": float(actor.x), "y": float(actor.y), "activity": "idle", "destination": ""}
-	state = {"tick": 0, "loop_index": 0, "code": _code_for_loop(0), "actors": actor_state, "commitments_started": [], "completed_interactions": [], "completed_world_commands": [], "flags": {}, "action": {}, "dialogue": {}, "diary_observations": [], "current_knowledge": [], "content_version": content.version, "events": [], "diagnostics": {}}
+	state = {"tick": 0, "loop_index": 0, "code": _code_for_loop(0), "actors": actor_state, "commitments_started": [], "completed_interactions": [], "completed_storylets": [], "completed_world_commands": [], "flags": {}, "action": {}, "dialogue": {}, "diary_observations": [], "current_knowledge": [], "content_version": content.version, "events": [], "diagnostics": {}}
 	_record_diagnostics()
 	history.append(inspect())
 
@@ -83,6 +83,8 @@ func _normalize_snapshot(source: Dictionary) -> Dictionary:
 	snapshot.loop_index = int(snapshot.get("loop_index", 0))
 	if not snapshot.has("completed_interactions"):
 		snapshot.completed_interactions = []
+	if not snapshot.has("completed_storylets"):
+		snapshot.completed_storylets = []
 	if not snapshot.action.is_empty():
 		snapshot.action.progress = int(snapshot.action.progress)
 		snapshot.action.duration = int(snapshot.action.duration)
@@ -193,8 +195,15 @@ func continue_with_content(next_content: Dictionary, from_tick: int = -1) -> Dic
 		var new_interaction := _find_interaction(next_content, str(restored.action.id))
 		if old_interaction != new_interaction:
 			return {"ok": false, "reason": "Active action structure changed; restart the leg", "restart": true}
-	if not restored.dialogue.is_empty() and historical_content.dialogue != next_content.dialogue:
-		return {"ok": false, "reason": "Active dialogue changed; restart the leg", "restart": true}
+	if not restored.dialogue.is_empty():
+		var active_storylet := str(restored.dialogue.get("storylet_id", "legacy"))
+		if active_storylet != "legacy" and _find_storylet(historical_content, active_storylet) != _find_storylet(next_content, active_storylet):
+			return {"ok": false, "reason": "Active storylet %s changed; restart before editing its identity or conditions" % active_storylet, "restart": true}
+		var active_scene := str(restored.dialogue.get("scene_id", "legacy"))
+		var old_scene: Variant = historical_content.dialogue if active_scene == "legacy" else historical_content.get("scenes", {}).get(active_scene)
+		var new_scene: Variant = next_content.dialogue if active_scene == "legacy" else next_content.get("scenes", {}).get(active_scene)
+		if old_scene != new_scene:
+			return {"ok": false, "reason": "Active dialogue scene %s changed; restart the leg" % active_scene, "restart": true}
 	state = restored.duplicate(true)
 	content = next_content.duplicate(true)
 	authored = compiled.scenario
@@ -215,6 +224,12 @@ func _find_commitment(in_content: Dictionary, id: String) -> Dictionary:
 	for commitment in in_content.commitments:
 		if commitment.id == id:
 			return commitment
+	return {}
+
+func _find_storylet(in_content: Dictionary, id: String) -> Dictionary:
+	for storylet in in_content.get("storylets", []):
+		if storylet.id == id:
+			return storylet
 	return {}
 
 func step_next_event() -> Dictionary:
@@ -262,43 +277,71 @@ func _cancel_action(reason: String) -> void:
 func dialogue_available() -> bool:
 	return authored.dialogue_available(state)
 
+func available_storylets() -> Array[Dictionary]:
+	return authored.available_storylets(state)
+
 func _advance_dialogue(input: Dictionary) -> void:
-	if bool(input.get("start_dialogue", false)) and dialogue_available():
-		state.dialogue = {"cursor": 0, "remaining": 0, "line": _line_text(0), "completed_commands": []}
-		_observe_line(0)
-		_emit("dialogue_started", "chatterbox", "start")
-		return
+	var requested: Variant = input.get("start_dialogue", false)
+	var start_requested := false
+	if requested is bool:
+		start_requested = requested
+	elif requested is String:
+		start_requested = not str(requested).is_empty()
+	if start_requested and dialogue_available():
+		var selected: Dictionary = {}
+		for candidate in available_storylets():
+			if requested is bool or str(candidate.id) == str(requested):
+				selected = candidate
+				break
+		if not selected.is_empty():
+			var scene_id := str(selected.scene)
+			state.dialogue = {"storylet_id": selected.id, "scene_id": scene_id, "cursor": 0, "remaining": 0, "line": _line_text(0, scene_id), "completed_commands": []}
+			_apply_step_commands(state.dialogue, scene_id, 0)
+			_observe_line(0, scene_id)
+			_emit("dialogue_started", str(selected.id), scene_id)
+			return
 	if state.dialogue.is_empty():
 		return
 	var dialogue: Dictionary = state.dialogue
+	var scene_id := str(dialogue.get("scene_id", "legacy"))
+	var steps := authored.steps_for(scene_id)
 	if int(dialogue.remaining) > 0:
 		dialogue.remaining -= 1
 		if int(dialogue.remaining) == 0:
 			var next_cursor: int = int(dialogue.cursor) + 1
-			if next_cursor >= dialogue_steps.size():
-				_emit("dialogue_finished", "amelia", "start")
+			if next_cursor >= steps.size():
+				var storylet_id := str(dialogue.get("storylet_id", "legacy"))
+				if storylet_id != "legacy" and not state.completed_storylets.has(storylet_id):
+					state.completed_storylets.append(storylet_id)
+				_emit("dialogue_finished", "amelia", storylet_id)
 				state.dialogue = {}
 			else:
-				for command_index in dialogue_steps[next_cursor].commands_before.size():
-					var command: Dictionary = dialogue_steps[next_cursor].commands_before[command_index]
-					var command_key := "%d:%d" % [next_cursor, command_index]
-					if not dialogue.completed_commands.has(command_key) and not state.completed_world_commands.has(command_key):
-						_apply_dialogue_command(command)
-						dialogue.completed_commands.append(command_key)
-						state.completed_world_commands.append(command_key)
+				_apply_step_commands(dialogue, scene_id, next_cursor)
 				dialogue.cursor = next_cursor
-				dialogue.line = _line_text(next_cursor)
-				_observe_line(next_cursor)
-				_emit("dialogue_line", str(dialogue_steps[next_cursor].speaker), str(dialogue.line))
+				dialogue.line = _line_text(next_cursor, scene_id)
+				_observe_line(next_cursor, scene_id)
+				_emit("dialogue_line", str(steps[next_cursor].speaker), str(dialogue.line))
 	elif bool(input.get("advance_dialogue", false)):
 		dialogue.remaining = DIALOGUE_TICKS
 		_emit("dialogue_step_started", "amelia", str(dialogue.cursor))
 
-func _line_text(cursor: int) -> String:
-	return "%s: %s" % [dialogue_steps[cursor].speaker, dialogue_steps[cursor].text]
+func _apply_step_commands(dialogue: Dictionary, scene_id: String, cursor: int) -> void:
+	var steps := authored.steps_for(scene_id)
+	for command_index in steps[cursor].commands_before.size():
+		var command: Dictionary = steps[cursor].commands_before[command_index]
+		var storylet_id := str(dialogue.get("storylet_id", "legacy"))
+		var command_key := "%d:%d" % [cursor, command_index] if storylet_id == "legacy" else "%s:%s:%d:%d" % [storylet_id, scene_id, cursor, command_index]
+		if not dialogue.completed_commands.has(command_key) and not state.completed_world_commands.has(command_key):
+			_apply_dialogue_command(command)
+			dialogue.completed_commands.append(command_key)
+			state.completed_world_commands.append(command_key)
 
-func _observe_line(cursor: int) -> void:
-	var key := "%s:%d" % [content.version, cursor]
+func _line_text(cursor: int, scene_id: String = "legacy") -> String:
+	var steps := authored.steps_for(scene_id)
+	return "%s: %s" % [steps[cursor].speaker, steps[cursor].text]
+
+func _observe_line(cursor: int, scene_id: String = "legacy") -> void:
+	var key := "%s:%d" % [content.version, cursor] if scene_id == "legacy" else "%s:%s:%d" % [content.version, scene_id, cursor]
 	if not state.diary_observations.has(key):
 		state.diary_observations.append(key)
 

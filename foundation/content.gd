@@ -12,6 +12,8 @@ static func scenario() -> Dictionary:
 		"schema": SCHEMA,
 		"version": "two-room-1",
 		"assets": {},
+		"scenes": {},
+		"storylets": [],
 		"rooms": [
 			{"id": "service", "name": "Service Room", "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]]},
 			{"id": "corridor", "name": "Party Corridor", "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]]},
@@ -177,6 +179,53 @@ static func validate(data: Dictionary) -> Array[String]:
 				errors.append("Interaction %s is unreachable from Amelia through authored walkable regions and room connections" % interaction.id)
 	var actor_ids: Array[String] = []
 	for id in actors: actor_ids.append(id)
+	var scenes: Variant = data.get("scenes", {})
+	if not scenes is Dictionary:
+		errors.append("Scenes must be a dictionary of Dialogue Manager source text")
+		scenes = {}
+	for scene_id in scenes:
+		if str(scene_id).is_empty() or scene_id == "legacy" or not scenes[scene_id] is String:
+			errors.append("Scene %s needs an ID and source text" % scene_id)
+		else:
+			for problem in Dialogue.parse(str(scenes[scene_id]), actor_ids).errors:
+				errors.append("Scene %s: %s" % [scene_id, problem])
+	var storylets: Variant = data.get("storylets", [])
+	if not storylets is Array:
+		errors.append("Storylets must be an array")
+		storylets = []
+	var storylet_ids := {}
+	for storylet in storylets:
+		if not storylet is Dictionary:
+			errors.append("Storylet entry must be an object")
+			continue
+		var storylet_id := str(storylet.get("id", ""))
+		if storylet_id.is_empty() or storylet_id == "legacy" or storylet_ids.has(storylet_id):
+			errors.append("Storylet ID missing or duplicated: " + storylet_id)
+		storylet_ids[storylet_id] = true
+		if not scenes.has(storylet.get("scene", "")):
+			errors.append("Storylet %s references missing scene %s" % [storylet_id, storylet.get("scene", "")])
+		if not rooms.has(storylet.get("room", "")):
+			errors.append("Storylet %s references missing room %s" % [storylet_id, storylet.get("room", "")])
+		var required: Variant = storylet.get("required_actors")
+		if not required is Array or required.is_empty():
+			errors.append("Storylet %s needs at least one required actor" % storylet_id)
+		else:
+			for actor_id in required:
+				if not actors.has(actor_id):
+					errors.append("Storylet %s references missing actor %s" % [storylet_id, actor_id])
+		if not _number(storylet.get("start_tick")) or not _number(storylet.get("end_tick")):
+			errors.append("Storylet %s needs numeric time window" % storylet_id)
+		elif float(storylet.start_tick) != float(int(storylet.start_tick)) or float(storylet.end_tick) != float(int(storylet.end_tick)) or int(storylet.start_tick) < 0 or int(storylet.end_tick) > 10800 or int(storylet.start_tick) > int(storylet.end_tick):
+			errors.append("Storylet %s has invalid time window" % storylet_id)
+		if not _number(storylet.get("priority", 0)):
+			errors.append("Storylet %s needs numeric priority" % storylet_id)
+		var flags: Variant = storylet.get("required_flags", {})
+		if not flags is Dictionary:
+			errors.append("Storylet %s conditions must be a flag dictionary" % storylet_id)
+		else:
+			for flag in flags:
+				if not str(flag) in ["close_valve"] or not flags[flag] is bool:
+					errors.append("Storylet %s has unsupported condition %s" % [storylet_id, flag])
 	if not data.get("dialogue") is String:
 		errors.append("Dialogue source must be text")
 	else:

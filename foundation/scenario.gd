@@ -7,6 +7,7 @@ const Geometry = preload("res://foundation/room_geometry.gd")
 
 var source: Dictionary
 var dialogue_steps: Array[Dictionary] = []
+var scene_steps: Dictionary = {}
 
 static func compile(data: Dictionary) -> Dictionary:
 	var errors: Array[String] = Content.validate(data)
@@ -18,6 +19,8 @@ static func compile(data: Dictionary) -> Dictionary:
 	for actor in result.source.actors:
 		actor_ids.append(actor.id)
 	result.dialogue_steps.assign(Dialogue.parse(str(result.source.dialogue), actor_ids).steps)
+	for scene_id in result.source.get("scenes", {}):
+		result.scene_steps[scene_id] = Dialogue.parse(str(result.source.scenes[scene_id]), actor_ids).steps
 	return {"ok": true, "scenario": result}
 
 func interaction(id: String) -> Dictionary:
@@ -57,9 +60,44 @@ func available_interactions(state: Dictionary) -> Array[Dictionary]:
 	return available
 
 func dialogue_available(state: Dictionary) -> bool:
+	return not available_storylets(state).is_empty()
+
+func available_storylets(state: Dictionary) -> Array[Dictionary]:
+	var available: Array[Dictionary] = []
+	if not state.dialogue.is_empty() or not state.action.is_empty():
+		return available
+	var amelia: Dictionary = state.actors.amelia
+	for storylet in source.get("storylets", []):
+		if state.get("completed_storylets", []).has(storylet.id) or int(state.tick) < int(storylet.start_tick) or int(state.tick) > int(storylet.end_tick) or amelia.room != storylet.room:
+			continue
+		var eligible := true
+		for actor_id in storylet.required_actors:
+			var actor: Dictionary = state.actors[actor_id]
+			if actor.room != storylet.room or Vector2(float(amelia.x), float(amelia.y)).distance_to(Vector2(float(actor.x), float(actor.y))) > 65.0:
+				eligible = false
+				break
+		for flag in storylet.get("required_flags", {}):
+			if bool(state.flags.get(flag, false)) != bool(storylet.required_flags[flag]):
+				eligible = false
+				break
+		if eligible:
+			available.append({"id": storylet.id, "scene": storylet.scene, "label": storylet.get("label", storylet.id), "priority": int(storylet.get("priority", 0))})
+	if _legacy_dialogue_available(state):
+		available.append({"id": "legacy", "scene": "legacy", "label": "Talk", "priority": -1000})
+	available.sort_custom(func(left: Dictionary, right: Dictionary): return left.priority > right.priority or left.priority == right.priority and str(left.id) < str(right.id))
+	return available
+
+func _legacy_dialogue_available(state: Dictionary) -> bool:
 	var amelia: Dictionary = state.actors.amelia
 	var chatterbox: Dictionary = state.actors.chatterbox
 	return state.dialogue.is_empty() and state.action.is_empty() and amelia.room == chatterbox.room and Vector2(float(amelia.x), float(amelia.y)).distance_to(Vector2(float(chatterbox.x), float(chatterbox.y))) <= 65.0
+
+func steps_for(scene_id: String) -> Array[Dictionary]:
+	if scene_id == "legacy":
+		return dialogue_steps
+	var steps: Array[Dictionary] = []
+	steps.assign(scene_steps.get(scene_id, []))
+	return steps
 
 func complete_interaction(item: Dictionary, state: Dictionary) -> void:
 	state.completed_interactions.append(item.id)

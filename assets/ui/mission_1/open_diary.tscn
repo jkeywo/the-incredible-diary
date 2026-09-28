@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/ui/mission_1/diary_open.png" id="1"]
+
+[node name="OpenDiary" type="Control"]
+layout_mode = 3
+offset_right = 1160.0
+offset_bottom = 740.0
+
+[node name="BlankSpread" type="TextureRect" parent="."]
+layout_mode = 0
+offset_right = 1160.0
+offset_bottom = 740.0
+mouse_filter = 2
+texture = ExtResource("1")
+
+[node name="LeftPageContent" type="Control" parent="."]
+layout_mode = 0
+offset_left = 150.0
+offset_top = 115.0
+offset_right = 570.0
+offset_bottom = 615.0
+mouse_filter = 2
+
+[node name="RightPageContent" type="Control" parent="."]
+layout_mode = 0
+offset_left = 610.0
+offset_top = 115.0
+offset_right = 1010.0
+offset_bottom = 615.0
+mouse_filter = 2

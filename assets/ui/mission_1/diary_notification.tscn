@@ -1,0 +1,21 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://assets/ui/mission_1/diary_notification.gd" id="1"]
+
+[node name="DiaryNotification" type="Control"]
+layout_mode = 3
+offset_right = 410.0
+offset_bottom = 76.0
+mouse_filter = 2
+script = ExtResource("1")
+
+[node name="Message" type="Label" parent="."]
+layout_mode = 0
+offset_left = 66.0
+offset_top = 12.0
+offset_right = 393.0
+offset_bottom = 64.0
+theme_override_colors/font_color = Color(0.980392, 0.92549, 0.788235, 1)
+theme_override_font_sizes/font_size = 17
+text = "A new entry has appeared in the diary."
+autowrap_mode = 3

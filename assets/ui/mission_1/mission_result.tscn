@@ -1,0 +1,45 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://assets/ui/mission_1/mission_result.gd" id="1"]
+
+[node name="MissionResult" type="Control"]
+layout_mode = 3
+offset_right = 650.0
+offset_bottom = 420.0
+script = ExtResource("1")
+
+[node name="Heading" type="Label" parent="."]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 38.0
+offset_right = 610.0
+offset_bottom = 78.0
+theme_override_colors/font_color = Color(0.956863, 0.819608, 0.572549, 1)
+theme_override_font_sizes/font_size = 28
+text = "VOYAGE SUMMARY"
+horizontal_alignment = 1
+
+[node name="Outcome" type="Label" parent="."]
+layout_mode = 0
+offset_left = 50.0
+offset_top = 115.0
+offset_right = 600.0
+offset_bottom = 265.0
+theme_override_colors/font_color = Color(1, 0.952941, 0.847059, 1)
+theme_override_font_sizes/font_size = 22
+text = "The six Hours have ended."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="WitnessedNote" type="Label" parent="."]
+layout_mode = 0
+offset_left = 54.0
+offset_top = 332.0
+offset_right = 596.0
+offset_bottom = 388.0
+theme_override_colors/font_color = Color(0.85098, 0.811765, 0.72549, 1)
+theme_override_font_sizes/font_size = 16
+text = "Only what Amelia witnessed is recorded here."
+horizontal_alignment = 1
+autowrap_mode = 3

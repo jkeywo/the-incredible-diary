@@ -2,7 +2,12 @@
 
 Godot 4 / GDScript game and integrated authoring editor for Windows PC and web.
 
-**Current build:** a two-room simulation foundation harness. It is not Mission 1 or the completed editor. See [the design](docs/03_Updated_GDD.md), [foundation demonstration](docs/foundation/README.md), and [earlier probe results](docs/authoring-probe/README.md).
+**Current build:** the diary title screen opens onto a controllable Mission 1
+dock and foyer slice. The menu's Test Level button opens the separate two-room
+simulation foundation harness. The authored six-Hour Mission 1 rescue sequence
+and completed editor are still to be assembled. See [the design](docs/03_Updated_GDD.md),
+[opening slice](mission1/README.md), [foundation demonstration](docs/foundation/README.md),
+and [earlier probe results](docs/authoring-probe/README.md).
 
 ## Windows development
 
@@ -32,6 +37,10 @@ The web export uses Compatibility rendering and no threads, so it does not depen
 ## Save/history requirement
 
 The foundation harness now records and journals its full current leg, including historical diagnostics. The earlier probe's small snapshot save remains separate. See the GDD and foundation demonstration for current scope and limitations.
+
+The title menu's Continue and New use `mission1_opening_v1.json` in Godot user
+data. That separate opening save includes recorded movement history. New asks
+before clearing it and leaves foundation/test saves untouched.
 
 The foundation architecture refactor uses a new `foundation_run_v2.jsonl` save under Godot's user data directory. Earlier `foundation_run.jsonl` files are left untouched; this build starts a fresh foundation run.
 

@@ -21,7 +21,7 @@ Python 3 is needed only for tool installation and a convenient local HTTP server
 
 Open `project.godot` to edit. The Windows executable exports to `build/windows/Amelia.exe`. To preview the browser build, run `python -m http.server 8000 --directory build/web` and visit http://localhost:8000 . Use HTTP rather than opening the HTML file directly.
 
-On Windows, double-click `build-and-run.bat` to export the native game and launch it. If the pinned Godot tools are missing, it installs them first; that initial setup requires Python 3. Command-line arguments passed to the batch file are forwarded to the game.
+On Windows, double-click `build-and-run.bat` to export the native game and launch it. Close an existing `Amelia.exe` session before rebuilding, because Windows locks the running executable. If the pinned Godot tools are missing, the batch file installs them first; that initial setup requires Python 3. Command-line arguments passed to the batch file are forwarded to the game.
 
 ## Builds and GitHub Pages
 

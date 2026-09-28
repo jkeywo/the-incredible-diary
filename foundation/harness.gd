@@ -3,6 +3,10 @@ extends Control
 const Simulation = preload("res://foundation/simulation.gd")
 const Journal = preload("res://foundation/journal.gd")
 const Benchmark = preload("res://foundation/benchmark.gd")
+const CharacterSprite = preload("res://assets/characters/character_sprite.gd")
+const ValveSheet = preload("res://assets/props/valve_states.png")
+const ACTOR_ART := {"amelia": "player", "chatterbox": "matron", "guest": "rake"}
+const ACTOR_LABELS := {"amelia": "Amelia", "chatterbox": "Chatter Box", "guest": "Guest"}
 var simulation: FoundationSimulation
 var journal: FoundationJournal
 var save_enabled := true
@@ -22,9 +26,13 @@ var scrubber: HSlider
 var source_editor: CodeEdit
 var rewinding := false
 var rewind_tick := 0
+var actor_frames: Dictionary = {}
+var facing_history: Dictionary = {}
 
 func _ready() -> void:
 	simulation = Simulation.new()
+	for actor_id in ACTOR_ART:
+		actor_frames[actor_id] = CharacterSprite.make_frames(ACTOR_ART[actor_id])
 	journal = Journal.new("user://foundation_run.jsonl")
 	if FileAccess.file_exists(journal.path) or FileAccess.file_exists(journal.path + ".bak") or FileAccess.file_exists(journal.path + ".next"):
 		var loaded := Journal.load(journal.path)
@@ -131,6 +139,7 @@ func _build_ui() -> void:
 	state_label = Label.new()
 	column.add_child(state_label)
 	canvas = Control.new()
+	canvas.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	canvas.custom_minimum_size = Vector2(900, 350)
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	canvas.draw.connect(_draw_world)
@@ -202,6 +211,7 @@ func _resume_from_here() -> void:
 
 func _draw_world() -> void:
 	var shown := _shown_state()
+	var before := simulation.inspect_at(int(shown.tick) - 1) if shown.tick > 0 else {}
 	canvas.draw_rect(Rect2(20, 20, 880, 310), Color("293c48") if inspected_room == "service" else Color("38434a"))
 	var font := ThemeDB.fallback_font
 	canvas.draw_string(font, Vector2(35, 50), inspected_room.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
@@ -210,12 +220,16 @@ func _draw_world() -> void:
 		if actor.room != inspected_room:
 			continue
 		var point := Vector2(20 + float(actor.x) * 2.0, 20 + float(actor.y))
-		canvas.draw_circle(point, 14, Color("e9b96e") if actor_id == "amelia" else Color("6bc7bb"))
-		canvas.draw_string(font, point + Vector2(-25, -19), actor_id, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
+		_draw_actor(actor_id, shown, before, point)
+		canvas.draw_string(font, point + Vector2(-28, -54), ACTOR_LABELS.get(actor_id, actor_id), HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
 	for interaction in simulation.content.interactions:
 		if interaction.room == inspected_room:
 			var point := Vector2(20 + float(interaction.x) * 2.0, 20 + float(interaction.y))
-			canvas.draw_rect(Rect2(point - Vector2(8, 8), Vector2(16, 16)), Color("cf7985"))
+			if interaction.id == "valve":
+				var source_x := 32 if shown.flags.get("close_valve", false) else 0
+				canvas.draw_texture_rect_region(ValveSheet, Rect2(point - Vector2(16, 48), Vector2(32, 48)), Rect2(source_x, 0, 32, 48))
+			else:
+				canvas.draw_rect(Rect2(point - Vector2(8, 8), Vector2(16, 16)), Color("cf7985"))
 			canvas.draw_string(font, point + Vector2(-20, 32), interaction.label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
 	if viewed_tick < 0 and inspected_room == simulation.state.actors.amelia.room:
 		var amelia: Dictionary = simulation.state.actors.amelia
@@ -232,6 +246,55 @@ func _draw_world() -> void:
 		var action: Dictionary = shown.action
 		canvas.draw_rect(Rect2(250, 290, 400, 15), Color("101d25"))
 		canvas.draw_rect(Rect2(250, 290, 400.0 * float(action.progress) / float(action.duration), 15), Color("d4aa68"))
+
+
+func _draw_actor(actor_id: String, shown: Dictionary, before: Dictionary, point: Vector2) -> void:
+	if not actor_frames.has(actor_id):
+		return
+	var frames: SpriteFrames = actor_frames[actor_id]
+	var direction := _recorded_facing(actor_id, int(shown.tick))
+	var action := "idle"
+	if before.has("actors"):
+		if before.actors.has(actor_id):
+			var prior: Dictionary = before.actors[actor_id]
+			var current: Dictionary = shown.actors[actor_id]
+			if prior.room == current.room:
+				var motion := Vector2(float(current.x) - float(prior.x), float(current.y) - float(prior.y))
+				if not motion.is_zero_approx():
+					action = "walk"
+	if actor_id == "amelia" and not shown.action.is_empty():
+		action = "bob"
+	elif not shown.dialogue.is_empty():
+		var speaker := str(shown.dialogue.get("line", "")).get_slice(":", 0).strip_edges().to_lower()
+		if speaker == actor_id:
+			action = "talk"
+	var animation := "%s_%s" % [action, direction]
+	var count := frames.get_frame_count(animation)
+	var speed := frames.get_animation_speed(animation)
+	var frame := int(float(shown.tick) * speed / 10.0) % count
+	canvas.draw_texture_rect(frames.get_frame_texture(animation, frame), Rect2(point - Vector2(16, 48), Vector2(32, 48)), false)
+
+
+func _recorded_facing(actor_id: String, tick: int) -> String:
+	var cached: Array = facing_history.get(actor_id, [])
+	if cached.size() > simulation.history.size():
+		cached.clear()
+	while cached.size() <= tick and cached.size() < simulation.history.size():
+		var index := cached.size()
+		var direction := "down" if index == 0 else str(cached[index - 1])
+		if index > 0:
+			var prior: Dictionary = simulation.history[index - 1].actors[actor_id]
+			var current: Dictionary = simulation.history[index].actors[actor_id]
+			if prior.room == current.room:
+				var motion := Vector2(float(current.x) - float(prior.x), float(current.y) - float(prior.y))
+				if not motion.is_zero_approx():
+					if absf(motion.x) >= absf(motion.y):
+						direction = "right" if motion.x > 0.0 else "left"
+					else:
+						direction = "down" if motion.y > 0.0 else "up"
+		cached.append(direction)
+	facing_history[actor_id] = cached
+	return str(cached[tick]) if tick < cached.size() else "down"
 
 func _refresh() -> void:
 	if not is_instance_valid(state_label):
@@ -282,6 +345,8 @@ func _apply_pending(target_tick: int) -> bool:
 	if not result.ok:
 		status_label.text = "Resume blocked: " + str(result.reason)
 		return false
+	if target_tick >= 0:
+		facing_history.clear()
 	return true
 
 func _save() -> void:
@@ -311,6 +376,7 @@ func _reset_pressed() -> void:
 func _finish_rewind() -> void:
 	rewinding = false
 	simulation.reset_loop()
+	facing_history.clear()
 	viewed_tick = -1
 	inspected_room = simulation.state.actors.amelia.room
 	paused = false

@@ -3,12 +3,14 @@ extends Control
 const Simulation = preload("res://foundation/run.gd")
 const AuthoringSession = preload("res://foundation/authoring_session.gd")
 const Benchmark = preload("res://foundation/benchmark.gd")
+const AuthoringDocument = preload("res://foundation/authoring_document.gd")
 const CharacterSprite = preload("res://assets/characters/character_sprite.gd")
 const ValveSheet = preload("res://assets/props/valve_states.png")
 const ACTOR_ART := {"amelia": "player", "chatterbox": "matron", "guest": "rake"}
 const ACTOR_LABELS := {"amelia": "Amelia", "chatterbox": "Chatter Box", "guest": "Guest"}
 var simulation: FoundationRun
 var session: FoundationAuthoringSession
+var document: FoundationAuthoringDocument
 var save_enabled := true
 var accumulator := 0.0
 var inspected_room := "service"
@@ -31,7 +33,6 @@ func _ready() -> void:
 	simulation = Simulation.new()
 	for actor_id in ACTOR_ART:
 		actor_frames[actor_id] = CharacterSprite.make_frames(ACTOR_ART[actor_id])
-	session = AuthoringSession.new(simulation)
 	simulation.attach_journal("user://foundation_run_v2.jsonl")
 	var save_path: String = simulation.journal.path
 	var has_new_save := FileAccess.file_exists(save_path) or FileAccess.file_exists(save_path + ".bak") or FileAccess.file_exists(save_path + ".next")
@@ -40,8 +41,8 @@ func _ready() -> void:
 		var loaded := simulation.load_saved()
 		if not loaded.ok:
 			save_enabled = false
-		else:
-			session.set_draft(str(simulation.content.dialogue))
+	session = AuthoringSession.new(simulation)
+	document = session.document
 	_build_ui()
 	if not save_enabled:
 		status_label.text = "Save unavailable: existing save invalid. It was not overwritten."
@@ -60,6 +61,11 @@ func _ready() -> void:
 		verify_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('foundation_verify_benchmark')"))
 	if verify_requested:
 		call_deferred("_verify_benchmark")
+	var editor_smoke_requested := "--editor-smoke" in OS.get_cmdline_user_args()
+	if OS.has_feature("web"):
+		editor_smoke_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('editor_smoke')"))
+	if editor_smoke_requested:
+		call_deferred("_run_editor_smoke")
 
 func _process(delta: float) -> void:
 	if rewinding:
@@ -161,8 +167,10 @@ func _build_ui() -> void:
 	_button(controls, "Resume from here", _resume_from_here)
 	_button(controls, "Retry save", _retry_save)
 	_button(controls, "Rewind / skip (R)", _reset_pressed)
+	_button(controls, "Undo edit", _undo_edit)
+	_button(controls, "Redo edit", _redo_edit)
 	source_editor = CodeEdit.new()
-	source_editor.text = simulation.content.dialogue
+	source_editor.text = document.source_draft
 	source_editor.text_changed.connect(func(): session.set_draft(source_editor.text))
 	source_editor.custom_minimum_size.y = 110
 	source_editor.visible = false
@@ -328,6 +336,7 @@ func _local_choices() -> Array[Dictionary]:
 
 func _pause() -> void:
 	session.pause()
+	source_editor.text = document.source_draft
 	source_editor.visible = true
 	status_label.text = "Paused. Edit the Dialogue Manager scene, then resume to validate and apply."
 
@@ -344,6 +353,28 @@ func _resume(from_history: bool) -> void:
 	status_label.text = "Continued from recorded time" if target_tick >= 0 else "Running"
 	if target_tick >= 0:
 		facing_history.clear()
+
+func _undo_edit() -> void:
+	if not session.paused or rewinding:
+		return
+	document.set_source(source_editor.text)
+	var label := document.undo()
+	if label.is_empty():
+		status_label.text = "No authoring edit to undo."
+		return
+	source_editor.text = document.source_draft
+	status_label.text = "Undid: " + label
+
+func _redo_edit() -> void:
+	if not session.paused or rewinding:
+		return
+	document.set_source(source_editor.text)
+	var label := document.redo()
+	if label.is_empty():
+		status_label.text = "No authoring edit to redo."
+		return
+	source_editor.text = document.source_draft
+	status_label.text = "Redid: " + label
 
 func _save() -> void:
 	if not save_enabled: return
@@ -409,3 +440,30 @@ func _verify_benchmark() -> void:
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval("document.body.dataset.foundationVerification = " + JSON.stringify(encoded) + ";")
 		status_label.text = "Full-leg browser reopen: " + ("PASS" if passed else "FAIL")
+
+func _run_editor_smoke() -> void:
+	save_enabled = false
+	simulation = Simulation.new()
+	session = AuthoringSession.new(simulation)
+	document = session.document
+	source_editor.text = document.source_draft
+	_pause()
+	var revised := document.source_draft.replace("delay_guest(40)", "delay_guest(80)")
+	source_editor.text = revised
+	_undo_edit()
+	var undone := source_editor.text != revised
+	_redo_edit()
+	var redone := source_editor.text == revised
+	_resume(false)
+	var applied: bool = not session.paused and simulation.content.dialogue == revised
+	for i in range(10): simulation.tick({"x": 1.0})
+	simulation.tick({"start_dialogue": true})
+	simulation.tick({"advance_dialogue": true})
+	for i in range(Simulation.DIALOGUE_TICKS): simulation.tick()
+	var report := {"passed": undone and redone and applied and simulation.state.flags.get("guest_delay_ticks", 0) == 80, "undo": undone, "redo": redone, "applied": applied, "future_effect": simulation.state.flags.get("guest_delay_ticks", 0), "platform": OS.get_name()}
+	var encoded := JSON.stringify(report)
+	print("EDITOR_SMOKE ", encoded)
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("document.body.dataset.editorSmoke = " + JSON.stringify(encoded) + ";")
+	else:
+		get_tree().quit(0 if report.passed else 1)

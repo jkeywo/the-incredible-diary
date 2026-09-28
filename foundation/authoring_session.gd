@@ -1,17 +1,22 @@
 extends RefCounted
 class_name FoundationAuthoringSession
 
+const AuthoringDocument = preload("res://foundation/authoring_document.gd")
+
 var run: FoundationRun
+var document: FoundationAuthoringDocument
 var paused := false
 var viewed_tick := -1
 var draft_source: String
 
 func _init(current_run: FoundationRun) -> void:
 	run = current_run
+	document = AuthoringDocument.new(run.content)
 	draft_source = str(run.content.dialogue)
 
 func set_draft(source: String) -> void:
 	draft_source = source
+	document.set_source(source)
 
 func pause() -> void:
 	paused = true
@@ -64,8 +69,4 @@ func finish_rewind() -> void:
 	paused = false
 
 func _apply_pending(target_tick: int) -> Dictionary:
-	var next_content := run.content.duplicate(true)
-	if draft_source != run.content.dialogue:
-		next_content.dialogue = draft_source
-		next_content.version = "edit-%s" % draft_source.md5_text().substr(0, 10)
-	return run.continue_with_content(next_content, target_tick)
+	return document.apply_to(run, target_tick)

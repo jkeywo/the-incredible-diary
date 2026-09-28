@@ -171,6 +171,8 @@ static func _valid_snapshot(snapshot: Dictionary, versions: Dictionary) -> bool:
 		return false
 	if not snapshot.get("commitments_started") is Array or not snapshot.get("completed_world_commands") is Array or not snapshot.get("diagnostics") is Dictionary:
 		return false
+	if snapshot.has("completed_interactions") and not snapshot.completed_interactions is Array:
+		return false
 	if not snapshot.get("code") is String or not snapshot.get("loop_index") is float and not snapshot.get("loop_index") is int:
 		return false
 	if not snapshot.get("content_version") is String or not versions.has(snapshot.content_version):
@@ -187,6 +189,8 @@ static func _valid_snapshot(snapshot: Dictionary, versions: Dictionary) -> bool:
 	for id in snapshot.commitments_started:
 		if not id is String: return false
 	for id in snapshot.completed_world_commands:
+		if not id is String: return false
+	for id in snapshot.get("completed_interactions", []):
 		if not id is String: return false
 	var rooms: Dictionary = {}
 	for room in versions[snapshot.content_version].rooms: rooms[room.id] = true

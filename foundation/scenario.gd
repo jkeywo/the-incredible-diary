@@ -3,6 +3,7 @@ class_name FoundationScenario
 
 const Content = preload("res://foundation/content.gd")
 const Dialogue = preload("res://foundation/dialogue.gd")
+const Geometry = preload("res://foundation/room_geometry.gd")
 
 var source: Dictionary
 var dialogue_steps: Array[Dictionary] = []
@@ -27,7 +28,24 @@ func interaction(id: String) -> Dictionary:
 
 func interaction_available(item: Dictionary, state: Dictionary) -> bool:
 	var amelia: Dictionary = state.actors.amelia
-	return state.dialogue.is_empty() and amelia.room == item.room and not state.flags.get(item.effect, false) and Vector2(float(amelia.x), float(amelia.y)).distance_to(Vector2(float(item.x), float(item.y))) <= float(item.radius)
+	var room := {}
+	for candidate in source.rooms:
+		if candidate.id == item.room:
+			room = candidate
+			break
+	var origin := Vector2(float(amelia.x), float(amelia.y))
+	var target := Vector2(float(item.x), float(item.y))
+	if not state.dialogue.is_empty() or amelia.room != item.room or state.get("completed_interactions", []).has(item.id):
+		return false
+	var route := Geometry.path(room, origin, target)
+	if route.is_empty():
+		return false
+	var distance := 0.0
+	var previous := origin
+	for waypoint in route:
+		distance += previous.distance_to(waypoint)
+		previous = waypoint
+	return distance <= float(item.radius)
 
 func available_interactions(state: Dictionary) -> Array[Dictionary]:
 	var available: Array[Dictionary] = []
@@ -44,7 +62,10 @@ func dialogue_available(state: Dictionary) -> bool:
 	return state.dialogue.is_empty() and state.action.is_empty() and amelia.room == chatterbox.room and Vector2(float(amelia.x), float(amelia.y)).distance_to(Vector2(float(chatterbox.x), float(chatterbox.y))) <= 65.0
 
 func complete_interaction(item: Dictionary, state: Dictionary) -> void:
-	state.flags[item.effect] = true
+	state.completed_interactions.append(item.id)
+	match str(item.effect):
+		"close_valve": state.flags.close_valve = true
+		"delay_guest": state.flags.guest_delay_ticks = int(state.flags.get("guest_delay_ticks", 0)) + int(item.effect_ticks)
 
 func apply_command(command: Dictionary, state: Dictionary) -> Dictionary:
 	if command.name == "delay_guest":
@@ -69,6 +90,10 @@ func connection(from_room: String, to_room: String) -> Dictionary:
 		if item.from == from_room and item.to == to_room or item.to == from_room and item.from == to_room:
 			return item
 	return {}
+
+func connection_open(item: Dictionary, state: Dictionary) -> bool:
+	var required := str(item.get("requires_flag", ""))
+	return required.is_empty() or bool(state.flags.get(required, false))
 
 func diagnostics(state: Dictionary) -> Dictionary:
 	var npc: Dictionary = {}

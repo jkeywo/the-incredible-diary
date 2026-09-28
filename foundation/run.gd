@@ -31,7 +31,7 @@ func _init(scenario: Dictionary = {}) -> void:
 	var actor_state := {}
 	for actor in content.actors:
 		actor_state[actor.id] = {"room": actor.room, "x": float(actor.x), "y": float(actor.y), "activity": "idle", "destination": ""}
-	state = {"tick": 0, "loop_index": 0, "code": _code_for_loop(0), "actors": actor_state, "commitments_started": [], "completed_world_commands": [], "flags": {}, "action": {}, "dialogue": {}, "diary_observations": [], "current_knowledge": [], "content_version": content.version, "events": [], "diagnostics": {}}
+	state = {"tick": 0, "loop_index": 0, "code": _code_for_loop(0), "actors": actor_state, "commitments_started": [], "completed_interactions": [], "completed_world_commands": [], "flags": {}, "action": {}, "dialogue": {}, "diary_observations": [], "current_knowledge": [], "content_version": content.version, "events": [], "diagnostics": {}}
 	_record_diagnostics()
 	history.append(inspect())
 
@@ -81,6 +81,8 @@ func _normalize_snapshot(source: Dictionary) -> Dictionary:
 	var snapshot := source.duplicate(true)
 	snapshot.tick = int(snapshot.tick)
 	snapshot.loop_index = int(snapshot.get("loop_index", 0))
+	if not snapshot.has("completed_interactions"):
+		snapshot.completed_interactions = []
 	if not snapshot.action.is_empty():
 		snapshot.action.progress = int(snapshot.action.progress)
 		snapshot.action.duration = int(snapshot.action.duration)
@@ -287,24 +289,36 @@ func _move_amelia(input: Dictionary) -> void:
 	var direction := Vector2(float(input.get("x", 0.0)), float(input.get("y", 0.0))).limit_length()
 	var amelia: Dictionary = state.actors.amelia
 	var room := _room(str(amelia.room))
-	var position := Geometry.move(room, Vector2(float(amelia.x), float(amelia.y)), direction * 4.0)
+	var before := Vector2(float(amelia.x), float(amelia.y))
+	var position := Geometry.move(room, before, direction * 4.0)
 	amelia.x = position.x
 	amelia.y = position.y
 	for connection in content.connections:
+		if not authored.connection_open(connection, state):
+			continue
 		var from_y := float(connection.get("from_y", 160.0))
 		var to_y := float(connection.get("to_y", 160.0))
-		if amelia.room == connection.from and amelia.x >= float(connection.from_x) and absf(amelia.y - from_y) <= 12.0 and direction.x > 0.0:
+		var from_point := Vector2(float(connection.from_x), from_y)
+		var to_point := Vector2(float(connection.to_x), to_y)
+		if amelia.room == connection.from and _entered_door(before, position, from_point):
 			amelia.room = connection.to
 			amelia.x = float(connection.to_x)
 			amelia.y = to_y
 			_emit("room_transition", "amelia", str(connection.id))
 			break
-		if amelia.room == connection.to and amelia.x <= float(connection.to_x) and absf(amelia.y - to_y) <= 12.0 and direction.x < 0.0:
+		if amelia.room == connection.to and _entered_door(before, position, to_point):
 			amelia.room = connection.from
 			amelia.x = float(connection.from_x)
 			amelia.y = from_y
 			_emit("room_transition", "amelia", str(connection.id))
 			break
+
+func _entered_door(before: Vector2, after: Vector2, endpoint: Vector2) -> bool:
+	var travel := after - before
+	if travel.length_squared() <= 0.000001 or (endpoint - before).dot(travel) <= 0.000001:
+		return false
+	var fraction := clampf((endpoint - before).dot(travel) / travel.length_squared(), 0.0, 1.0)
+	return (before + travel * fraction).distance_to(endpoint) <= 5.0
 
 func _start_commitments() -> void:
 	for commitment in content.commitments:
@@ -351,7 +365,10 @@ func _move_npcs() -> void:
 				_emit("arrival", commitment.actor, commitment.id)
 
 func _connection(from_room: String, to_room: String) -> Dictionary:
-	return authored.connection(from_room, to_room)
+	for connection in content.connections:
+		if (connection.from == from_room and connection.to == to_room or connection.to == from_room and connection.from == to_room) and authored.connection_open(connection, state):
+			return connection
+	return {}
 
 func _room(id: String) -> Dictionary:
 	for room in content.rooms:

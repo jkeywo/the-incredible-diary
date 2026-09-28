@@ -69,6 +69,33 @@ static func step_toward(room: Dictionary, from: Vector2, target: Vector2, speed:
 			return move(room, from, delta)
 	return from
 
+static func reachable(data: Dictionary, origin_room: String, origin: Vector2, goal_room: String, goal: Vector2) -> bool:
+	var rooms := {}
+	for room in data.rooms:
+		rooms[room.id] = room
+	if not rooms.has(origin_room) or not rooms.has(goal_room):
+		return false
+	var queue := [{"room": origin_room, "point": origin}]
+	var visited := {}
+	while not queue.is_empty():
+		var current: Dictionary = queue.pop_front()
+		var key := "%s:%s:%s" % [current.room, current.point.x, current.point.y]
+		if visited.has(key):
+			continue
+		visited[key] = true
+		if current.room == goal_room and not path(rooms[goal_room], current.point, goal).is_empty():
+			return true
+		for connection in data.connections:
+			var exit_side := "from" if connection.from == current.room else "to" if connection.to == current.room else ""
+			if exit_side.is_empty():
+				continue
+			var entry_side := "to" if exit_side == "from" else "from"
+			var exit_point := Vector2(float(connection.get(exit_side + "_x", 0.0)), float(connection.get(exit_side + "_y", 160.0)))
+			if path(rooms[current.room], current.point, exit_point).is_empty():
+				continue
+			queue.append({"room": connection[entry_side], "point": Vector2(float(connection.get(entry_side + "_x", 0.0)), float(connection.get(entry_side + "_y", 160.0)))})
+	return false
+
 static func _rect(values: Array) -> Rect2:
 	return Rect2(float(values[0]), float(values[1]), float(values[2]), float(values[3]))
 

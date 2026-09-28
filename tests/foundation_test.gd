@@ -68,11 +68,14 @@ func run() -> void:
 	for i in range(30): occupied_run.tick({"x": 1.0})
 	var removed_ground := scenario.duplicate(true)
 	removed_ground.version = "removed-ground"
-	removed_ground.rooms[0].walkable = [[0, 0, 180, 280], [300, 0, 140, 280]]
+	removed_ground.rooms[0].walkable = [[0, 0, 180, 280], [180, 220, 260, 60], [300, 0, 140, 220]]
 	expect(Content.validate(removed_ground).is_empty(), "removed_ground_statically_valid")
 	var occupied_history := occupied_run.history.duplicate(true)
 	var occupied_result := occupied_run.continue_with_content(removed_ground)
 	expect(not occupied_result.ok and occupied_result.restart and str(occupied_result.reason).contains("amelia") and occupied_run.history == occupied_history, "resume_rejects_ground_removed_under_actor")
+	var inaccessible_valve := scenario.duplicate(true)
+	inaccessible_valve.rooms[0].walkable = [[0, 0, 180, 280], [300, 0, 140, 280]]
+	expect("Interaction valve is unreachable from Amelia through authored walkable regions and room connections" in Content.validate(inaccessible_valve), "unreachable_interaction_blocks_resume")
 	var display := Harness.new()
 	display.simulation = Simulation.new(scenario)
 	display.session = AuthoringSession.new(display.simulation)
@@ -87,6 +90,103 @@ func run() -> void:
 	display.session.return_live()
 	expect(display._shown_content(display.session.inspect()) == changed_display, "paused_live_view_previews_draft")
 	display.free()
+	var placement := Harness.new()
+	placement.simulation = Simulation.new(scenario)
+	placement.session = AuthoringSession.new(placement.simulation)
+	placement.document = placement.session.document
+	placement.session.pause()
+	placement.status_label = Label.new()
+	placement.interaction_label_edit = LineEdit.new()
+	placement.interaction_label_edit.text = "Close test valve"
+	placement.interaction_duration_edit = SpinBox.new()
+	placement.interaction_duration_edit.min_value = 1
+	placement.interaction_duration_edit.value = 5
+	placement.interaction_effect_edit = OptionButton.new()
+	placement.interaction_effect_edit.add_item("Close valve")
+	placement.interaction_effect_edit.add_item("Delay guest")
+	placement.interaction_effect_edit.select(0)
+	placement.interaction_effect_ticks_edit = SpinBox.new()
+	placement.interaction_effect_ticks_edit.value = 60
+	placement.geometry_mode = "door_start"
+	var place_click := InputEventMouseButton.new()
+	place_click.button_index = MOUSE_BUTTON_LEFT
+	place_click.pressed = true
+	place_click.position = Vector2(780, 180)
+	placement._on_canvas_input(place_click)
+	placement.inspected_room = "corridor"
+	place_click.position = Vector2(100, 180)
+	placement._on_canvas_input(place_click)
+	expect(placement.document.content.connections.size() == 2 and placement.document.content.connections[1].from_x == 380.0, "door_endpoints_created_visually")
+	placement._move_nearest_door(Vector2(60, 160))
+	expect(placement.document.content.connections[1].to_x == 60.0 and placement.document.undo() == "Move service_corridor_2 door in corridor" and placement.document.redo() == "Move service_corridor_2 door in corridor", "door_endpoint_move_transaction")
+	placement._place_interaction(Vector2(240, 160))
+	expect(placement.document.content.interactions[0].room == "corridor" and placement.document.content.interactions[0].duration_ticks == 5, "timed_interaction_placed_visually")
+	expect(placement.document.undo() == "Place valve interaction in corridor" and placement.document.undo() == "Move service_corridor_2 door in corridor" and placement.document.undo() == "Connect service to corridor", "door_and_prop_undo_chronological")
+	expect(placement.document.redo() == "Connect service to corridor" and placement.document.redo() == "Move service_corridor_2 door in corridor" and placement.document.redo() == "Place valve interaction in corridor", "door_and_prop_redo_chronological")
+	placement._remove_nearest_door(Vector2(20, 160))
+	expect(placement.document.content.connections.size() == 1 and placement.document.content.connections[0].id == "service_corridor_2" and placement.document.undo() == "Remove door service_corridor" and placement.document.redo() == "Remove door service_corridor", "visual_door_removal_replaces_old_route")
+	var placed_run := Simulation.new(scenario)
+	expect(placement.document.apply_to(placed_run).ok, "placed_door_and_interaction_apply")
+	var start_x: float = float(placed_run.state.actors.amelia.x)
+	placed_run.tick({"start_interaction": "valve"})
+	expect(placed_run.state.actors.amelia.x == start_x and placed_run.state.action.is_empty(), "distant_choice_does_not_auto_walk")
+	for i in range(75): placed_run.tick({"x": 1.0})
+	expect(placed_run.state.actors.amelia.room == "corridor", "amelia_uses_authored_door")
+	expect(placed_run.state.actors.chatterbox.room == "corridor", "npc_uses_authored_door")
+	for i in range(45): placed_run.tick({"x": 1.0})
+	placed_run.tick({"start_interaction": "valve"})
+	for i in range(5): placed_run.tick()
+	expect(placed_run.state.flags.get("close_valve", false), "authored_timed_interaction_completes")
+	placement.inspected_room = "service"
+	placement.interaction_effect_edit.select(1)
+	placement.interaction_effect_ticks_edit.value = 70
+	placement.interaction_duration_edit.value = 3
+	placement.interaction_label_edit.text = "Signal the guest"
+	placement._place_interaction(Vector2(80, 160))
+	var signal_run := Simulation.new(scenario)
+	expect(placement.document.apply_to(signal_run).ok, "configured_guest_delay_interaction_applies")
+	signal_run.tick({"start_interaction": "guest_signal"})
+	for i in range(3): signal_run.tick()
+	expect(signal_run.state.flags.get("guest_delay_ticks", 0) == 70 and signal_run.state.completed_interactions.has("guest_signal"), "configured_interaction_effect_executes_once")
+	var signal_path := "res://build/signal-interaction-%d.jsonl" % OS.get_process_id()
+	signal_run.attach_journal(signal_path)
+	expect(signal_run.persist().ok, "configured_interaction_effect_saved")
+	var signal_reloaded := Simulation.new(scenario)
+	signal_reloaded.attach_journal(signal_path)
+	expect(signal_reloaded.load_saved().ok and signal_reloaded.state.completed_interactions.has("guest_signal") and signal_reloaded.state.flags.guest_delay_ticks == 70, "configured_interaction_effect_reloaded")
+	var left_door := scenario.duplicate(true)
+	left_door.connections[0].from_x = 50.0
+	var left_run := Simulation.new(left_door)
+	left_run.tick({"x": 1.0})
+	expect(left_run.state.actors.amelia.room == "service", "door_does_not_trigger_away_from_endpoint")
+	for i in range(9): left_run.tick({"x": -1.0})
+	expect(left_run.state.actors.amelia.room == "corridor", "leftward_authored_door_crossing")
+	var top_door := scenario.duplicate(true)
+	top_door.connections[0].from_x = 80.0
+	top_door.connections[0].from_y = 0.0
+	var top_run := Simulation.new(top_door)
+	for i in range(40): top_run.tick({"y": -1.0})
+	expect(top_run.state.actors.amelia.room == "corridor", "vertical_authored_door_crossing")
+	var off_grid_door := scenario.duplicate(true)
+	off_grid_door.connections[0].from_x = 381.0
+	off_grid_door.connections[0].from_y = 161.0
+	var off_grid_run := Simulation.new(off_grid_door)
+	for i in range(76): off_grid_run.tick({"x": 1.0})
+	expect(off_grid_run.state.actors.amelia.room == "corridor", "off_grid_door_has_usable_visual_radius")
+	var conditional_door := scenario.duplicate(true)
+	conditional_door.connections[0].requires_flag = "close_valve"
+	expect(Content.validate(conditional_door).is_empty(), "intentional_conditional_access_validates")
+	var conditional_run := Simulation.new(conditional_door)
+	for i in range(90): conditional_run.tick({"x": 1.0})
+	expect(conditional_run.state.actors.amelia.room == "service", "conditional_door_blocks_without_flag")
+	conditional_run.state.flags.close_valve = true
+	for i in range(5): conditional_run.tick({"x": -1.0})
+	expect(conditional_run.state.actors.amelia.room == "corridor", "conditional_door_opens_after_flag")
+	var separated_choice := scenario.duplicate(true)
+	separated_choice.rooms[0].walkable = [[0, 0, 100, 280], [110, 0, 330, 280], [100, 220, 10, 60]]
+	separated_choice.interactions[0].x = 120.0
+	expect(Content.validate(separated_choice).is_empty() and Simulation.new(separated_choice).available_interactions().is_empty(), "interaction_not_local_through_unwalkable_wall")
+	placement.free()
 	var room_document := AuthoringDocument.new(scenario)
 	room_document.set_source("~ start\ndo broken(\n=> END")
 	var room_change := room_document.content.duplicate(true)

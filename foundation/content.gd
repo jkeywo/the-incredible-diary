@@ -99,10 +99,17 @@ static func validate(data: Dictionary) -> Array[String]:
 		for key in ["from", "to"]:
 			if not rooms.has(connection.get(key, "")):
 				errors.append("Connection %s has missing %s room" % [id, key])
+		if connection.get("from", "") == connection.get("to", ""):
+			errors.append("Connection %s must join two different rooms" % id)
+		if not str(connection.get("requires_flag", "")) in ["", "close_valve"]:
+			errors.append("Connection %s has unsupported access condition" % id)
 		if not _number(connection.get("from_x")) or not _number(connection.get("to_x")):
 			errors.append("Connection %s needs numeric endpoints" % id)
 		else:
 			for side in ["from", "to"]:
+				if not _number(connection.get(side + "_y", 160.0)):
+					errors.append("Connection %s %s endpoint needs numeric y" % [id, side])
+					continue
 				var room_id := str(connection.get(side, ""))
 				if room_data.has(room_id) and Geometry.validate(room_data[room_id]).is_empty():
 					var point := Vector2(float(connection.get(side + "_x")), float(connection.get(side + "_y", 160.0)))
@@ -145,8 +152,21 @@ static func validate(data: Dictionary) -> Array[String]:
 			errors.append("Interaction %s has invalid range or duration" % id)
 		elif room_data.has(interaction.get("room", "")) and Geometry.validate(room_data[interaction.room]).is_empty() and not Geometry.contains(room_data[interaction.room], Vector2(float(interaction.x), float(interaction.y))):
 			errors.append("Interaction %s is outside walkable geometry" % id)
-		if interaction.get("effect", "") != "close_valve":
+		if not str(interaction.get("effect", "")) in ["close_valve", "delay_guest"]:
 			errors.append("Interaction %s has unknown effect" % id)
+		elif interaction.effect == "delay_guest" and (not _number(interaction.get("effect_ticks")) or int(interaction.effect_ticks) <= 0):
+			errors.append("Interaction %s needs a positive guest delay in ticks" % id)
+		if not interaction.get("label") is String or str(interaction.label).strip_edges().is_empty():
+			errors.append("Interaction %s needs a visible label" % id)
+	if errors.is_empty():
+		var amelia: Dictionary = {}
+		for actor in data.actors:
+			if actor.id == "amelia":
+				amelia = actor
+				break
+		for interaction in data.interactions:
+			if not Geometry.reachable(data, str(amelia.room), Vector2(float(amelia.x), float(amelia.y)), str(interaction.room), Vector2(float(interaction.x), float(interaction.y))):
+				errors.append("Interaction %s is unreachable from Amelia through authored walkable regions and room connections" % interaction.id)
 	var actor_ids: Array[String] = []
 	for id in actors: actor_ids.append(id)
 	if not data.get("dialogue") is String:

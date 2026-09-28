@@ -39,6 +39,11 @@ var background_textures: Dictionary = {}
 var geometry_mode := ""
 var geometry_start := Vector2.ZERO
 var geometry_region := -1
+var pending_connection: Dictionary = {}
+var interaction_label_edit: LineEdit
+var interaction_duration_edit: SpinBox
+var interaction_effect_edit: OptionButton
+var interaction_effect_ticks_edit: SpinBox
 var image_dialog: FileDialog
 var web_file_callback: JavaScriptObject
 
@@ -215,6 +220,31 @@ func _build_ui() -> void:
 	_button(controls, "Draw walkable", func(): _set_geometry_mode("draw"))
 	_button(controls, "Move walkable", func(): _set_geometry_mode("move"))
 	_button(controls, "Erase walkable", func(): _set_geometry_mode("erase"))
+	_button(controls, "Connect door", func(): _set_geometry_mode("door_start"))
+	_button(controls, "Move door endpoint", func(): _set_geometry_mode("door_move"))
+	_button(controls, "Remove door", func(): _set_geometry_mode("door_remove"))
+	_button(controls, "Place interaction", func(): _set_geometry_mode("interaction"))
+	interaction_label_edit = LineEdit.new()
+	interaction_label_edit.text = "Turn valve"
+	interaction_label_edit.placeholder_text = "Interaction label"
+	interaction_label_edit.custom_minimum_size.x = 135
+	controls.add_child(interaction_label_edit)
+	interaction_duration_edit = SpinBox.new()
+	interaction_duration_edit.min_value = 1
+	interaction_duration_edit.max_value = 1800
+	interaction_duration_edit.value = 30
+	interaction_duration_edit.suffix = "ticks"
+	controls.add_child(interaction_duration_edit)
+	interaction_effect_edit = OptionButton.new()
+	interaction_effect_edit.add_item("Close valve")
+	interaction_effect_edit.add_item("Delay guest")
+	controls.add_child(interaction_effect_edit)
+	interaction_effect_ticks_edit = SpinBox.new()
+	interaction_effect_ticks_edit.min_value = 1
+	interaction_effect_ticks_edit.max_value = 1800
+	interaction_effect_ticks_edit.value = 60
+	interaction_effect_ticks_edit.suffix = "delay ticks"
+	controls.add_child(interaction_effect_ticks_edit)
 	image_dialog = FileDialog.new()
 	image_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	image_dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -322,6 +352,13 @@ func _draw_world() -> void:
 			else:
 				canvas.draw_rect(Rect2(point - Vector2(8, 8), Vector2(16, 16)), Color("cf7985"))
 			canvas.draw_string(font, point + Vector2(-20, 32), interaction.label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
+	for connection in shown_content.connections:
+		for side in ["from", "to"]:
+			if connection[side] != inspected_room:
+				continue
+			var door_point := _world_to_canvas(room, Vector2(float(connection.get(side + "_x")), float(connection.get(side + "_y", 160.0))))
+			canvas.draw_circle(door_point, 10, Color("e5c279"))
+			canvas.draw_string(font, door_point + Vector2(8, -20), str(connection.id), HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
 	if session.viewed_tick < 0 and inspected_room == simulation.state.actors.amelia.room:
 		var amelia: Dictionary = simulation.state.actors.amelia
 		var center := _world_to_canvas(room, Vector2(float(amelia.x), float(amelia.y)))
@@ -525,7 +562,9 @@ func _set_geometry_mode(mode: String) -> void:
 		status_label.text = "Pause before editing room geometry."
 		return
 	geometry_mode = mode
-	status_label.text = "%s walkable geometry in %s. Drag on the room view." % [mode.capitalize(), inspected_room]
+	if mode == "door_start":
+		pending_connection.clear()
+	status_label.text = "%s in %s. Click the room view." % [mode.capitalize().replace("_", " "), inspected_room]
 
 func _canvas_point(local: Vector2) -> Vector2:
 	var room := _room_in(document.content, inspected_room)
@@ -554,6 +593,37 @@ func _on_canvas_input(event: InputEvent) -> void:
 	var point := _canvas_point(event.position)
 	var room := _room_in(document.content, inspected_room)
 	if room.is_empty():
+		return
+	if event.pressed and geometry_mode == "door_start":
+		pending_connection = {"room": inspected_room, "point": point}
+		geometry_mode = "door_finish"
+		status_label.text = "Select another room, then click its door endpoint."
+		return
+	if event.pressed and geometry_mode == "door_finish":
+		if pending_connection.is_empty() or pending_connection.room == inspected_room:
+			status_label.text = "Select a different room for the paired door."
+			return
+		var next_content := document.content.duplicate(true)
+		var connection_id := "%s_%s" % [pending_connection.room, inspected_room]
+		var suffix := 2
+		while _connection_in(next_content, connection_id) != {}:
+			connection_id = "%s_%s_%d" % [pending_connection.room, inspected_room, suffix]
+			suffix += 1
+		next_content.connections.append({"id": connection_id, "from": pending_connection.room, "to": inspected_room, "from_x": pending_connection.point.x, "from_y": pending_connection.point.y, "to_x": point.x, "to_y": point.y})
+		document.replace_content(next_content, "Connect %s to %s" % [pending_connection.room, inspected_room])
+		pending_connection.clear()
+		geometry_mode = ""
+		status_label.text = "Connected rooms. Resume validates the door endpoints."
+		_refresh()
+		return
+	if event.pressed and geometry_mode == "door_move":
+		_move_nearest_door(point)
+		return
+	if event.pressed and geometry_mode == "door_remove":
+		_remove_nearest_door(point)
+		return
+	if event.pressed and geometry_mode == "interaction":
+		_place_interaction(point)
 		return
 	if event.pressed:
 		geometry_start = point
@@ -587,6 +657,83 @@ func _edit_geometry(label: String, action: Callable) -> void:
 			break
 	document.replace_content(next_content, label)
 	status_label.text = label + ". Resume validates the result."
+	_refresh()
+
+func _connection_in(data: Dictionary, id: String) -> Dictionary:
+	for connection in data.connections:
+		if connection.id == id:
+			return connection
+	return {}
+
+func _move_nearest_door(point: Vector2) -> void:
+	var next_content := document.content.duplicate(true)
+	var nearest: Dictionary = {}
+	var nearest_side := ""
+	var distance := INF
+	for connection in next_content.connections:
+		for side in ["from", "to"]:
+			if connection[side] != inspected_room:
+				continue
+			var endpoint := Vector2(float(connection.get(side + "_x")), float(connection.get(side + "_y", 160.0)))
+			if endpoint.distance_to(point) < distance:
+				distance = endpoint.distance_to(point)
+				nearest = connection
+				nearest_side = side
+	if nearest.is_empty():
+		status_label.text = "This room has no door endpoint to move."
+		return
+	nearest[nearest_side + "_x"] = point.x
+	nearest[nearest_side + "_y"] = point.y
+	document.replace_content(next_content, "Move %s door in %s" % [nearest.id, inspected_room])
+	status_label.text = "Moved door endpoint. Resume validates reachability."
+	_refresh()
+
+func _remove_nearest_door(point: Vector2) -> void:
+	var next_content := document.content.duplicate(true)
+	var nearest_index := -1
+	var distance := INF
+	for index in next_content.connections.size():
+		var connection: Dictionary = next_content.connections[index]
+		for side in ["from", "to"]:
+			if connection[side] != inspected_room:
+				continue
+			var endpoint := Vector2(float(connection.get(side + "_x")), float(connection.get(side + "_y", 160.0)))
+			if endpoint.distance_to(point) < distance:
+				distance = endpoint.distance_to(point)
+				nearest_index = index
+	if nearest_index < 0 or distance > 20.0:
+		status_label.text = "Click near a door endpoint to remove it."
+		return
+	var removed_id := str(next_content.connections[nearest_index].id)
+	next_content.connections.remove_at(nearest_index)
+	document.replace_content(next_content, "Remove door %s" % removed_id)
+	status_label.text = "Removed door. Resume validates remaining routes."
+	_refresh()
+
+func _place_interaction(point: Vector2) -> void:
+	var next_content := document.content.duplicate(true)
+	var effect := "delay_guest" if interaction_effect_edit.selected == 1 else "close_valve"
+	var interaction_id := "guest_signal" if effect == "delay_guest" else "valve"
+	var placed: Dictionary = {}
+	for interaction in next_content.interactions:
+		if interaction.id == interaction_id:
+			placed = interaction
+			break
+	if placed.is_empty():
+		placed = {"id": interaction_id, "radius": 60.0}
+		next_content.interactions.append(placed)
+	placed.room = inspected_room
+	placed.x = point.x
+	placed.y = point.y
+	placed.label = interaction_label_edit.text.strip_edges()
+	placed.duration_ticks = int(interaction_duration_edit.value)
+	placed.effect = effect
+	if effect == "delay_guest":
+		placed.effect_ticks = int(interaction_effect_ticks_edit.value)
+	else:
+		placed.erase("effect_ticks")
+	document.replace_content(next_content, "Place %s interaction in %s" % [interaction_id, inspected_room])
+	status_label.text = "Placed interaction. Resume validates reachability, effect and duration."
 	_refresh()
 
 func _import_background() -> void:

@@ -564,6 +564,7 @@ func _refresh() -> void:
 	state_label.text = "Tick %d / %d  |  Hour %d  |  %s  |  Viewing: %s  |  Valve: %s" % [shown.tick, simulation.state.tick, mini(6, 1 + int(shown.tick / Simulation.TICKS_PER_HOUR)), "PAUSED" if session.paused else "RUNNING", inspected_room, "closed" if shown.flags.get("close_valve", false) else "open"]
 	if is_instance_valid(inspector_label):
 		inspector_label.text = Inspector.describe(shown, inspected_room)
+		inspector_label.get_parent().visible = session.paused
 	if is_instance_valid(scrubber):
 		scrubber.max_value = simulation.state.tick
 		if session.viewed_tick < 0:

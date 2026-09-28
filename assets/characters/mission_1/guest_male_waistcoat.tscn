@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/characters/generic/generic_animated_character.tscn" id="1"]
+
+[node name="GuestMaleWaistcoat" instance=ExtResource("1")]
+character_id = "guest_male_waistcoat"
+

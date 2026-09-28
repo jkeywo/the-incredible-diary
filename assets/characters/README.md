@@ -14,6 +14,20 @@ interaction bob (4), in that order. `character_sprite.tscn` loads the sheets and
 exposes animations named `idle_down`, `walk_left`, `talk_up`, `bob_right`, etc.
 The node origin is at the character's feet. Call `play_action(action, direction)`;
 the one-shot bob returns to idle automatically.
+The `mission_1/` folder contains ten ready-to-instance Godot character scenes:
+Amelia, the three provisional rescue roles, ex-army guest, sailor, and four
+recolourable generic guests. These scenes use the base animation scripts, so
+their sprite sheets and action clips are available in the Godot editor.
+
+Mission 1 action clips live in `actions/` and are loaded by the same scene.
+Amelia has `hide_bag`, `shove`, `turn_valve` and `bump`. The provisional role
+casting uses `rake` for the poisoned guest (`search_bag`, `hold_drink`,
+`spill_react`, `poison_collapse`), `glamorous` for the chandelier guest
+(`chandelier_warn`, `pushed`, `recover`, `chandelier_casualty`) and `matron` for
+the steam guest (`steam_trapped`, `cough`, `escape`, `chatter`). Timed clips loop;
+short reactions return to idle, while casualty poses hold their final frame.
+Call `play_action(name, direction)` for these clips too. `ex_army` still has
+the shared four-direction idle, walk, talk and bob cycles.
 
 The `source/` PNGs retain the generated four-facing visual references, and
 `walk_source/` contains the true-profile side-walk references. Run

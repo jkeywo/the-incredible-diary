@@ -13,7 +13,18 @@ func expect(condition: bool, name: String) -> void:
 		failures.append(name)
 		printerr("FOUNDATION_FAIL ", name)
 
+func expect_joy_button(action: String, button: int) -> void:
+	var mapped := false
+	for event in InputMap.action_get_events(action):
+		if event is InputEventJoypadButton and event.button_index == button:
+			mapped = true
+	expect(mapped, "controller_mapping_" + action)
+
 func run() -> void:
+	expect_joy_button("wheel_confirm", JOY_BUTTON_RIGHT_SHOULDER)
+	expect_joy_button("pause_game", JOY_BUTTON_BACK)
+	expect_joy_button("cancel_action", JOY_BUTTON_B)
+	expect_joy_button("reset_loop", JOY_BUTTON_START)
 	var scenario := Content.scenario()
 	expect(Content.validate(scenario).is_empty(), "valid_scenario")
 	var broken := scenario.duplicate(true)

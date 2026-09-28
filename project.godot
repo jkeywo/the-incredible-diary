@@ -35,7 +35,7 @@ move_down={
 }
 pause_game={
 "deadzone": 0.2,
-"events": [Object(InputEventKey,"physical_keycode":32), Object(InputEventJoypadButton,"button_index":6)]
+"events": [Object(InputEventKey,"physical_keycode":32), Object(InputEventJoypadButton,"button_index":4)]
 }
 step_tick={
 "deadzone": 0.2,
@@ -51,7 +51,7 @@ interaction_two={
 }
 wheel_confirm={
 "deadzone": 0.2,
-"events": [Object(InputEventJoypadButton,"button_index":5)]
+"events": [Object(InputEventJoypadButton,"button_index":10)]
 }
 cancel_action={
 "deadzone": 0.2,
@@ -59,7 +59,7 @@ cancel_action={
 }
 reset_loop={
 "deadzone": 0.2,
-"events": [Object(InputEventKey,"physical_keycode":82), Object(InputEventJoypadButton,"button_index":7)]
+"events": [Object(InputEventKey,"physical_keycode":82), Object(InputEventJoypadButton,"button_index":6)]
 }
 
 [rendering]

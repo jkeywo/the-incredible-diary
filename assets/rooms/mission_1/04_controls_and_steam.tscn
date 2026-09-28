@@ -1,0 +1,27 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/rooms/mission_1/04_controls_and_steam.png" id="1"]
+[ext_resource type="Script" path="res://mission1/room_audio_settings.gd" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/steam_boiler.wav" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/steam_hiss_01.wav" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/steam_hiss_03.wav" id="5"]
+
+[node name="ControlsAndSteam" type="Node2D"]
+texture_filter = 1
+
+[node name="Backdrop" type="Sprite2D" parent="."]
+centered = false
+texture = ExtResource("1")
+
+[node name="ControlRoomEntities" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="SteamRoomEntities" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="Effects" type="Node2D" parent="."]
+
+[node name="RoomAudioSettings" type="Node" parent="."]
+script = ExtResource("2")
+ambience = ExtResource("3")
+intermittent_ambience = Array[AudioStream]([ExtResource("4"), ExtResource("5")])

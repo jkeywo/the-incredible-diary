@@ -9,6 +9,13 @@ const RoomGeometry = preload("res://foundation/room_geometry.gd")
 const AuthoringStore = preload("res://foundation/authoring_store.gd")
 const Content = preload("res://foundation/content.gd")
 const Inspector = preload("res://foundation/inspector.gd")
+const GithubApi = preload("res://foundation/github_api.gd")
+const GithubCredentials = preload("res://foundation/github_credentials.gd")
+const GithubRepository = preload("res://foundation/github_repository.gd")
+const GithubProject = preload("res://foundation/github_project.gd")
+const GithubCommit = preload("res://foundation/github_commit.gd")
+const GithubSync = preload("res://foundation/github_sync.gd")
+const GithubConflict = preload("res://foundation/github_conflict.gd")
 const CharacterSprite = preload("res://assets/characters/character_sprite.gd")
 const ValveSheet = preload("res://assets/props/valve_states.png")
 const ACTOR_ART := {"amelia": "player", "chatterbox": "matron", "guest": "rake"}
@@ -65,19 +72,44 @@ var storylet_end_edit: SpinBox
 var storylet_flag_edit: OptionButton
 var image_dialog: FileDialog
 var web_file_callback: JavaScriptObject
+var github_api: FoundationGithubApi
+var github_credentials: FoundationGithubCredentials
+var github_repository: FoundationGithubRepository
+var github_writer: FoundationGithubCommit
+var github_sync: FoundationGithubSync
+var github_conflict: FoundationGithubConflict
+var github_panel: PopupPanel
+var github_token_edit: LineEdit
+var github_repo_picker: OptionButton
+var github_branch_picker: OptionButton
+var github_message_edit: LineEdit
+var github_commit_dialog: ConfirmationDialog
+var github_conflict_dialog: ConfirmationDialog
+var github_comparison_button: Button
+var github_review_revision := -1
+var github_review_message := ""
+var github_auth_generation := 0
 
 func _ready() -> void:
 	var authoring_seed_requested := "--authoring-seed" in OS.get_cmdline_user_args()
 	var authoring_verify_requested := "--authoring-verify" in OS.get_cmdline_user_args()
 	var authoring_failure_requested := false
+	var github_integration_test := "--github-integration-test" in OS.get_cmdline_user_args()
+	var github_integration_test_b := "--github-integration-test-b" in OS.get_cmdline_user_args()
+	var github_storage_seed := false
+	var github_storage_verify := false
 	if OS.has_feature("web"):
 		authoring_seed_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('authoring_seed')"))
 		authoring_verify_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('authoring_verify')"))
 		authoring_failure_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('authoring_failure_smoke')"))
+		github_integration_test = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('github_integration_test')"))
+		github_integration_test_b = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('github_integration_test_b')"))
+		github_storage_seed = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('github_storage_seed')"))
+		github_storage_verify = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('github_storage_verify')"))
 	var authoring_test_mode := authoring_seed_requested or authoring_verify_requested or authoring_failure_requested
 	var smoke_directory := "user://" if OS.has_feature("web") else OS.get_executable_path().get_base_dir() + "/"
 	simulation = Simulation.new()
-	simulation.attach_journal(smoke_directory + "foundation_authoring_smoke_run.jsonl" if authoring_test_mode else "user://foundation_run_v2.jsonl")
+	simulation.attach_journal(smoke_directory + "foundation_github_integration_b_run.jsonl" if github_integration_test_b else smoke_directory + "foundation_github_integration_run.jsonl" if github_integration_test else smoke_directory + "foundation_authoring_smoke_run.jsonl" if authoring_test_mode else "user://foundation_run_v2.jsonl")
 	var save_path: String = simulation.journal.path
 	var has_new_save := FileAccess.file_exists(save_path) or FileAccess.file_exists(save_path + ".bak") or FileAccess.file_exists(save_path + ".next")
 	var prior_foundation_save := FileAccess.file_exists("user://foundation_run.jsonl")
@@ -87,7 +119,7 @@ func _ready() -> void:
 			save_enabled = false
 	session = AuthoringSession.new(simulation)
 	document = session.document
-	authoring_store = AuthoringStore.new(smoke_directory + "foundation_authoring_smoke.json" if authoring_test_mode else "user://foundation_authoring.json")
+	authoring_store = AuthoringStore.new(smoke_directory + "foundation_github_integration_b_authoring.json" if github_integration_test_b else smoke_directory + "foundation_github_integration_authoring.json" if github_integration_test else smoke_directory + "foundation_authoring_smoke.json" if authoring_test_mode else "user://foundation_authoring.json")
 	var authored := AuthoringStore.load(authoring_store.path)
 	var authoring_recovery_notice := ""
 	if authored.ok:
@@ -109,7 +141,17 @@ func _ready() -> void:
 	document.changed.connect(_schedule_authoring_save)
 	document.changed.connect(_sync_scenario_source)
 	document.changed.connect(_sync_storylet_scene_source)
+	github_credentials = GithubCredentials.new()
+	github_api = GithubApi.new()
+	github_api.access_token = github_credentials.load_token()
+	add_child(github_api)
+	github_repository = GithubRepository.new(github_api)
+	github_writer = GithubCommit.new(github_api)
+	github_sync = GithubSync.new(github_repository)
+	github_conflict = GithubConflict.new(github_api)
 	_build_ui()
+	document.changed.connect(_sync_github_handoff)
+	_sync_github_handoff()
 	if not save_enabled:
 		status_label.text = "Save unavailable: existing save invalid. It was not overwritten."
 	if not authoring_save_enabled:
@@ -142,6 +184,67 @@ func _ready() -> void:
 		call_deferred("_run_authoring_verify")
 	if authoring_failure_requested:
 		call_deferred("_run_authoring_failure_smoke")
+	if github_storage_seed or github_storage_verify:
+		call_deferred("_run_github_storage_smoke", github_storage_seed)
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--github-native-smoke=") and not OS.has_feature("web"):
+			call_deferred("_run_github_native_smoke", argument.trim_prefix("--github-native-smoke="))
+
+func _run_github_storage_smoke(seed: bool) -> void:
+	var store := GithubCredentials.new("user://unused_github_storage_smoke.json", "the-incredible-diary.github-storage-smoke.v1")
+	var passed := false
+	if seed:
+		passed = bool(store.save_token("test-only-token").ok) and store.load_token() == "test-only-token"
+	else:
+		passed = store.load_token() == "test-only-token" and bool(store.clear_token().ok) and store.load_token().is_empty()
+	JavaScriptBridge.eval("document.body.dataset.githubStorage = %s" % JSON.stringify("passed" if passed else "failed"))
+	print("GITHUB_STORAGE_RESULT ", JSON.stringify({"passed": passed, "phase": "seed" if seed else "verify"}))
+
+func _run_github_native_smoke(mode: String) -> void:
+	var report := {"passed": false, "mode": mode}
+	if mode != "read" and mode != "commit-asset" and mode != "commit-dialogue":
+		report.reason = "Unknown mode"
+	elif github_api.access_token.is_empty():
+		report.reason = "No saved Windows token"
+	else:
+		var opened: Dictionary = await github_repository.open_project("jkeywo/the-incredible-diary", "codex/sync-integration-test")
+		if not opened.ok:
+			report.reason = str(opened.reason)
+		elif mode == "read":
+			report.passed = true
+			report.head = str(opened.head)
+			report.asset_count = opened.content.assets.size()
+		else:
+			var native_document := AuthoringDocument.new(opened.content)
+			native_document.checkout_remote("jkeywo/the-incredible-diary", "codex/sync-integration-test", str(opened.head), opened.content)
+			if mode == "commit-asset":
+				var image := Image.create(4, 4, false, Image.FORMAT_RGBA8)
+				image.fill(Color("#2e5260"))
+				var imported: Dictionary = ProjectAssets.import_image("native-integration-check.png", image.save_png_to_buffer())
+				if imported.ok:
+					var updated: Dictionary = opened.content.duplicate(true)
+					updated.assets[imported.id] = imported.asset
+					updated.rooms[0].background_asset = imported.id
+					native_document.replace_content(updated, "Windows integration background")
+				else:
+					report.reason = str(imported.reason)
+			else:
+				var lines := str(opened.content.dialogue).split("\n")
+				if lines.size() > 1:
+					lines[1] = "Chatterbox: The guest has arrived."
+					native_document.set_source("\n".join(lines))
+				else:
+					report.reason = "No dialogue line to edit"
+			if not report.has("reason"):
+				var message := "Test Windows authored asset sync" if mode == "commit-asset" else "Test Windows conflicting dialogue"
+				var committed: Dictionary = await github_writer.commit(native_document, "jkeywo/the-incredible-diary", "codex/sync-integration-test", str(opened.head), message)
+				report.passed = bool(committed.ok)
+				report.head = str(committed.get("head", ""))
+				report.asset_count = native_document.candidate().assets.size()
+				if not committed.ok:
+					report.reason = str(committed.reason)
+	print("GITHUB_NATIVE_SMOKE ", JSON.stringify(report))
+	get_tree().quit(0 if report.passed else 1)
 
 func _process(delta: float) -> void:
 	_check_authoring_web_sync()
@@ -213,10 +316,13 @@ func _build_ui() -> void:
 	background.color = Color("15232d")
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
+	var page_scroll := ScrollContainer.new()
+	page_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(page_scroll)
 	var column := VBoxContainer.new()
-	column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 12)
-	add_child(column)
+	page_scroll.add_child(column)
 	var title := Label.new()
 	title.text = "AMELIA / TWO-ROOM FOUNDATION"
 	title.add_theme_font_size_override("font_size", 26)
@@ -258,6 +364,7 @@ func _build_ui() -> void:
 	_button(controls, "Redo edit", _redo_edit)
 	_button(controls, "Retry draft save", _retry_authoring_save)
 	_button(controls, "Allow recovered draft", _allow_recovered_draft)
+	_button(controls, "GitHub project", _toggle_github_panel)
 	_button(controls, "Import room background", _import_background)
 	_button(controls, "New room", _create_room)
 	_button(controls, "Draw walkable", func(): _set_geometry_mode("draw"))
@@ -375,15 +482,266 @@ func _build_ui() -> void:
 	storylet_scene_editor.custom_minimum_size.y = 100
 	storylet_scene_editor.visible = false
 	column.add_child(storylet_scene_editor)
+	_build_github_panel()
 	status_label = Label.new()
 	status_label.text = "WASD / left stick moves Amelia. 1–2 / right stick + RB chooses a local action."
 	column.add_child(status_label)
+	column.move_child(status_label, 2)
 
 func _button(parent: Node, caption: String, action: Callable) -> void:
 	var button := Button.new()
 	button.text = caption
 	button.pressed.connect(action)
 	parent.add_child(button)
+
+func _build_github_panel() -> void:
+	github_panel = PopupPanel.new()
+	github_panel.title = "GitHub project"
+	add_child(github_panel)
+	var rows := VBoxContainer.new()
+	github_panel.add_child(rows)
+	var token_row := HFlowContainer.new()
+	rows.add_child(token_row)
+	github_token_edit = LineEdit.new()
+	github_token_edit.secret = true
+	github_token_edit.placeholder_text = "GitHub token for this device"
+	github_token_edit.custom_minimum_size.x = 300
+	github_token_edit.text = github_api.access_token
+	token_row.add_child(github_token_edit)
+	_button(token_row, "Save token", _github_save_token)
+	_button(token_row, "Remove token", _github_remove_token)
+	_button(token_row, "List repositories", _github_list_repositories)
+	var project_row := HFlowContainer.new()
+	rows.add_child(project_row)
+	github_repo_picker = OptionButton.new()
+	github_repo_picker.custom_minimum_size.x = 220
+	github_repo_picker.add_item("Choose repository")
+	github_repo_picker.item_selected.connect(_github_choose_repository)
+	project_row.add_child(github_repo_picker)
+	github_branch_picker = OptionButton.new()
+	github_branch_picker.custom_minimum_size.x = 160
+	github_branch_picker.add_item("Choose branch")
+	project_row.add_child(github_branch_picker)
+	_button(project_row, "Open project", _github_open_project)
+	var sync_row := HFlowContainer.new()
+	rows.add_child(sync_row)
+	github_message_edit = LineEdit.new()
+	github_message_edit.placeholder_text = "Commit message"
+	github_message_edit.custom_minimum_size.x = 230
+	sync_row.add_child(github_message_edit)
+	_button(sync_row, "Commit & sync", _github_review_commit)
+	_button(sync_row, "Fetch & integrate", _github_fetch_and_integrate)
+	github_comparison_button = Button.new()
+	github_comparison_button.text = "Open conflict comparison"
+	github_comparison_button.visible = not document.conflict_handoff.is_empty()
+	github_comparison_button.pressed.connect(_github_open_comparison)
+	sync_row.add_child(github_comparison_button)
+	github_commit_dialog = ConfirmationDialog.new()
+	github_commit_dialog.title = "Commit authored project"
+	github_commit_dialog.confirmed.connect(_github_commit_confirmed)
+	add_child(github_commit_dialog)
+	github_conflict_dialog = ConfirmationDialog.new()
+	github_conflict_dialog.title = "Preserve conflicting authoring"
+	github_conflict_dialog.dialog_text = "The changes overlap. Save this valid local draft to a separate GitHub branch for comparison and resolution?"
+	github_conflict_dialog.confirmed.connect(_github_preserve_conflict)
+	add_child(github_conflict_dialog)
+
+func _toggle_github_panel() -> void:
+	if github_panel.visible:
+		github_panel.hide()
+		return
+	github_panel.popup_centered(Vector2i(630, 210))
+	if not github_api.access_token.is_empty() and github_repo_picker.item_count <= 1:
+		_github_list_repositories()
+
+func _github_save_token() -> void:
+	var proposed := github_token_edit.text.strip_edges()
+	if proposed.is_empty():
+		status_label.text = "Enter a GitHub token."
+		return
+	github_auth_generation += 1
+	var attempt := github_auth_generation
+	var verifier := GithubApi.new()
+	verifier.access_token = proposed
+	add_child(verifier)
+	var checked: Dictionary = await verifier.request(HTTPClient.METHOD_GET, "/user")
+	verifier.queue_free()
+	if attempt != github_auth_generation:
+		return
+	if github_token_edit.text.strip_edges() != proposed:
+		status_label.text = "Token changed during sign-in; save it again."
+		return
+	if not checked.ok:
+		status_label.text = "GitHub sign-in failed: " + str(checked.reason)
+		return
+	var saved: Dictionary = github_credentials.save_token(proposed)
+	status_label.text = str(saved.reason)
+	if saved.ok:
+		github_api.access_token = proposed
+		_github_list_repositories()
+
+func _github_remove_token() -> void:
+	github_auth_generation += 1
+	var removed: Dictionary = github_credentials.clear_token()
+	if removed.ok:
+		github_api.access_token = ""
+		github_token_edit.clear()
+		github_repo_picker.clear()
+		github_repo_picker.add_item("Choose repository")
+		github_branch_picker.clear()
+		github_branch_picker.add_item("Choose branch")
+	status_label.text = str(removed.reason)
+
+func _github_list_repositories() -> void:
+	if github_api.access_token.is_empty():
+		status_label.text = "Enter and save a GitHub token first."
+		return
+	var listing_auth_generation := github_auth_generation
+	var listed: Dictionary = await github_repository.list_repositories()
+	if listing_auth_generation != github_auth_generation:
+		return
+	if not listed.ok:
+		status_label.text = "Could not list GitHub repositories: " + str(listed.reason)
+		return
+	var previous_repository := ""
+	if github_repo_picker.selected > 0:
+		previous_repository = github_repo_picker.get_item_text(github_repo_picker.selected)
+	github_repo_picker.clear()
+	github_repo_picker.add_item("Choose repository")
+	for item in listed.repositories:
+		github_repo_picker.add_item(str(item.full_name))
+	var restored := false
+	for index in range(1, github_repo_picker.item_count):
+		if github_repo_picker.get_item_text(index) == previous_repository:
+			github_repo_picker.select(index)
+			restored = true
+			break
+	if not restored:
+		github_branch_picker.clear()
+		github_branch_picker.add_item("Choose branch")
+	status_label.text = "Choose a repository to list its branches."
+
+func _github_choose_repository(index: int) -> void:
+	github_branch_picker.clear()
+	github_branch_picker.add_item("Choose branch")
+	if index == 0:
+		return
+	var selected := github_repo_picker.get_item_text(index)
+	var listing_auth_generation := github_auth_generation
+	var listed: Dictionary = await github_repository.list_branches(selected)
+	if listing_auth_generation != github_auth_generation or github_repo_picker.selected <= 0 or github_repo_picker.get_item_text(github_repo_picker.selected) != selected:
+		return
+	if not listed.ok:
+		status_label.text = "Could not list GitHub branches: " + str(listed.reason)
+		return
+	for item in listed.branches:
+		github_branch_picker.add_item(str(item.name))
+	status_label.text = "Choose a branch containing an Incredible Diary project."
+
+func _github_open_project() -> void:
+	if not session.paused:
+		status_label.text = "Pause before opening a GitHub project."
+		return
+	if github_repo_picker.selected <= 0 or github_branch_picker.selected <= 0:
+		status_label.text = "Choose a GitHub repository and branch."
+		return
+	if document.has_protected_work() or document.recovery_conflict:
+		status_label.text = "Current local authoring has unsaved changes; keep them before opening another project."
+		return
+	var full_name := github_repo_picker.get_item_text(github_repo_picker.selected)
+	var branch := github_branch_picker.get_item_text(github_branch_picker.selected)
+	var opening_document := document
+	var opening_revision := document.revision
+	var opening_auth_generation := github_auth_generation
+	var opened: Dictionary = await github_repository.open_project(full_name, branch)
+	if not opened.ok:
+		status_label.text = "Could not open GitHub project: " + str(opened.reason)
+		return
+	if not session.paused or document != opening_document or document.revision != opening_revision or github_auth_generation != opening_auth_generation or github_repo_picker.selected <= 0 or github_branch_picker.selected <= 0 or github_repo_picker.get_item_text(github_repo_picker.selected) != full_name or github_branch_picker.get_item_text(github_branch_picker.selected) != branch:
+		status_label.text = "Editor state changed during download; project was not opened."
+		return
+	document.replace_content(opened.content, "Open GitHub project")
+	document.checkout_remote(full_name, branch, str(opened.head), opened.content)
+	_refresh()
+	status_label.text = "Opened %s on %s at %s" % [full_name, branch, str(opened.head).substr(0, 8)]
+
+func _github_review_commit() -> void:
+	if not session.paused or document.remote_origin.is_empty():
+		status_label.text = "Pause and open a GitHub project before committing."
+		return
+	var packaged: Dictionary = GithubProject.package(document)
+	if not packaged.ok:
+		status_label.text = "Commit blocked: " + str(packaged.reason)
+		return
+	if github_message_edit.text.strip_edges().is_empty():
+		status_label.text = "Enter a commit message."
+		return
+	var origin: Dictionary = document.remote_origin
+	var changed_sections := PackedStringArray()
+	for key in ["assets", "rooms", "connections", "actors", "commitments", "interactions", "storylets", "scenes", "dialogue"]:
+		if origin.content.get(key) != packaged.scenario.get(key):
+			changed_sections.append(key)
+	if changed_sections.is_empty():
+		status_label.text = "No authored project changes to commit."
+		return
+	github_review_revision = document.revision
+	github_review_message = github_message_edit.text.strip_edges()
+	github_commit_dialog.dialog_text = "Repository: %s\nBranch: %s\nChanged: %s\nMessage: %s" % [origin.repository, origin.branch, ", ".join(changed_sections), github_review_message]
+	github_commit_dialog.popup_centered()
+
+func _github_commit_confirmed() -> void:
+	if document.revision != github_review_revision or github_message_edit.text.strip_edges() != github_review_message:
+		status_label.text = "Authoring or commit message changed; review the commit again."
+		return
+	var origin: Dictionary = document.remote_origin.duplicate(true)
+	status_label.text = "Committing authored project to GitHub..."
+	var result: Dictionary = await github_writer.commit(document, str(origin.repository), str(origin.branch), str(origin.head), github_review_message)
+	if result.ok:
+		status_label.text = "Committed at %s%s" % [str(result.head).substr(0, 8), "; newer local edits remain" if result.get("later_edits", false) else ""]
+		github_message_edit.clear()
+	else:
+		status_label.text = "Commit blocked: " + str(result.reason)
+	_refresh()
+
+func _github_fetch_and_integrate() -> void:
+	if not session.paused or document.remote_origin.is_empty():
+		status_label.text = "Pause and open a GitHub project before fetching."
+		return
+	var fetching_document := document
+	var fetching_revision := document.revision
+	var fetching_auth_generation := github_auth_generation
+	status_label.text = "Fetching GitHub project..."
+	var fetched: Dictionary = await github_sync.fetch(document)
+	if not fetched.ok:
+		status_label.text = "Fetch failed: " + str(fetched.reason)
+		return
+	if not session.paused or document != fetching_document or document.revision != fetching_revision or github_auth_generation != fetching_auth_generation:
+		status_label.text = "Editor state changed during fetch; nothing was integrated."
+		return
+	var integrated: Dictionary = github_sync.integrate(document, fetched)
+	if integrated.ok:
+		status_label.text = str(integrated.reason) + ("; local changes still need a commit" if integrated.get("needs_commit", false) else "")
+	elif not integrated.get("conflicts", []).is_empty() or not integrated.get("errors", []).is_empty():
+		status_label.text = "Authored changes could not be combined; preserve the last valid local work on a separate branch."
+		github_conflict_dialog.dialog_text = "The local and remote changes cannot be combined. Save the last valid local authored project to a separate GitHub branch? Any invalid combined draft stays here for correction."
+		github_conflict_dialog.popup_centered()
+	else:
+		status_label.text = "Integration blocked: " + str(integrated.reason)
+	_refresh()
+
+func _github_preserve_conflict() -> void:
+	status_label.text = "Preserving local authored project on a conflict branch..."
+	var result: Dictionary = await github_conflict.preserve(document)
+	status_label.text = str(result.reason)
+
+func _github_open_comparison() -> void:
+	var url := str(document.conflict_handoff.get("url", ""))
+	if url.begins_with("https://github.com/"):
+		OS.shell_open(url)
+
+func _sync_github_handoff() -> void:
+	if is_instance_valid(github_comparison_button):
+		github_comparison_button.visible = not document.conflict_handoff.is_empty()
 
 func _toggle_pause() -> void:
 	if session.paused: _resume(false)

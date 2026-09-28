@@ -9,9 +9,30 @@ const ProjectAssets = preload("res://foundation/project_assets.gd")
 const RoomGeometry = preload("res://foundation/room_geometry.gd")
 const AuthoringStore = preload("res://foundation/authoring_store.gd")
 const Inspector = preload("res://foundation/inspector.gd")
+const GithubProject = preload("res://foundation/github_project.gd")
+const GithubRepository = preload("res://foundation/github_repository.gd")
+const GithubApi = preload("res://foundation/github_api.gd")
+const GithubCredentials = preload("res://foundation/github_credentials.gd")
+const GithubCommit = preload("res://foundation/github_commit.gd")
+const GithubMerge = preload("res://foundation/github_merge.gd")
+const GithubSync = preload("res://foundation/github_sync.gd")
+const GithubConflict = preload("res://foundation/github_conflict.gd")
 const Harness = preload("res://foundation/harness.gd")
 const Scenario = preload("res://foundation/scenario.gd")
 var failures: Array[String] = []
+
+class FakeGithubTransport:
+	extends RefCounted
+	var replies: Dictionary = {}
+	var paths: Array[String] = []
+	var requests: Array[Dictionary] = []
+	func request(_method: int, path: String, _body: Dictionary = {}) -> Dictionary:
+		paths.append(path)
+		requests.append({"method": _method, "path": path, "body": _body.duplicate(true)})
+		var response: Variant = replies.get(path, {"ok": false, "status": 404, "reason": "Missing fake response"})
+		if response is Callable:
+			return response.call()
+		return response.pop_front() if response is Array else response
 
 func _initialize() -> void:
 	call_deferred("run")
@@ -42,6 +63,228 @@ func run() -> void:
 	illustrated.assets[imported.id] = imported.asset
 	illustrated.rooms[0].background_asset = imported.id
 	expect(Content.validate(illustrated).is_empty(), "room_background_asset_reference")
+	var illustrated_package := GithubProject.package(AuthoringDocument.new(illustrated))
+	var illustrated_open := GithubProject.open_files(illustrated_package.files)
+	expect(illustrated_package.ok and illustrated_open.ok and illustrated_open.content.assets[imported.id].base64 == imported.asset.base64 and ProjectAssets.validate(illustrated_open.content.assets[imported.id]).is_empty(), "repository_project_keeps_background_bytes")
+	var fake_github := FakeGithubTransport.new()
+	if not OS.has_feature("web"):
+		var credential_store := GithubCredentials.new("res://build/foundation_github_credentials_test.json")
+		credential_store.clear_token()
+		expect(credential_store.load_token().is_empty() and credential_store.save_token("test-only-token").ok and credential_store.load_token() == "test-only-token" and credential_store.clear_token().ok and credential_store.load_token().is_empty(), "native_github_token_is_local_and_removable")
+	var github_prefix := "/repos/example/diary"
+	fake_github.replies["/user/repos?affiliation=owner,collaborator,organization_member&per_page=100"] = {"ok": true, "data": [{"full_name": "example/diary", "default_branch": "main", "permissions": {"pull": true, "push": true}}]}
+	fake_github.replies[github_prefix + "/branches?per_page=100"] = {"ok": true, "data": [{"name": "main", "commit": {"sha": "head1"}}]}
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "head1"}}}
+	fake_github.replies[github_prefix + "/git/commits/head1"] = {"ok": true, "data": {"tree": {"sha": "tree1"}}}
+	fake_github.replies[github_prefix + "/git/trees/tree1?recursive=1"] = {"ok": true, "data": {"truncated": false, "tree": [{"path": GithubProject.MANIFEST_PATH, "type": "blob", "sha": "manifest1"}, {"path": GithubProject.SCENARIO_PATH, "type": "blob", "sha": "scenario1"}]}}
+	fake_github.replies[github_prefix + "/git/blobs/manifest1"] = {"ok": true, "data": {"encoding": "base64", "content": Marshalls.utf8_to_base64(illustrated_package.files[GithubProject.MANIFEST_PATH])}}
+	fake_github.replies[github_prefix + "/git/blobs/scenario1"] = {"ok": true, "data": {"encoding": "base64", "content": Marshalls.utf8_to_base64(illustrated_package.files[GithubProject.SCENARIO_PATH])}}
+	var github_repository := GithubRepository.new(fake_github)
+	var unsigned_api := GithubApi.new()
+	expect(not (await unsigned_api.request(HTTPClient.METHOD_GET, "/user/repos")).ok, "github_api_requires_sign_in")
+	unsigned_api.free()
+	var listed_repositories: Dictionary = await github_repository.list_repositories()
+	var listed_branches: Dictionary = await github_repository.list_branches("example/diary")
+	var opened_from_github: Dictionary = await github_repository.open_project("example/diary", "main")
+	expect(listed_repositories.ok and listed_repositories.repositories[0].can_push and listed_branches.ok and listed_branches.branches[0].head == "head1", "github_repository_and_branch_selection_fake")
+	expect(opened_from_github.ok and opened_from_github.head == "head1" and opened_from_github.content.assets[imported.id].base64 == imported.asset.base64, "github_project_and_asset_open_fake")
+	var github_ui := Harness.new()
+	github_ui.simulation = Simulation.new(scenario)
+	github_ui.session = AuthoringSession.new(github_ui.simulation)
+	github_ui.session.pause()
+	github_ui.document = github_ui.session.document
+	github_ui.github_repository = github_repository
+	github_ui.status_label = Label.new()
+	github_ui.github_repo_picker = OptionButton.new()
+	github_ui.github_repo_picker.add_item("Choose repository")
+	github_ui.github_repo_picker.add_item("example/diary")
+	github_ui.github_repo_picker.select(1)
+	github_ui.github_branch_picker = OptionButton.new()
+	github_ui.github_branch_picker.add_item("Choose branch")
+	github_ui.github_branch_picker.add_item("main")
+	github_ui.github_branch_picker.select(1)
+	await github_ui._github_open_project()
+	expect(github_ui.document.remote_origin.repository == "example/diary" and github_ui.document.remote_origin.head == "head1" and github_ui.document.content.assets[imported.id].base64 == imported.asset.base64 and github_ui.simulation.content.assets.is_empty(), "paused_editor_opens_selected_github_project_fake")
+	fake_github.replies[github_prefix + "/git/trees/tree1?recursive=1"] = {"ok": true, "data": {"truncated": false, "tree": []}}
+	expect(not (await github_repository.open_project("example/diary", "main")).ok, "repository_without_manifest_rejected_fake")
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": false, "status": 401, "reason": "GitHub sign-in expired or was denied"}
+	expect(not (await github_repository.open_project("example/diary", "main")).ok and illustrated_open.content.assets[imported.id].base64 == imported.asset.base64, "expired_auth_preserves_local_project_fake")
+	var commit_document := AuthoringDocument.new(illustrated)
+	var commit_edit := commit_document.content.duplicate(true)
+	commit_edit.rooms[0].name = "Updated service room"
+	commit_document.replace_content(commit_edit, "Rename service room")
+	var github_commit := GithubCommit.new(fake_github)
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "other-head"}}}
+	var request_count := fake_github.requests.size()
+	expect(not (await github_commit.commit(commit_document, "example/diary", "main", "head1", "Rename room")).ok and fake_github.requests.size() == request_count + 1 and commit_document.undo_stack.size() == 1, "remote_head_race_does_not_write_or_clear_undo_fake")
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "head1"}}}
+	fake_github.replies[github_prefix + "/git/blobs"] = {"ok": true, "data": {"sha": "blob1"}}
+	fake_github.replies[github_prefix + "/git/trees"] = {"ok": true, "data": {"sha": "tree2"}}
+	fake_github.replies[github_prefix + "/git/commits"] = {"ok": true, "data": {"sha": "new-head"}}
+	fake_github.replies[github_prefix + "/git/refs/heads/main"] = {"ok": true, "data": {"object": {"sha": "new-head"}}}
+	var committed: Dictionary = await github_commit.commit(commit_document, "example/diary", "main", "head1", "Rename room")
+	expect(committed.ok and commit_document.baseline_head == "new-head" and commit_document.remote_origin.repository == "example/diary" and commit_document.remote_origin.content.rooms[0].name == "Updated service room" and commit_document.undo_stack.is_empty() and fake_github.requests[-1].body.force == false, "explicit_commit_moves_head_without_force_fake")
+	var committed_reopen := AuthoringDocument.new(illustrated)
+	expect(committed_reopen.restore(commit_document.serialize()) and committed_reopen.remote_origin.head == "new-head" and committed_reopen.remote_origin.content.rooms[0].name == "Updated service room", "remote_baseline_survives_authoring_reopen")
+	var committed_paths: Array[String] = []
+	for request in fake_github.requests:
+		if request.method == HTTPClient.METHOD_POST and str(request.path).ends_with("/git/blobs"):
+			committed_paths.append(str(request.body.content))
+	expect(committed_paths.size() == 2 and str(committed_paths).contains("Updated service room") and not str(committed_paths).contains("current_knowledge"), "commit_packages_only_authored_project_fake")
+	var private_scenario := illustrated.duplicate(true)
+	private_scenario.current_knowledge = {"secret": "do not publish"}
+	expect(not GithubProject.package(AuthoringDocument.new(private_scenario)).ok, "private_scenario_metadata_cannot_be_committed")
+	var nested_private_scenario := illustrated.duplicate(true)
+	nested_private_scenario.rooms[0].current_knowledge = {"secret": "do not publish"}
+	expect(not GithubProject.package(AuthoringDocument.new(nested_private_scenario)).ok, "nested_private_metadata_cannot_be_committed")
+	var moving_document := AuthoringDocument.new(illustrated)
+	moving_document.replace_content(commit_edit, "First edit")
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "head1"}}}
+	fake_github.replies[github_prefix + "/git/commits"] = func() -> Dictionary:
+		var later_content := moving_document.content.duplicate(true)
+		later_content.rooms[0].name = "Later edit"
+		moving_document.replace_content(later_content, "Edit while committing")
+		return {"ok": true, "data": {"sha": "orphan-head"}}
+	request_count = fake_github.requests.size()
+	var stale_commit: Dictionary = await github_commit.commit(moving_document, "example/diary", "main", "head1", "First edit")
+	expect(not stale_commit.ok and stale_commit.get("stale_snapshot", false) and moving_document.content.rooms[0].name == "Later edit" and moving_document.undo_stack.size() == 2 and not str(fake_github.requests.slice(request_count)).contains("/git/refs/heads/main"), "in_flight_edit_prevents_stale_branch_update")
+	fake_github.replies[github_prefix + "/git/commits"] = {"ok": true, "data": {"sha": "new-head"}}
+	var late_response_document := AuthoringDocument.new(illustrated)
+	late_response_document.replace_content(commit_edit, "First edit")
+	fake_github.replies[github_prefix + "/git/refs/heads/main"] = func() -> Dictionary:
+		var later_content := late_response_document.content.duplicate(true)
+		later_content.rooms[0].name = "Later edit"
+		late_response_document.replace_content(later_content, "Edit during update")
+		return {"ok": true, "data": {"object": {"sha": "new-head"}}}
+	var late_response: Dictionary = await github_commit.commit(late_response_document, "example/diary", "main", "head1", "First edit")
+	expect(late_response.ok and late_response.later_edits and late_response_document.content.rooms[0].name == "Later edit" and late_response_document.remote_origin.content.rooms[0].name == "Updated service room" and late_response_document.undo_stack.size() == 1 and late_response_document.undo() == "Edit during GitHub commit" and late_response_document.content.rooms[0].name == "Updated service room", "edit_during_branch_update_remains_undoable_draft")
+	fake_github.replies[github_prefix + "/git/refs/heads/main"] = {"ok": true, "data": {"object": {"sha": "new-head"}}}
+	var uncertain_document := AuthoringDocument.new(illustrated)
+	uncertain_document.replace_content(commit_edit, "Rename service room")
+	fake_github.replies[github_prefix + "/branches/main"] = [{"ok": true, "data": {"commit": {"sha": "head1"}}}, {"ok": true, "data": {"commit": {"sha": "new-head"}}}]
+	fake_github.replies[github_prefix + "/git/refs/heads/main"] = {"ok": false, "status": 0, "reason": "GitHub network request failed"}
+	expect((await github_commit.commit(uncertain_document, "example/diary", "main", "head1", "Rename room")).ok and uncertain_document.baseline_head == "new-head", "ambiguous_commit_response_reconciles_head_fake")
+	var invalid_commit_document := AuthoringDocument.new(illustrated)
+	invalid_commit_document.set_source("~ start\ndo invalid_command()\n=> END")
+	request_count = fake_github.requests.size()
+	expect(not (await github_commit.commit(invalid_commit_document, "example/diary", "main", "head1", "Broken source")).ok and fake_github.requests.size() == request_count and invalid_commit_document.source_draft.contains("invalid_command"), "invalid_draft_never_reaches_commit_transport_fake")
+	var merge_local := scenario.duplicate(true)
+	merge_local.version = "merge-local"
+	merge_local.rooms[0].name = "Service office"
+	var merge_remote := scenario.duplicate(true)
+	merge_remote.version = "merge-remote"
+	merge_remote.scenes.notice = "~ start\nAmelia: A notice.\n=> END"
+	var clean_merge := GithubMerge.combine(scenario, merge_local, merge_remote)
+	expect(clean_merge.ok and clean_merge.content.rooms[0].name == "Service office" and clean_merge.content.scenes.has("notice") and Content.validate(clean_merge.content).is_empty(), "independent_authored_changes_merge")
+	var repeated_merge := GithubMerge.combine(scenario, clean_merge.content, merge_remote)
+	expect(repeated_merge.ok and repeated_merge.content == clean_merge.content, "repeat_merge_is_idempotent")
+	var fast_forward := GithubMerge.combine(scenario, scenario, merge_remote)
+	expect(fast_forward.ok and fast_forward.content == merge_remote, "unchanged_local_fast_forwards")
+	var merge_remote_conflict := scenario.duplicate(true)
+	merge_remote_conflict.version = "merge-remote-conflict"
+	merge_remote_conflict.rooms[0].name = "Engine office"
+	var conflicting_merge := GithubMerge.combine(scenario, merge_local, merge_remote_conflict)
+	expect(not conflicting_merge.ok and str(conflicting_merge.conflicts).contains("service") and str(conflicting_merge.conflicts).contains("name"), "same_field_conflict_keeps_both_versions")
+	var semantic_base := scenario.duplicate(true)
+	semantic_base.actors.append({"id": "guard", "room": "service", "x": 120.0, "y": 160.0})
+	var semantic_local := semantic_base.duplicate(true)
+	semantic_local.version = "semantic-local"
+	semantic_local.scenes.guard_notice = "~ start\nGuard: A warning.\n=> END"
+	semantic_local.storylets.append({"id": "guard_notice", "scene": "guard_notice", "room": "service", "required_actors": ["guard"], "start_tick": 0, "end_tick": 100, "required_flags": {}})
+	var semantic_remote := semantic_base.duplicate(true)
+	semantic_remote.version = "semantic-remote"
+	semantic_remote.actors.pop_back()
+	expect(Content.validate(semantic_local).is_empty() and Content.validate(semantic_remote).is_empty() and not GithubMerge.combine(semantic_base, semantic_local, semantic_remote).ok, "semantically_invalid_combination_not_activated")
+	var sync_document := AuthoringDocument.new(scenario)
+	sync_document.checkout_remote("example/diary", "main", "head1", scenario)
+	sync_document.replace_content(merge_local, "Rename room locally")
+	var sync := GithubSync.new(github_repository)
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "head1"}}}
+	fake_github.replies[github_prefix + "/git/trees/tree1?recursive=1"] = {"ok": true, "data": {"truncated": false, "tree": [{"path": GithubProject.MANIFEST_PATH, "type": "blob", "sha": "manifest1"}, {"path": GithubProject.SCENARIO_PATH, "type": "blob", "sha": "scenario1"}]}}
+	var undo_before_fetch := sync_document.undo_stack.size()
+	expect((await sync.fetch(sync_document)).ok and sync_document.undo_stack.size() == undo_before_fetch and sync_document.baseline_head == "head1", "fetch_alone_preserves_authoring_history")
+	var fetched_remote := {"ok": true, "repository": "example/diary", "branch": "main", "head": "head2", "content": merge_remote}
+	var integrated := sync.integrate(sync_document, fetched_remote)
+	expect(integrated.ok and integrated.head_changed and integrated.needs_commit and sync_document.content.rooms[0].name == "Service office" and sync_document.content.scenes.has("notice") and sync_document.baseline_head == "head2" and sync_document.undo_stack.is_empty(), "diverged_clean_workspace_integrates_and_moves_baseline")
+	expect(sync.integrate(sync_document, fetched_remote).ok and sync_document.content == integrated.content, "repeat_sync_is_idempotent")
+	var committed_draft := AuthoringDocument.new(scenario)
+	committed_draft.set_source(str(scenario.dialogue).replace("coming soon", "arriving soon"))
+	var committed_package := GithubProject.package(committed_draft)
+	committed_draft.checkout_remote("example/diary", "main", "head2", committed_package.scenario)
+	var committed_repeat := sync.integrate(committed_draft, {"ok": true, "repository": "example/diary", "branch": "main", "head": "head2", "content": committed_package.scenario})
+	expect(committed_package.ok and committed_repeat.ok and not committed_repeat.needs_commit and committed_draft.has_protected_work() and committed_draft.serialize().remote_origin.head == "head2", "committed_draft_is_not_reported_as_uncommitted")
+	var invalid_sync_doc := AuthoringDocument.new(semantic_base)
+	invalid_sync_doc.checkout_remote("example/diary", "main", "head1", semantic_base)
+	invalid_sync_doc.replace_content(semantic_local, "Add guard storylet")
+	var invalid_sync_result := sync.integrate(invalid_sync_doc, {"ok": true, "repository": "example/diary", "branch": "main", "head": "head2", "content": semantic_remote})
+	var invalid_sync_reopened := AuthoringDocument.new(semantic_base)
+	expect(not invalid_sync_result.ok and invalid_sync_doc.baseline_head == "head1" and invalid_sync_doc.content == semantic_local and not invalid_sync_doc.scenario_error.is_empty() and invalid_sync_reopened.restore(invalid_sync_doc.serialize()) and not invalid_sync_reopened.validate().is_empty() and not GithubProject.package(invalid_sync_reopened).ok, "invalid_combination_is_preserved_for_repair_and_blocks_commit")
+	var asset_base := scenario.duplicate(true)
+	asset_base.assets[imported.id] = imported.asset
+	var asset_local := asset_base.duplicate(true)
+	asset_local.version = "asset-local"
+	asset_local.rooms[0].background_asset = imported.id
+	var asset_remote := asset_base.duplicate(true)
+	asset_remote.version = "asset-remote"
+	asset_remote.assets.erase(imported.id)
+	expect(Content.validate(asset_local).is_empty() and Content.validate(asset_remote).is_empty() and not GithubMerge.combine(asset_base, asset_local, asset_remote).ok, "asset_deletion_and_incoming_reference_rejected")
+	var independent_asset_remote := scenario.duplicate(true)
+	independent_asset_remote.version = "asset-added"
+	independent_asset_remote.assets[imported.id] = imported.asset
+	independent_asset_remote.rooms[0].background_asset = imported.id
+	var asset_merge := GithubMerge.combine(scenario, merge_local, independent_asset_remote)
+	expect(asset_merge.ok and asset_merge.content.rooms[0].name == "Service office" and asset_merge.content.assets[imported.id].base64 == imported.asset.base64, "independent_background_asset_integrates")
+	var alternate_image := Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	alternate_image.fill(Color.RED)
+	var red_asset := ProjectAssets.import_image("red.png", alternate_image.save_png_to_buffer())
+	alternate_image.fill(Color.BLUE)
+	var blue_asset := ProjectAssets.import_image("blue.png", alternate_image.save_png_to_buffer())
+	var asset_conflict_base := scenario.duplicate(true)
+	asset_conflict_base.assets.shared = imported.asset
+	var asset_conflict_local := asset_conflict_base.duplicate(true)
+	asset_conflict_local.version = "red-asset"
+	asset_conflict_local.assets.shared = red_asset.asset
+	var asset_conflict_remote := asset_conflict_base.duplicate(true)
+	asset_conflict_remote.version = "blue-asset"
+	asset_conflict_remote.assets.shared = blue_asset.asset
+	expect(Content.validate(asset_conflict_local).is_empty() and Content.validate(asset_conflict_remote).is_empty() and str(GithubMerge.combine(asset_conflict_base, asset_conflict_local, asset_conflict_remote).conflicts).contains("assets.shared"), "concurrent_asset_replacements_conflict")
+	var conflict_document := AuthoringDocument.new(scenario)
+	conflict_document.checkout_remote("example/diary", "main", "head1", scenario)
+	conflict_document.replace_content(merge_local, "Rename service room locally")
+	var conflict_writer := GithubConflict.new(fake_github)
+	var valid_premerge_package := GithubProject.package(AuthoringDocument.new(invalid_sync_doc.pending_conflict_local))
+	var invalid_merge_branch := "diary-conflict/" + JSON.stringify(valid_premerge_package.files).sha256_text().substr(0, 16)
+	fake_github.replies[github_prefix + "/git/ref/heads/" + invalid_merge_branch.uri_encode()] = {"ok": false, "status": 404, "reason": "Not found"}
+	fake_github.replies[github_prefix + "/git/refs"] = {"ok": true, "data": {"ref": "refs/heads/" + invalid_merge_branch}}
+	var preserved_invalid_merge: Dictionary = await conflict_writer.preserve(invalid_sync_doc)
+	expect(preserved_invalid_merge.ok and preserved_invalid_merge.branch == invalid_merge_branch and not invalid_sync_doc.scenario_error.is_empty() and invalid_sync_doc.baseline_head == "head1" and invalid_sync_doc.conflict_handoff.branch == invalid_merge_branch, "invalid_combination_preserves_last_valid_local_project_on_conflict_branch")
+	var conflict_package := GithubProject.package(conflict_document)
+	var conflict_branch := "diary-conflict/" + JSON.stringify(conflict_package.files).sha256_text().substr(0, 16)
+	var conflict_ref_path := github_prefix + "/git/ref/heads/" + conflict_branch.uri_encode()
+	fake_github.replies[conflict_ref_path] = {"ok": false, "status": 404, "reason": "Not found"}
+	fake_github.replies[github_prefix + "/git/refs"] = {"ok": true, "data": {"ref": "refs/heads/" + conflict_branch}}
+	var handoff: Dictionary = await conflict_writer.preserve(conflict_document)
+	expect(handoff.ok and handoff.branch == conflict_branch and conflict_document.conflict_handoff.branch == conflict_branch and conflict_document.baseline_head == "head1" and conflict_document.content.rooms[0].name == "Service office", "valid_local_conflict_preserved_without_touching_shared_head")
+	var conflict_reopened := AuthoringDocument.new(scenario)
+	expect(conflict_reopened.restore(conflict_document.serialize()) and conflict_reopened.conflict_handoff.branch == conflict_branch, "conflict_handoff_survives_restart")
+	fake_github.replies[conflict_ref_path] = {"ok": true, "data": {"object": {"sha": "new-head"}}}
+	fake_github.replies[github_prefix + "/branches/" + conflict_branch.uri_encode()] = {"ok": true, "data": {"commit": {"sha": "new-head"}}}
+	fake_github.replies[github_prefix + "/git/commits/new-head"] = {"ok": true, "data": {"tree": {"sha": "tree2"}}}
+	fake_github.replies[github_prefix + "/git/trees/tree2?recursive=1"] = {"ok": true, "data": {"truncated": false, "tree": [{"path": GithubProject.MANIFEST_PATH, "type": "blob", "sha": "conflict-manifest"}, {"path": GithubProject.SCENARIO_PATH, "type": "blob", "sha": "conflict-scenario"}]}}
+	fake_github.replies[github_prefix + "/git/blobs/conflict-manifest"] = {"ok": true, "data": {"encoding": "base64", "content": Marshalls.utf8_to_base64(conflict_package.files[GithubProject.MANIFEST_PATH])}}
+	fake_github.replies[github_prefix + "/git/blobs/conflict-scenario"] = {"ok": true, "data": {"encoding": "base64", "content": Marshalls.utf8_to_base64(conflict_package.files[GithubProject.SCENARIO_PATH])}}
+	request_count = fake_github.requests.size()
+	expect((await conflict_writer.preserve(conflict_reopened)).ok and fake_github.requests.size() > request_count and fake_github.requests[-1].method == HTTPClient.METHOD_GET, "conflict_retry_recovers_existing_branch_without_duplicate_commit")
+	var invalid_conflict_document := AuthoringDocument.new(scenario)
+	invalid_conflict_document.checkout_remote("example/diary", "main", "head1", scenario)
+	invalid_conflict_document.set_source("~ start\ndo invalid_command()\n=> END")
+	request_count = fake_github.requests.size()
+	expect(not (await conflict_writer.preserve(invalid_conflict_document)).ok and fake_github.requests.size() == request_count, "invalid_local_draft_cannot_create_conflict_branch")
+	var resolved_remote := merge_local.duplicate(true)
+	resolved_remote.version = "resolved-head"
+	resolved_remote.scenes.notice = merge_remote.scenes.notice
+	var resolved_result := sync.integrate(conflict_document, {"ok": true, "repository": "example/diary", "branch": "main", "head": "resolved-head", "content": resolved_remote})
+	expect(resolved_result.ok and conflict_document.conflict_handoff.is_empty() and conflict_document.baseline_head == "resolved-head", "resolved_remote_head_clears_conflict_handoff")
 	illustrated.assets.erase(imported.id)
 	expect(not Content.validate(illustrated).is_empty(), "missing_background_asset_rejected")
 	var bad_geometry := scenario.duplicate(true)
@@ -237,6 +480,16 @@ func run() -> void:
 	expect(not recovered_document.apply_to(newer_run).ok and newer_run.history == newer_history and newer_run.content == newer_content, "stale_draft_cannot_silently_replace_newer_run")
 	recovered_document.allow_recovered_draft()
 	expect(recovered_document.apply_to(newer_run).ok and newer_run.content.rooms.size() == 3 and newer_run.content.dialogue == scenario.dialogue, "reviewed_recovered_draft_can_be_applied_explicitly")
+	var packaged := GithubProject.package(recovered_document)
+	var opened_package := GithubProject.open_files(packaged.files)
+	expect(packaged.ok and opened_package.ok and opened_package.content.version == recovered_document.candidate().version and opened_package.content.rooms.size() == recovered_document.content.rooms.size(), "repository_project_manifest_round_trip")
+	expect(not GithubProject.open_files({"README.md": "hello"}).ok, "arbitrary_repository_not_interpreted_as_project")
+	var malformed_package: Dictionary = packaged.files.duplicate(true)
+	malformed_package[GithubProject.SCENARIO_PATH] = "{broken"
+	expect(not GithubProject.open_files(malformed_package).ok, "invalid_repository_scenario_rejected")
+	var invalid_project_document := AuthoringDocument.new(scenario)
+	invalid_project_document.set_source("~ start\ndo unknown_world_effect()\n=> END")
+	expect(not GithubProject.package(invalid_project_document).ok and invalid_project_document.source_draft.contains("unknown_world_effect"), "invalid_local_draft_blocked_from_project_package")
 	var schedule_ui := Harness.new()
 	schedule_ui.simulation = Simulation.new(scenario)
 	schedule_ui.session = AuthoringSession.new(schedule_ui.simulation)

@@ -17,6 +17,9 @@ var scene_errors: Dictionary = {}
 var undo_stack: Array[Dictionary] = []
 var redo_stack: Array[Dictionary] = []
 var baseline_head := "local"
+var remote_origin: Dictionary = {}
+var conflict_handoff: Dictionary = {}
+var pending_conflict_local: Dictionary = {}
 var recovery_conflict := false
 var revision := 0
 var source_group_open := false
@@ -63,6 +66,7 @@ func set_scenario_source(source: String) -> void:
 		else:
 			var source_was_unmodified := source_draft == str(content.get("dialogue", ""))
 			content = parser.data.duplicate(true)
+			pending_conflict_local.clear()
 			scene_errors.clear()
 			scene_drafts = content.get("scenes", {}).duplicate(true)
 			_sync_scene_drafts()
@@ -120,6 +124,19 @@ func replace_content(next_content: Dictionary, label: String) -> void:
 	if scenario_error.is_empty():
 		scenario_draft = JSON.stringify(content, "\t")
 	_sync_scene_drafts()
+	_changed()
+
+func stage_invalid_merge(merged_candidate: Dictionary, errors: Array, valid_local: Dictionary) -> void:
+	finish_source_group()
+	finish_scenario_group()
+	finish_scene_group()
+	_record("Inspect invalid integrated project", _snapshot())
+	scenario_draft = JSON.stringify(merged_candidate, "\t")
+	pending_conflict_local = valid_local.duplicate(true)
+	var messages := PackedStringArray()
+	for error in errors:
+		messages.append(str(error))
+	scenario_error = "; ".join(messages)
 	_changed()
 
 func undo() -> String:
@@ -198,8 +215,30 @@ func change_head(next_head: String) -> void:
 	finish_scenario_group()
 	finish_scene_group()
 	baseline_head = next_head
+	conflict_handoff.clear()
+	pending_conflict_local.clear()
 	undo_stack.clear()
 	redo_stack.clear()
+	_changed()
+
+func has_protected_work() -> bool:
+	return content != applied_content or source_draft != str(content.get("dialogue", "")) or not scenario_error.is_empty() or not scene_errors.is_empty() or not undo_stack.is_empty() or not redo_stack.is_empty()
+
+func snapshot_for_remote_update() -> Dictionary:
+	return _snapshot()
+
+func checkout_remote(repository: String, branch: String, head: String, baseline_content: Dictionary, later_edit_state: Dictionary = {}) -> void:
+	var changed_origin: bool = remote_origin.get("repository", "") != repository or remote_origin.get("branch", "") != branch
+	if changed_origin and head == baseline_head:
+		baseline_head = "local"
+	change_head(head)
+	remote_origin = {"repository": repository, "branch": branch, "head": head, "content": baseline_content.duplicate(true)}
+	if not later_edit_state.is_empty():
+		undo_stack.append({"label": "Edit during GitHub commit", "state": later_edit_state.duplicate(true)})
+	_changed()
+
+func record_conflict_handoff(details: Dictionary) -> void:
+	conflict_handoff = details.duplicate(true)
 	_changed()
 
 func reconcile_runtime(runtime_content: Dictionary) -> bool:
@@ -221,12 +260,14 @@ func allow_recovered_draft() -> void:
 		_changed()
 
 func serialize() -> Dictionary:
-	return {"schema": 1, "revision": revision, "baseline_head": baseline_head, "recovery_conflict": recovery_conflict, "content": content.duplicate(true), "applied_content": applied_content.duplicate(true), "source_draft": source_draft, "scenario_draft": scenario_draft, "scenario_error": scenario_error, "scene_drafts": scene_drafts.duplicate(true), "scene_errors": scene_errors.duplicate(true), "undo_stack": undo_stack.duplicate(true), "redo_stack": redo_stack.duplicate(true)}
+	return {"schema": 1, "revision": revision, "baseline_head": baseline_head, "remote_origin": remote_origin.duplicate(true), "conflict_handoff": conflict_handoff.duplicate(true), "pending_conflict_local": pending_conflict_local.duplicate(true), "recovery_conflict": recovery_conflict, "content": content.duplicate(true), "applied_content": applied_content.duplicate(true), "source_draft": source_draft, "scenario_draft": scenario_draft, "scenario_error": scenario_error, "scene_drafts": scene_drafts.duplicate(true), "scene_errors": scene_errors.duplicate(true), "undo_stack": undo_stack.duplicate(true), "redo_stack": redo_stack.duplicate(true)}
 
 func restore(data: Dictionary) -> bool:
 	if data.get("schema") != 1 or not data.get("content") is Dictionary or not data.get("applied_content") is Dictionary or not data.get("source_draft") is String:
 		return false
 	if not data.get("undo_stack") is Array or not data.get("redo_stack") is Array or not data.get("baseline_head") is String:
+		return false
+	if not data.get("remote_origin", {}) is Dictionary or not data.get("conflict_handoff", {}) is Dictionary or not data.get("pending_conflict_local", {}) is Dictionary:
 		return false
 	if not Content.validate(data.applied_content).is_empty():
 		return false
@@ -245,6 +286,9 @@ func restore(data: Dictionary) -> bool:
 	undo_stack.assign(data.undo_stack)
 	redo_stack.assign(data.redo_stack)
 	baseline_head = str(data.baseline_head)
+	remote_origin = data.get("remote_origin", {}).duplicate(true)
+	conflict_handoff = data.get("conflict_handoff", {}).duplicate(true)
+	pending_conflict_local = data.get("pending_conflict_local", {}).duplicate(true)
 	recovery_conflict = bool(data.get("recovery_conflict", false))
 	revision = int(data.get("revision", 0))
 	source_group_open = false

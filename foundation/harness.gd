@@ -4,6 +4,9 @@ const Simulation = preload("res://foundation/run.gd")
 const AuthoringSession = preload("res://foundation/authoring_session.gd")
 const Benchmark = preload("res://foundation/benchmark.gd")
 const AuthoringDocument = preload("res://foundation/authoring_document.gd")
+const ProjectAssets = preload("res://foundation/project_assets.gd")
+const RoomGeometry = preload("res://foundation/room_geometry.gd")
+const AuthoringStore = preload("res://foundation/authoring_store.gd")
 const CharacterSprite = preload("res://assets/characters/character_sprite.gd")
 const ValveSheet = preload("res://assets/props/valve_states.png")
 const ACTOR_ART := {"amelia": "player", "chatterbox": "matron", "guest": "rake"}
@@ -11,6 +14,10 @@ const ACTOR_LABELS := {"amelia": "Amelia", "chatterbox": "Chatter Box", "guest":
 var simulation: FoundationRun
 var session: FoundationAuthoringSession
 var document: FoundationAuthoringDocument
+var authoring_store: FoundationAuthoringStore
+var authoring_timer: Timer
+var authoring_save_enabled := true
+var suppress_source_signal := false
 var save_enabled := true
 var accumulator := 0.0
 var inspected_room := "service"
@@ -28,12 +35,24 @@ var rewinding := false
 var rewind_tick := 0
 var actor_frames: Dictionary = {}
 var facing_history: Dictionary = {}
+var background_textures: Dictionary = {}
+var geometry_mode := ""
+var geometry_start := Vector2.ZERO
+var geometry_region := -1
+var image_dialog: FileDialog
+var web_file_callback: JavaScriptObject
 
 func _ready() -> void:
+	var authoring_seed_requested := "--authoring-seed" in OS.get_cmdline_user_args()
+	var authoring_verify_requested := "--authoring-verify" in OS.get_cmdline_user_args()
+	if OS.has_feature("web"):
+		authoring_seed_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('authoring_seed')"))
+		authoring_verify_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('authoring_verify')"))
+	var authoring_test_mode := authoring_seed_requested or authoring_verify_requested
 	simulation = Simulation.new()
 	for actor_id in ACTOR_ART:
 		actor_frames[actor_id] = CharacterSprite.make_frames(ACTOR_ART[actor_id])
-	simulation.attach_journal("user://foundation_run_v2.jsonl")
+	simulation.attach_journal(("user://foundation_authoring_smoke_run.jsonl" if OS.has_feature("web") else "res://build/foundation_authoring_smoke_run.jsonl") if authoring_test_mode else "user://foundation_run_v2.jsonl")
 	var save_path: String = simulation.journal.path
 	var has_new_save := FileAccess.file_exists(save_path) or FileAccess.file_exists(save_path + ".bak") or FileAccess.file_exists(save_path + ".next")
 	var prior_foundation_save := FileAccess.file_exists("user://foundation_run.jsonl")
@@ -43,9 +62,24 @@ func _ready() -> void:
 			save_enabled = false
 	session = AuthoringSession.new(simulation)
 	document = session.document
+	authoring_store = AuthoringStore.new(("user://foundation_authoring_smoke.json" if OS.has_feature("web") else "res://build/foundation_authoring_smoke.json") if authoring_test_mode else "user://foundation_authoring.json")
+	var authored := AuthoringStore.load(authoring_store.path)
+	if authored.ok:
+		if not document.restore(authored.data):
+			authoring_save_enabled = false
+	elif str(authored.reason) != "No authoring draft found":
+		authoring_save_enabled = false
+	authoring_timer = Timer.new()
+	authoring_timer.one_shot = true
+	authoring_timer.wait_time = 0.5
+	authoring_timer.timeout.connect(_save_authoring)
+	add_child(authoring_timer)
+	document.changed.connect(_schedule_authoring_save)
 	_build_ui()
 	if not save_enabled:
 		status_label.text = "Save unavailable: existing save invalid. It was not overwritten."
+	if not authoring_save_enabled:
+		status_label.text = "Authoring draft is corrupt or unavailable. Original files were not overwritten."
 	else:
 		_save()
 		if prior_foundation_save and not has_new_save:
@@ -66,6 +100,10 @@ func _ready() -> void:
 		editor_smoke_requested = bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('editor_smoke')"))
 	if editor_smoke_requested:
 		call_deferred("_run_editor_smoke")
+	if authoring_seed_requested:
+		call_deferred("_run_authoring_seed")
+	if authoring_verify_requested:
+		call_deferred("_run_authoring_verify")
 
 func _process(delta: float) -> void:
 	if rewinding:
@@ -147,10 +185,12 @@ func _build_ui() -> void:
 	state_label = Label.new()
 	column.add_child(state_label)
 	canvas = Control.new()
+	canvas.mouse_filter = Control.MOUSE_FILTER_STOP
 	canvas.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	canvas.custom_minimum_size = Vector2(900, 350)
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	canvas.draw.connect(_draw_world)
+	canvas.gui_input.connect(_on_canvas_input)
 	column.add_child(canvas)
 	var controls := HFlowContainer.new()
 	column.add_child(controls)
@@ -169,9 +209,23 @@ func _build_ui() -> void:
 	_button(controls, "Rewind / skip (R)", _reset_pressed)
 	_button(controls, "Undo edit", _undo_edit)
 	_button(controls, "Redo edit", _redo_edit)
+	_button(controls, "Retry draft save", _retry_authoring_save)
+	_button(controls, "Import room background", _import_background)
+	_button(controls, "New room", _create_room)
+	_button(controls, "Draw walkable", func(): _set_geometry_mode("draw"))
+	_button(controls, "Move walkable", func(): _set_geometry_mode("move"))
+	_button(controls, "Erase walkable", func(): _set_geometry_mode("erase"))
+	image_dialog = FileDialog.new()
+	image_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	image_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	image_dialog.use_native_dialog = true
+	image_dialog.add_filter("*.png, *.jpg, *.jpeg, *.webp", "Images")
+	image_dialog.file_selected.connect(_on_native_image)
+	add_child(image_dialog)
 	source_editor = CodeEdit.new()
 	source_editor.text = document.source_draft
-	source_editor.text_changed.connect(func(): session.set_draft(source_editor.text))
+	source_editor.text_changed.connect(_on_source_text_changed)
+	source_editor.focus_exited.connect(_on_source_focus_exited)
 	source_editor.custom_minimum_size.y = 110
 	source_editor.visible = false
 	column.add_child(source_editor)
@@ -209,7 +263,13 @@ func _next_event() -> void:
 	_refresh()
 
 func _other_room() -> void:
-	inspected_room = "corridor" if inspected_room == "service" else "service"
+	var rooms: Array = document.content.rooms if session.paused else simulation.content.rooms
+	var index := -1
+	for i in rooms.size():
+		if rooms[i].id == inspected_room:
+			index = i
+			break
+	inspected_room = str(rooms[(index + 1) % rooms.size()].id)
 	_refresh()
 
 func _on_scrub(value: float) -> void:
@@ -228,18 +288,34 @@ func _draw_world() -> void:
 	var shown := _shown_state()
 	var before := simulation.inspect_at(int(shown.tick) - 1) if shown.tick > 0 else {}
 	canvas.draw_rect(Rect2(20, 20, 880, 310), Color("293c48") if inspected_room == "service" else Color("38434a"))
+	var shown_content := _shown_content(shown)
+	var room := _room_in(shown_content, inspected_room)
+	if not room.is_empty():
+		var background_id := str(room.get("background_asset", ""))
+		if not background_id.is_empty() and shown_content.get("assets", {}).has(background_id):
+			if not background_textures.has(background_id):
+				background_textures[background_id] = ProjectAssets.texture(shown_content.assets[background_id])
+			if background_textures[background_id] != null:
+				canvas.draw_texture_rect(background_textures[background_id], Rect2(20, 20, 880, 280), false)
+		if session.paused and session.viewed_tick < 0:
+			for values in RoomGeometry.rectangles(room):
+				var top_left := _world_to_canvas(room, Vector2(float(values[0]), float(values[1])))
+				var bottom_right := _world_to_canvas(room, Vector2(float(values[0]) + float(values[2]), float(values[1]) + float(values[3])))
+				var rect := Rect2(top_left, bottom_right - top_left)
+				canvas.draw_rect(rect, Color(0.35, 0.75, 0.55, 0.15))
+				canvas.draw_rect(rect, Color("75d9ad"), false, 2.0)
 	var font := ThemeDB.fallback_font
 	canvas.draw_string(font, Vector2(35, 50), inspected_room.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
 	for actor_id in shown.actors:
 		var actor: Dictionary = shown.actors[actor_id]
 		if actor.room != inspected_room:
 			continue
-		var point := Vector2(20 + float(actor.x) * 2.0, 20 + float(actor.y))
+		var point := _world_to_canvas(room, Vector2(float(actor.x), float(actor.y)))
 		_draw_actor(actor_id, shown, before, point)
 		canvas.draw_string(font, point + Vector2(-28, -54), ACTOR_LABELS.get(actor_id, actor_id), HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
-	for interaction in simulation.content.interactions:
+	for interaction in shown_content.interactions:
 		if interaction.room == inspected_room:
-			var point := Vector2(20 + float(interaction.x) * 2.0, 20 + float(interaction.y))
+			var point := _world_to_canvas(room, Vector2(float(interaction.x), float(interaction.y)))
 			if interaction.id == "valve":
 				var source_x := 32 if shown.flags.get("close_valve", false) else 0
 				canvas.draw_texture_rect_region(ValveSheet, Rect2(point - Vector2(16, 48), Vector2(32, 48)), Rect2(source_x, 0, 32, 48))
@@ -248,7 +324,7 @@ func _draw_world() -> void:
 			canvas.draw_string(font, point + Vector2(-20, 32), interaction.label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
 	if session.viewed_tick < 0 and inspected_room == simulation.state.actors.amelia.room:
 		var amelia: Dictionary = simulation.state.actors.amelia
-		var center := Vector2(20 + float(amelia.x) * 2.0, 20 + float(amelia.y))
+		var center := _world_to_canvas(room, Vector2(float(amelia.x), float(amelia.y)))
 		var choices := _local_choices()
 		for i in choices.size():
 			var angle := -PI / 2.0 + TAU * float(i) / float(choices.size())
@@ -326,6 +402,11 @@ func _refresh() -> void:
 func _shown_state() -> Dictionary:
 	return session.inspect()
 
+func _shown_content(shown: Dictionary) -> Dictionary:
+	if session.viewed_tick >= 0:
+		return simulation.content_versions.get(shown.content_version, simulation.content)
+	return document.content if session.paused else simulation.content
+
 func _local_choices() -> Array[Dictionary]:
 	var choices: Array[Dictionary] = []
 	if simulation.dialogue_available():
@@ -336,7 +417,7 @@ func _local_choices() -> Array[Dictionary]:
 
 func _pause() -> void:
 	session.pause()
-	source_editor.text = document.source_draft
+	_show_source(document.source_draft)
 	source_editor.visible = true
 	status_label.text = "Paused. Edit the Dialogue Manager scene, then resume to validate and apply."
 
@@ -349,6 +430,7 @@ func _resume(from_history: bool) -> void:
 		status_label.text = "Resume blocked: " + str(result.reason)
 		return
 	_save()
+	geometry_mode = ""
 	source_editor.visible = false
 	status_label.text = "Continued from recorded time" if target_tick >= 0 else "Running"
 	if target_tick >= 0:
@@ -362,7 +444,9 @@ func _undo_edit() -> void:
 	if label.is_empty():
 		status_label.text = "No authoring edit to undo."
 		return
-	source_editor.text = document.source_draft
+	_show_source(document.source_draft)
+	if _room_in(document.content, inspected_room).is_empty():
+		inspected_room = str(document.content.rooms[0].id)
 	status_label.text = "Undid: " + label
 
 func _redo_edit() -> void:
@@ -373,8 +457,188 @@ func _redo_edit() -> void:
 	if label.is_empty():
 		status_label.text = "No authoring edit to redo."
 		return
-	source_editor.text = document.source_draft
+	_show_source(document.source_draft)
 	status_label.text = "Redid: " + label
+
+func _show_source(source: String) -> void:
+	suppress_source_signal = true
+	source_editor.text = source
+	suppress_source_signal = false
+
+func _on_source_text_changed() -> void:
+	if session.paused and not suppress_source_signal:
+		session.set_draft(source_editor.text)
+
+func _on_source_focus_exited() -> void:
+	document.finish_source_group()
+	if is_instance_valid(authoring_timer) and authoring_timer.time_left > 0.0:
+		authoring_timer.stop()
+		_save_authoring()
+
+func _exit_tree() -> void:
+	if is_instance_valid(authoring_timer) and authoring_timer.time_left > 0.0:
+		authoring_timer.stop()
+		_save_authoring()
+
+func _schedule_authoring_save() -> void:
+	if authoring_save_enabled and is_instance_valid(authoring_timer):
+		authoring_timer.start()
+
+func _save_authoring() -> void:
+	if not authoring_save_enabled:
+		return
+	var result := authoring_store.save(document)
+	if not result.ok:
+		authoring_save_enabled = false
+		if is_instance_valid(status_label):
+			status_label.text = "Authoring save failed: " + str(result.reason)
+
+func _retry_authoring_save() -> void:
+	authoring_save_enabled = true
+	_save_authoring()
+
+func _room_in(in_content: Dictionary, id: String) -> Dictionary:
+	for room in in_content.rooms:
+		if room.id == id:
+			return room
+	return {}
+
+func _create_room() -> void:
+	if not session.paused or rewinding:
+		status_label.text = "Pause before creating a room."
+		return
+	document.set_source(source_editor.text)
+	var next_content := document.content.duplicate(true)
+	var number: int = next_content.rooms.size() + 1
+	var room_id := "room_%d" % number
+	while not _room_in(next_content, room_id).is_empty():
+		number += 1
+		room_id = "room_%d" % number
+	next_content.rooms.append({"id": room_id, "name": "Room %d" % number, "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]]})
+	document.replace_content(next_content, "Create room %s" % room_id)
+	inspected_room = room_id
+	status_label.text = "Created %s. Add its background and walkable regions while paused." % room_id
+	_refresh()
+
+func _set_geometry_mode(mode: String) -> void:
+	if not session.paused or rewinding:
+		status_label.text = "Pause before editing room geometry."
+		return
+	geometry_mode = mode
+	status_label.text = "%s walkable geometry in %s. Drag on the room view." % [mode.capitalize(), inspected_room]
+
+func _canvas_point(local: Vector2) -> Vector2:
+	var room := _room_in(document.content, inspected_room)
+	var bounds: Array = room.get("bounds", [0, 0, 440, 280])
+	return Vector2(float(bounds[0]) + clampf((local.x - 20.0) / 880.0, 0.0, 1.0) * float(bounds[2]), float(bounds[1]) + clampf((local.y - 20.0) / 280.0, 0.0, 1.0) * float(bounds[3]))
+
+func _world_to_canvas(room: Dictionary, point: Vector2) -> Vector2:
+	var bounds: Array = room.get("bounds", [0, 0, 440, 280])
+	if float(bounds[2]) <= 0.0 or float(bounds[3]) <= 0.0:
+		return Vector2(20, 20)
+	return Vector2(20.0 + (point.x - float(bounds[0])) / float(bounds[2]) * 880.0, 20.0 + (point.y - float(bounds[1])) / float(bounds[3]) * 280.0)
+
+func _region_at(room: Dictionary, point: Vector2) -> int:
+	var regions: Array = room.get("walkable", [])
+	for index in range(regions.size() - 1, -1, -1):
+		var values: Array = regions[index]
+		if Rect2(float(values[0]), float(values[1]), float(values[2]), float(values[3])).has_point(point):
+			return index
+	return -1
+
+func _on_canvas_input(event: InputEvent) -> void:
+	if not session.paused or rewinding or geometry_mode.is_empty():
+		return
+	if not event is InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var point := _canvas_point(event.position)
+	var room := _room_in(document.content, inspected_room)
+	if room.is_empty():
+		return
+	if event.pressed:
+		geometry_start = point
+		geometry_region = _region_at(room, point)
+		if geometry_mode == "erase" and geometry_region >= 0:
+			_edit_geometry("Remove walkable region", func(regions: Array): regions.remove_at(geometry_region))
+		return
+	if geometry_mode == "erase":
+		return
+	if geometry_mode == "draw":
+		var top_left := Vector2(minf(geometry_start.x, point.x), minf(geometry_start.y, point.y))
+		var size := (point - geometry_start).abs()
+		if size.x >= 4.0 and size.y >= 4.0:
+			_edit_geometry("Draw walkable region", func(regions: Array): regions.append([top_left.x, top_left.y, size.x, size.y]))
+	elif geometry_mode == "move" and geometry_region >= 0:
+		var delta := point - geometry_start
+		_edit_geometry("Move walkable region", func(regions: Array):
+			var values: Array = regions[geometry_region]
+			var bounds: Array = room.bounds
+			values[0] = clampf(float(values[0]) + delta.x, float(bounds[0]), float(bounds[0]) + float(bounds[2]) - float(values[2]))
+			values[1] = clampf(float(values[1]) + delta.y, float(bounds[1]), float(bounds[1]) + float(bounds[3]) - float(values[3])))
+
+func _edit_geometry(label: String, action: Callable) -> void:
+	document.set_source(source_editor.text)
+	var next_content := document.content.duplicate(true)
+	for room in next_content.rooms:
+		if room.id == inspected_room:
+			if not room.has("walkable"):
+				room.walkable = [room.bounds.duplicate(true)]
+			action.call(room.walkable)
+			break
+	document.replace_content(next_content, label)
+	status_label.text = label + ". Resume validates the result."
+	_refresh()
+
+func _import_background() -> void:
+	if not session.paused or rewinding:
+		status_label.text = "Pause before importing a room background."
+		return
+	if OS.has_feature("web"):
+		if web_file_callback == null:
+			web_file_callback = JavaScriptBridge.create_callback(_on_web_image)
+			var window := JavaScriptBridge.get_interface("window")
+			window.__diaryImagePicked = web_file_callback
+		JavaScriptBridge.eval("(function(){const input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp';input.style.display='none';document.body.appendChild(input);input.onchange=function(){const file=input.files[0];if(!file){input.remove();return;}const reader=new FileReader();reader.onload=function(){window.__diaryImagePicked(file.name,reader.result);input.remove();};reader.readAsDataURL(file);};input.click();})();")
+	else:
+		image_dialog.popup_centered_ratio()
+
+func _on_native_image(path: String) -> void:
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.is_empty():
+		status_label.text = "Could not read image: " + path.get_file()
+		return
+	_accept_image(path.get_file(), bytes)
+
+func _on_web_image(args: Array) -> void:
+	if args.size() < 2:
+		status_label.text = "Browser image selection failed."
+		return
+	var encoded := str(args[1])
+	if not encoded.contains(","):
+		status_label.text = "Browser image data is invalid."
+		return
+	_accept_image(str(args[0]), Marshalls.base64_to_raw(encoded.get_slice(",", 1)))
+
+func _accept_image(name: String, bytes: PackedByteArray) -> void:
+	if not session.paused or rewinding:
+		return
+	var imported: Dictionary = ProjectAssets.import_image(name, bytes)
+	if not imported.ok:
+		status_label.text = str(imported.reason)
+		return
+	document.set_source(source_editor.text)
+	var next_content := document.content.duplicate(true)
+	if not next_content.has("assets"):
+		next_content.assets = {}
+	next_content.assets[imported.id] = imported.asset
+	for room in next_content.rooms:
+		if room.id == inspected_room:
+			room.background_asset = imported.id
+			break
+	document.replace_content(next_content, "Import %s background" % inspected_room)
+	background_textures.erase(imported.id)
+	status_label.text = "Imported %s for %s. Resume validates the room." % [name, inspected_room]
+	canvas.queue_redraw()
 
 func _save() -> void:
 	if not save_enabled: return
@@ -465,5 +729,34 @@ func _run_editor_smoke() -> void:
 	print("EDITOR_SMOKE ", encoded)
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval("document.body.dataset.editorSmoke = " + JSON.stringify(encoded) + ";")
+	else:
+		get_tree().quit(0 if report.passed else 1)
+
+func _run_authoring_seed() -> void:
+	document = AuthoringDocument.new(Simulation.new().content)
+	var invalid_source := "~ start\ndo unfinished("
+	document.set_source(invalid_source)
+	var content_change := document.content.duplicate(true)
+	content_change.rooms.append({"id": "gallery", "name": "Gallery", "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]]})
+	document.replace_content(content_change, "Create gallery")
+	document.undo()
+	var saved := authoring_store.save(document)
+	var report := {"passed": saved.ok, "reason": saved.reason, "platform": OS.get_name()}
+	var encoded := JSON.stringify(report)
+	print("AUTHORING_SEED ", encoded)
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("document.body.dataset.authoringSeed = " + JSON.stringify(encoded) + ";")
+	else:
+		get_tree().quit(0 if report.passed else 1)
+
+func _run_authoring_verify() -> void:
+	authoring_save_enabled = false
+	var before := document.serialize()
+	var label := document.redo()
+	var report := {"passed": document.source_draft.contains("unfinished(") and before.undo_stack.size() == 1 and before.redo_stack.size() == 1 and label == "Create gallery" and document.content.rooms.size() == 3, "platform": OS.get_name(), "redo_label": label}
+	var encoded := JSON.stringify(report)
+	print("AUTHORING_REOPEN ", encoded)
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("document.body.dataset.authoringReopen = " + JSON.stringify(encoded) + ";")
 	else:
 		get_tree().quit(0 if report.passed else 1)

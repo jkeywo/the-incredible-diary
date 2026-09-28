@@ -4,6 +4,7 @@ class_name FoundationRun
 const Content = preload("res://foundation/content.gd")
 const Scenario = preload("res://foundation/scenario.gd")
 const Journal = preload("res://foundation/journal.gd")
+const Geometry = preload("res://foundation/room_geometry.gd")
 
 const TICKS_PER_HOUR := 1800
 const LEG_TICKS := TICKS_PER_HOUR * 6
@@ -143,6 +144,15 @@ func continue_with_content(next_content: Dictionary, from_tick: int = -1) -> Dic
 	if target_tick < 0 or target_tick >= history.size():
 		return {"ok": false, "reason": "Recorded tick does not exist", "restart": false}
 	var restored: Dictionary = history[target_tick]
+	for actor_id in restored.actors:
+		var actor: Dictionary = restored.actors[actor_id]
+		var actor_room := {}
+		for room in next_content.rooms:
+			if room.id == actor.room:
+				actor_room = room
+				break
+		if actor_room.is_empty() or not Geometry.contains(actor_room, Vector2(float(actor.x), float(actor.y))):
+			return {"ok": false, "reason": "Actor %s at recorded tick %d would be outside walkable geometry in room %s; revise the geometry or resume from an earlier tick" % [actor_id, target_tick, actor.room], "restart": true}
 	var old_actor_ids := []
 	var new_actor_ids := []
 	for actor in content.actors: old_actor_ids.append(actor.id)
@@ -276,17 +286,23 @@ func _interaction_available(interaction: Dictionary) -> bool:
 func _move_amelia(input: Dictionary) -> void:
 	var direction := Vector2(float(input.get("x", 0.0)), float(input.get("y", 0.0))).limit_length()
 	var amelia: Dictionary = state.actors.amelia
-	amelia.x = clampf(amelia.x + direction.x * 4.0, 0.0, 440.0)
-	amelia.y = clampf(amelia.y + direction.y * 4.0, 0.0, 280.0)
+	var room := _room(str(amelia.room))
+	var position := Geometry.move(room, Vector2(float(amelia.x), float(amelia.y)), direction * 4.0)
+	amelia.x = position.x
+	amelia.y = position.y
 	for connection in content.connections:
-		if amelia.room == connection.from and amelia.x >= float(connection.from_x) and direction.x > 0.0:
+		var from_y := float(connection.get("from_y", 160.0))
+		var to_y := float(connection.get("to_y", 160.0))
+		if amelia.room == connection.from and amelia.x >= float(connection.from_x) and absf(amelia.y - from_y) <= 12.0 and direction.x > 0.0:
 			amelia.room = connection.to
 			amelia.x = float(connection.to_x)
+			amelia.y = to_y
 			_emit("room_transition", "amelia", str(connection.id))
 			break
-		if amelia.room == connection.to and amelia.x <= float(connection.to_x) and direction.x < 0.0:
+		if amelia.room == connection.to and amelia.x <= float(connection.to_x) and absf(amelia.y - to_y) <= 12.0 and direction.x < 0.0:
 			amelia.room = connection.from
 			amelia.x = float(connection.from_x)
+			amelia.y = from_y
 			_emit("room_transition", "amelia", str(connection.id))
 			break
 
@@ -307,25 +323,38 @@ func _move_npcs() -> void:
 		if actor.destination != commitment.id:
 			continue
 		var target_room: String = commitment.room
-		var target_x: float = float(commitment.x)
+		var target := Vector2(float(commitment.x), float(commitment.get("y", 160.0)))
 		if actor.room != target_room:
 			var connection := _connection(actor.room, target_room)
 			if connection.is_empty():
 				actor.activity = "blocked"
 				_emit("blocked", commitment.actor, "No connection to " + target_room)
 				continue
-			var exit_x: float = float(connection.from_x if actor.room == connection.from else connection.to_x)
-			actor.x = move_toward(float(actor.x), exit_x, float(commitment.speed))
-			if is_equal_approx(float(actor.x), exit_x):
+			var exit_side := "from" if actor.room == connection.from else "to"
+			var entry_side := "to" if target_room == connection.to else "from"
+			var exit_point := Vector2(float(connection.get(exit_side + "_x")), float(connection.get(exit_side + "_y", 160.0)))
+			var next := Geometry.step_toward(_room(str(actor.room)), Vector2(float(actor.x), float(actor.y)), exit_point, float(commitment.speed))
+			actor.x = next.x
+			actor.y = next.y
+			if next.distance_to(exit_point) <= 0.01:
 				actor.room = target_room
-				actor.x = float(connection.to_x if target_room == connection.to else connection.from_x)
+				actor.x = float(connection.get(entry_side + "_x"))
+				actor.y = float(connection.get(entry_side + "_y", 160.0))
 				_emit("room_transition", commitment.actor, str(connection.id))
 		else:
-			actor.x = move_toward(float(actor.x), target_x, float(commitment.speed))
-			if is_equal_approx(float(actor.x), target_x):
+			var next := Geometry.step_toward(_room(target_room), Vector2(float(actor.x), float(actor.y)), target, float(commitment.speed))
+			actor.x = next.x
+			actor.y = next.y
+			if next.distance_to(target) <= 0.01:
 				actor.activity = "idle"
 				actor.destination = ""
 				_emit("arrival", commitment.actor, commitment.id)
 
 func _connection(from_room: String, to_room: String) -> Dictionary:
 	return authored.connection(from_room, to_room)
+
+func _room(id: String) -> Dictionary:
+	for room in content.rooms:
+		if room.id == id:
+			return room
+	return {}

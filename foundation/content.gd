@@ -2,6 +2,8 @@ extends RefCounted
 class_name FoundationContent
 
 const Dialogue = preload("res://foundation/dialogue.gd")
+const Assets = preload("res://foundation/project_assets.gd")
+const Geometry = preload("res://foundation/room_geometry.gd")
 
 const SCHEMA := 1
 
@@ -9,9 +11,10 @@ static func scenario() -> Dictionary:
 	return {
 		"schema": SCHEMA,
 		"version": "two-room-1",
+		"assets": {},
 		"rooms": [
-			{"id": "service", "name": "Service Room", "bounds": [0, 0, 440, 280]},
-			{"id": "corridor", "name": "Party Corridor", "bounds": [0, 0, 440, 280]},
+			{"id": "service", "name": "Service Room", "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]]},
+			{"id": "corridor", "name": "Party Corridor", "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]]},
 		],
 		"connections": [
 			{"id": "service_corridor", "from": "service", "to": "corridor", "from_x": 420.0, "to_x": 20.0},
@@ -43,6 +46,15 @@ static func validate(data: Dictionary) -> Array[String]:
 			errors.append("Scenario %s must be an array" % key)
 	if not errors.is_empty(): return errors
 	var rooms := {}
+	var room_data := {}
+	var assets: Variant = data.get("assets", {})
+	if not assets is Dictionary:
+		errors.append("Project assets must be a manifest object")
+		assets = {}
+	for asset_id in assets:
+		var problem := Assets.validate(assets[asset_id])
+		if not problem.is_empty():
+			errors.append("Asset %s: %s" % [asset_id, problem])
 	for room in data.rooms:
 		if not room is Dictionary:
 			errors.append("Room entry must be an object")
@@ -51,11 +63,11 @@ static func validate(data: Dictionary) -> Array[String]:
 		if id.is_empty() or rooms.has(id):
 			errors.append("Room ID missing or duplicated: " + id)
 		rooms[id] = true
-		if not room.get("bounds") is Array or room.bounds.size() != 4:
-			errors.append("Room %s needs four bounds values" % id)
-		else:
-			for value in room.bounds:
-				if not _number(value): errors.append("Room %s has nonnumeric bounds" % id)
+		room_data[id] = room
+		errors.append_array(Geometry.validate(room))
+		var background_id := str(room.get("background_asset", ""))
+		if not background_id.is_empty() and not assets.has(background_id):
+			errors.append("Room %s references missing background asset %s" % [id, background_id])
 	for required in ["service", "corridor"]:
 		if not rooms.has(required): errors.append("Missing required room " + required)
 	var actors := {}
@@ -71,6 +83,8 @@ static func validate(data: Dictionary) -> Array[String]:
 			errors.append("Actor %s has missing room %s" % [id, actor.get("room", "")])
 		if not _number(actor.get("x")) or not _number(actor.get("y")):
 			errors.append("Actor %s needs numeric x and y" % id)
+		elif room_data.has(actor.get("room", "")) and Geometry.validate(room_data[actor.room]).is_empty() and not Geometry.contains(room_data[actor.room], Vector2(float(actor.x), float(actor.y))):
+			errors.append("Actor %s starts outside walkable geometry" % id)
 	for required in ["amelia", "chatterbox", "guest"]:
 		if not actors.has(required): errors.append("Missing required actor " + required)
 	var connections := {}
@@ -87,6 +101,13 @@ static func validate(data: Dictionary) -> Array[String]:
 				errors.append("Connection %s has missing %s room" % [id, key])
 		if not _number(connection.get("from_x")) or not _number(connection.get("to_x")):
 			errors.append("Connection %s needs numeric endpoints" % id)
+		else:
+			for side in ["from", "to"]:
+				var room_id := str(connection.get(side, ""))
+				if room_data.has(room_id) and Geometry.validate(room_data[room_id]).is_empty():
+					var point := Vector2(float(connection.get(side + "_x")), float(connection.get(side + "_y", 160.0)))
+					if not Geometry.contains(room_data[room_id], point):
+						errors.append("Connection %s %s endpoint is outside walkable geometry" % [id, side])
 	if connections.is_empty(): errors.append("At least one room connection is required")
 	var commitments := {}
 	for commitment in data.commitments:
@@ -105,6 +126,8 @@ static func validate(data: Dictionary) -> Array[String]:
 			errors.append("Commitment %s needs numeric timing, speed and target" % id)
 		elif int(commitment.at_tick) < 0 or float(commitment.speed) <= 0.0:
 			errors.append("Commitment %s has invalid timing or speed" % id)
+		elif room_data.has(commitment.get("room", "")) and Geometry.validate(room_data[commitment.room]).is_empty() and not Geometry.contains(room_data[commitment.room], Vector2(float(commitment.x), float(commitment.get("y", 160.0)))):
+			errors.append("Commitment %s ends outside walkable geometry" % id)
 	var interactions := {}
 	for interaction in data.interactions:
 		if not interaction is Dictionary:
@@ -120,6 +143,8 @@ static func validate(data: Dictionary) -> Array[String]:
 			errors.append("Interaction %s needs numeric position, range and duration" % id)
 		elif float(interaction.radius) <= 0.0 or int(interaction.duration_ticks) <= 0:
 			errors.append("Interaction %s has invalid range or duration" % id)
+		elif room_data.has(interaction.get("room", "")) and Geometry.validate(room_data[interaction.room]).is_empty() and not Geometry.contains(room_data[interaction.room], Vector2(float(interaction.x), float(interaction.y))):
+			errors.append("Interaction %s is outside walkable geometry" % id)
 		if interaction.get("effect", "") != "close_valve":
 			errors.append("Interaction %s has unknown effect" % id)
 	var actor_ids: Array[String] = []

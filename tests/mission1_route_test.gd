@@ -4,7 +4,7 @@ func advance(run: RefCounted, target: int) -> void:
  while run.s.tick < target: run.step()
 func _initialize() -> void:
  var run := Sim.new()
- run.s.pos = [350,430]
+ run.s.pos = [145,390]
  advance(run, 60)
  assert(run.start("hide_bag"))
  advance(run, 90)
@@ -23,7 +23,7 @@ func _initialize() -> void:
  assert(run.start("panel"))
  run.s.entry = run.s.code
  assert(run.submit_code())
- advance(run, Sim.TRAP+100)
+ advance(run, Sim.TRAP+240)
  assert(run.flag("chat_delay") and run.party_arrival() == 4*Sim.HOUR)
  run.s.room = "salon"
  run.s.pos = [800,330]

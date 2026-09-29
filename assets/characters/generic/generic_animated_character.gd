@@ -3,6 +3,8 @@ extends AnimatedSprite2D
 ## First-playable idle, walk and conversation cycles for the recolourable NPCs.
 ## The mask atlas follows the displayed frame so skin/garment tints stay aligned.
 
+const Grounding = preload("res://assets/characters/grounding.gd")
+
 const CELL_SIZE := Vector2i(32, 48)
 const DIRECTIONS := ["down", "left", "up", "right"]
 const ACTIONS := {"idle": [0, 2, 2.0], "walk": [2, 4, 8.0], "talk": [6, 3, 4.0], "bob": [9, 4, 8.0]}
@@ -60,7 +62,7 @@ var _resume_direction := "down"
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	offset = Vector2(0, -24)
+	Grounding.install(self)
 	frame_changed.connect(_sync_mask)
 	animation_finished.connect(_on_animation_finished)
 	_refresh()
@@ -126,6 +128,7 @@ func _refresh() -> void:
 	material = shader_material
 	_update_colors()
 	play_action("idle", initial_direction)
+	Grounding.sync(self)
 
 
 func play_action(action: String, direction: String) -> void:
@@ -136,7 +139,11 @@ func play_action(action: String, direction: String) -> void:
 	if sprite_frames == null or not sprite_frames.has_animation(name):
 		push_error("Unknown generic animation: " + name)
 		return
+	# Do not restart a held casualty frame or reset an active walk cycle.
+	if animation == name:
+		return
 	play(name)
+	Grounding.sync(self)
 	_sync_mask()
 
 

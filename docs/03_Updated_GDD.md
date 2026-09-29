@@ -10,6 +10,24 @@ This file is the authoritative current design. It replaces Design_Grill_Working_
 
 **Working surname:** Ashcombe was supplied by the assistant in response to the user's request to invent a surname. The title remains a working title.
 
+## Playtest corrections — 29 September 2026
+
+These later user decisions supersede conflicting layout and diary details below.
+
+- The first mission's HUD title is **All Aboard**. Exits label the party room **Salon**.
+- The Salon is above the Foyer, reached by its central stair from the start. The Cabin Corridor is a dead end off the Foyer. A tight service passage connects the Salon's right exit to the far half of the steam room; the controls half remains accessible from the Foyer.
+- The steam operator uses the sailor sprite. Code entry uses the standard interaction wheel: digits 1–6, Clear and Commit.
+- On the docks, the passenger complains to a sailor about missing luggage. The suitcase is deeper in the luggage area. Retrieving it permits early boarding; hiding it delays boarding. The sailor searches and recovers it before boarding, clearing its hidden state. The delay remains part of that run's schedule after recovery.
+- Closed cabin doors block movement and offer Open; open doors offer Close when the doorway is clear.
+- The pocket watch and its hands use sprites. Idle poses keep feet planted; movement has constant speed and continuous animation. Casualties stop on their final frame.
+- Inspection reports visible evidence without stating when the event happened or predicting an intervention's consequences.
+- The in-game diary conceals Amelia's name and omits loop numbers. It records only witnessed observations in the current run, with hour and minute timestamps. Reset clears the written entries while retaining learned interaction knowledge.
+- Editor menus begin to the right of the settings cog.
+
+### Passenger movement and staging — clarified 29 September 2026
+
+Passengers appear on the docks during Hour 1, board after their prerequisites, visit cabins and hold conversations before taking their places for significant events. They walk through connected rooms at a constant speed. Characters have solid foot-level collision with each other and Amelia; recorded history includes their resolved positions. Closed cabin doors block movement and passengers open doors on their routes. The missing suitcase starts in the clear aisle left of the luggage stacks. Stationary animations keep the feet planted while the upper body moves, with the visible soles aligned to the floor and a contact shadow.
+
 ## 1. Identity and intended experience
 
 A pixel-art time-loop rescue game set aboard a 1920s Mediterranean cruise ship, in which Amelia observes passengers and crew, learns their routines, and uses ordinary interventions, later diary powers, and increasing authority to construct a timeline in which everyone survives. Individual rescues are insufficient: their timing and consequences must fit together.

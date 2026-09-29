@@ -389,6 +389,7 @@ func _build_ui() -> void:
 	var menu_background := PanelContainer.new()
 	menu_background.anchor_right = 1.0
 	menu_background.offset_right = 0.0
+	menu_background.offset_left = 58
 	menu_background.custom_minimum_size.y = 38
 	editor_overlay.add_child(menu_background)
 	var menu_row := HBoxContainer.new()

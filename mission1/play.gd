@@ -13,6 +13,7 @@ var controls_enabled := false
 var save_path := Save.DEFAULT_PATH
 var save_enabled := false
 var room_slot: Node2D
+var entity_layer: Node2D
 var world_overlay: Node2D
 var actors := {}
 var props := {}
@@ -50,14 +51,17 @@ func _ready() -> void:
  texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
  room_slot = Node2D.new()
  add_child(room_slot)
+ entity_layer = Node2D.new()
+ entity_layer.y_sort_enabled = true
+ add_child(entity_layer)
  room_audio = RoomAudio.new()
  add_child(room_audio)
  sounds = EventAudio.new()
  add_child(sounds)
- for id in ["amelia", "guest", "chandelier_guest", "chatterbox", "crew", "porter"]:
-  var actor := Character.instantiate()
-  actor.character_id = {"amelia":"player", "guest":"rake", "chandelier_guest":"glamorous", "chatterbox":"matron", "crew":"ex_army", "porter":"ex_army"}[id]
-  add_child(actor)
+ for id in ["amelia", "guest", "chandelier_guest", "chatterbox", "crew", "porter", "dock_sailor"]:
+  var actor := preload("res://assets/characters/mission_1/sailor.tscn").instantiate() if id in ["crew", "dock_sailor"] else Character.instantiate()
+  actor.character_id = {"amelia":"player", "guest":"rake", "chandelier_guest":"glamorous", "chatterbox":"matron", "crew":"sailor", "porter":"ex_army", "dock_sailor":"sailor"}[id]
+  entity_layer.add_child(actor)
   actors[id] = actor
  world_overlay = Node2D.new()
  world_overlay.z_index = 10
@@ -92,10 +96,10 @@ func _build_hud() -> void:
  progress.size = Vector2(280,14)
  progress.show_percentage = false
  hud.add_child(progress)
- wheel = Control.new()
+ wheel = preload("res://assets/ui/mission_1/action_wheel.tscn").instantiate()
  wheel.mouse_filter = Control.MOUSE_FILTER_IGNORE
  hud.add_child(wheel)
- wheel.draw.connect(_draw_wheel)
+ wheel.option_confirmed.connect(func(index: int, _label: String): _choose(index))
  diary = preload("res://assets/ui/mission_1/open_diary.tscn").instantiate()
  hud.add_child(diary)
  var column := VBoxContainer.new()
@@ -105,7 +109,7 @@ func _build_hud() -> void:
  column.offset_right = -15
  column.add_theme_constant_override("separation", 18)
  var title := Label.new()
- title.text = "AMELIA ASHCOMBE\nVoyage notebook"
+ title.text = "VOYAGE NOTEBOOK"
  title.add_theme_color_override("font_color", Color("342f29"))
  title.add_theme_font_size_override("font_size", 24)
  column.add_child(title)
@@ -126,7 +130,7 @@ func _build_hud() -> void:
  page_title.add_theme_font_size_override("font_size", 24)
  right_page.add_child(page_title)
  var instructions := Label.new()
- instructions.text = "Your observations remain in these pages when the voyage begins again."
+ instructions.text = "Observations from the current voyage, recorded as they happen."
  instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
  instructions.add_theme_color_override("font_color", Color("342f29"))
  instructions.add_theme_font_size_override("font_size", 18)
@@ -231,15 +235,17 @@ func _submit_code() -> void:
  sim.submit_code()
  _events()
 
-func _refresh(direction := Vector2.ZERO) -> void:
+func _refresh(direction := Vector2.INF) -> void:
+ if direction == Vector2.INF:
+  direction = Input.get_vector("move_left", "move_right", "move_up", "move_down") if rewind_index < 0 else Vector2.ZERO
  var state: Dictionary = sim.history[rewind_index] if rewind_index >= 0 else sim.s
  if shown_room != state.room: _show_room(state.room)
  watch.elapsed_seconds = float(state.tick)/10.0
- heading.text = "MISSION 1  ·  " + str(Rooms.ROOMS[state.room].title)
+ heading.text = "All Aboard  ·  " + str(Rooms.ROOMS[state.room].title)
  message.text = state.message
  notice.text = state.get("notice", "") if int(state.tick) < int(state.get("notice_until",0)) else ""
  room_audio.set_game_time(int(state.tick)*100)
- actors.amelia.position = Rooms.point(state.pos)
+ actors.amelia.position = _display_position(state, "amelia", Rooms.point(state.pos))
  var player_action := "walk" if direction.length_squared()>0.01 else "idle"
  if not state.action.is_empty(): player_action = {"hide_bag":"hide_bag", "shove":"shove", "bump":"bump"}.get(state.action.id,"idle")
  actors.amelia.play_action(player_action, state.facing)
@@ -249,15 +255,15 @@ func _refresh(direction := Vector2.ZERO) -> void:
  for id in positions:
   var info: Dictionary = positions[id]
   actors[id].visible = info.room == state.room
-  actors[id].position = Rooms.point(info.pos)
-  actors[id].play_action(info.action, "down")
+  actors[id].position = _display_position(state, id, Rooms.point(info.pos))
+  actors[id].play_action(info.action, info.get("facing",_actor_facing(id, info)))
  choices = sim.options()
  if state.code_open:
   choices = []
   for i in 6: choices.append({"label":str(i+1)})
-  choices.append({"label":"Confirm"})
+  choices.append({"label":"Commit"})
   choices.append({"label":"Clear"})
-  message.text = "CONTROL PANEL   [ %s ]   Enter: confirm · Backspace: clear\n%s" % [state.entry, state.message]
+  message.text = "CONTROL PANEL   [ %s ]   Enter: commit · Backspace: clear\n%s" % [state.entry, state.message]
  selected = clampi(selected, 0, maxi(0, choices.size()-1))
  _sync_props(state)
  sim.s = live
@@ -265,8 +271,11 @@ func _refresh(direction := Vector2.ZERO) -> void:
  if progress.visible: progress.value = 100.0*float(state.action.progress)/float(state.action.duration)
  wheel.visible = not diary_open and rewind_index < 0 and not state.finished
  var side := -185.0 if float(state.pos[0]) > 780 else 185.0
- wheel.position = Vector2(clampf(float(state.pos[0])+side, 145, 960), clampf(float(state.pos[1])-125, 245, 475))
- wheel.queue_redraw()
+ wheel.position = Vector2(clampf(actors.amelia.position.x+side, 145, 960), clampf(actors.amelia.position.y-125, 245, 475)) - wheel.size * 0.5
+ var labels := PackedStringArray()
+ for i in choices.size(): labels.append(choices[i].label if state.code_open else "%d %s" % [i+1,choices[i].label])
+ wheel.options = labels
+ wheel.selected_index = selected
  world_overlay.queue_redraw()
  if room_slot.get_child_count() > 0 and room_slot.get_child(0).has_method("set_motion_time"):
   room_slot.get_child(0).set_motion_time(float(state.tick)/10.0)
@@ -277,19 +286,30 @@ func _refresh(direction := Vector2.ZERO) -> void:
   message.text = "The pages turn backwards…  R / Back to skip"
  if diary_open: _refresh_diary()
 
-func _draw_wheel() -> void:
- if choices.is_empty(): return
- var font := ThemeDB.fallback_font
- wheel.draw_circle(Vector2.ZERO, 112, Color("17252de8"))
- wheel.draw_arc(Vector2.ZERO, 113, 0, TAU, 60, Color("d8b86c"), 2, true)
- for i in choices.size():
-  var angle := -PI/2 + TAU*i/choices.size()
-  var p := Vector2.from_angle(angle)*78
-  var label := "%d %s" % [i+1, choices[i].label]
-  if sim.s.code_open: label = choices[i].label
-  wheel.draw_circle(p, 15, Color("9e7337") if i == selected else Color("344957"))
-  var width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-  wheel.draw_string(font, p+Vector2(-width/2,5), label, HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color("fff1cc"))
+# Interpolate adjacent recorded ticks at a fixed rate, never chase the target
+# with lerp(delta), which produces visible acceleration and deceleration.
+func _display_position(state: Dictionary, id: String, current: Vector2) -> Vector2:
+ if rewind_index >= 0 or diary_open or not controls_enabled or sim.history.size() < 2: return current
+ var previous: Dictionary = sim.history[-2]
+ if previous.room != state.room: return current
+ var old: Vector2
+ if id == "amelia": old = Rooms.point(previous.pos)
+ else:
+  var before: Dictionary = previous.get("actors", {}).get(id, {})
+  if before.is_empty() or before.room != state.actors[id].room: return current
+  old = Rooms.point(before.pos)
+ if old.distance_to(current) > 50: return current
+ return old.lerp(current, clampf(accumulator / 0.1, 0, 1))
+
+func _actor_facing(id: String, info: Dictionary) -> String:
+ if info.action != "walk" or sim.history.size() < 2:
+  if info.room == "docks" and info.action == "talk": return "left" if id == "dock_sailor" else "right"
+  return "down"
+ var before: Dictionary = sim.history[-2].get("actors", {}).get(id, {})
+ if before.is_empty() or before.room != info.room: return "down"
+ var delta := Rooms.point(info.pos) - Rooms.point(before.pos)
+ if absf(delta.x) > absf(delta.y): return "right" if delta.x > 0 else "left"
+ return "down" if delta.y >= 0 else "up"
 
 func _draw_world_markers() -> void:
  if not controls_enabled: return
@@ -308,6 +328,9 @@ func _show_room(id: String) -> void:
  for child in room_slot.get_children():
   room_slot.remove_child(child)
   child.queue_free()
+ for prop in props.values():
+  entity_layer.remove_child(prop)
+  prop.queue_free()
  props.clear()
  var room := load("res://assets/rooms/mission_1/%s.tscn" % Rooms.ROOMS[id].scene).instantiate() as Node2D
  room_slot.add_child(room)
@@ -316,22 +339,26 @@ func _show_room(id: String) -> void:
  shown_room = id
  match id:
   "docks":
-   _prop("suitcase", Vector2(340,430))
-   _prop("bag_hiding", Vector2(235,420))
+   _prop("suitcase", Rooms.LUGGAGE)
+   _prop("bag_hiding", Vector2(210,335))
   "foyer": _prop("chandelier", Vector2(680,375))
   "controls":
    _prop("code_panel", Vector2(350,280))
    _prop("steam_vent", Vector2(915,420))
   "salon": _prop("drink", Vector2(815,310))
-  "cabins": _prop("cabin_door", Vector2(580,427))
+  "cabins":
+   for door_id in Rooms.CABIN_DOORS:
+    _prop("cabin_door", Vector2(Rooms.CABIN_DOORS[door_id],427), door_id)
 
-func _prop(id: String, p: Vector2) -> void:
+func _prop(id: String, p: Vector2, key := "") -> void:
  var prop := load("res://assets/props/mission_1/%s.tscn" % id).instantiate() as Node2D
  prop.position = p
- room_slot.add_child(prop)
- props[id] = prop
+ entity_layer.add_child(prop)
+ props[id if key.is_empty() else key] = prop
 
 func _sync_props(state: Dictionary) -> void:
+ for door_id in Rooms.CABIN_DOORS:
+  if props.has(door_id): props[door_id].set_state("open" if state.flags.get(door_id,false) else "closed")
  if props.has("drink"):
   props.drink.visible = state.flags.get("party_arrived",false)
   props.drink.set_state("spilled" if state.flags.get("spilled",false) else "empty" if state.dead.has("guest") else "spiked" if state.flags.get("spiked",false) else "full")
@@ -343,6 +370,7 @@ func _sync_props(state: Dictionary) -> void:
  if props.has("chandelier"):
   props.chandelier.set_state("fallen" if state.flags.get("chandelier_fallen", false) else "warning" if state.flags.get("chandelier_warning", false) else "intact")
  if props.has("suitcase"):
+  props.suitcase.visible = not state.flags.get("bag_found",false)
   props.suitcase.set_state("hidden" if state.flags.get("bag_hidden",false) else "present")
   props.bag_hiding.set_state("occupied" if state.flags.get("bag_hidden",false) else "empty")
 
@@ -361,7 +389,7 @@ func _toggle_diary() -> void:
 func _refresh_diary() -> void:
  diary_text.text = "Junior purser · Voyage notebook\n\n" + "\n\n".join(sim.memory.notes)
  if sim.memory.reset:
-  diary_text.text += "\n\nThe pages can turn back time. R returns the whole leg to the docks. Your observations remain."
+  diary_text.text += "\n\nThe pages can turn back time. R returns the whole leg to the docks. These pages record the current voyage."
  else:
   diary_text.text += "\n\nObservations are recorded here as you explore."
 
@@ -401,6 +429,7 @@ func _restore_initial() -> void:
  sim.s = initial.current.duplicate(true)
  sim.memory = initial.memory.duplicate(true)
  sim.history = initial.history.duplicate(true)
+ sim.restore_notebook()
  journal.sequence = int(initial.get("sequence",0))
 
 func _exit_tree() -> void:
@@ -408,4 +437,3 @@ func _exit_tree() -> void:
 
 func _notification(what: int) -> void:
  if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready(): _persist()
-

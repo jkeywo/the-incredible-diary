@@ -3,15 +3,16 @@ const Simulation = preload("res://mission1/simulation.gd")
 const Rooms = preload("res://mission1/rooms.gd")
 func _initialize() -> void:
  var sim := Simulation.new()
- sim.s.pos = [350,430]
+ sim.s.pos = [390,430]
  for i in 51: sim.step()
  assert(sim.flag("bag_lead"))
+ sim.s.pos = [145,390]
  assert(sim.start("hide_bag"))
  for i in 21: sim.step()
  assert(sim.flag("bag_hidden"))
  sim.reset()
  assert(sim.memory.bag and not sim.flag("bag_lead") and not sim.flag("bag_hidden"))
- sim.s.pos = [340,430]
+ sim.s.pos = [145,390]
  assert(sim.start("inspect_bag"))
  for i in 11: sim.step()
  assert(sim.flag("bag_lead"))

@@ -44,7 +44,8 @@ func run_checks() -> void:
   ["docks",[350,430],60],
   ["foyer",[680,440],Sim.CREAK],
   ["controls",[350,300],Sim.TRAP+10],
-  ["cabins",[740,530],Sim.TRAP+110],
+  ["cabins",[580,480],Sim.TRAP+110],
+  ["passage",[580,480],Sim.TRAP+110],
   ["salon",[800,330],4*Sim.HOUR+35]
  ]
  for item in scenarios:
@@ -73,6 +74,12 @@ func run_checks() -> void:
    await RenderingServer.frame_post_draw
    root.get_texture().get_image().save_png("res://build/mission1-"+item[0]+".png")
   game.sim.s.code_open = false
+ if "--screenshots" in OS.get_cmdline_user_args():
+  game._toggle_diary()
+  await process_frame
+  await RenderingServer.frame_post_draw
+  root.get_texture().get_image().save_png("res://build/mission1-diary.png")
+  game._toggle_diary()
  game.sim.memory.reset = true
  game._begin_reset()
  check(game.rewind_index >= 0, "reset starts recorded rewind")

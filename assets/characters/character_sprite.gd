@@ -3,6 +3,8 @@ extends AnimatedSprite2D
 ## Fixed-grid character art for the two-room foundation.
 ## Place this node at the character's feet and call play_action(action, direction).
 
+const Grounding = preload("res://assets/characters/grounding.gd")
+
 const CELL_SIZE := Vector2i(32, 48)
 const DIRECTIONS := ["down", "left", "up", "right"]
 const ACTIONS := {"idle": [0, 2, 2.0], "walk": [2, 4, 8.0], "talk": [6, 3, 4.0], "bob": [9, 4, 8.0]}
@@ -57,7 +59,7 @@ var _facing := "down"
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	offset = Vector2(0, -24)
+	Grounding.install(self)
 	animation_finished.connect(_on_animation_finished)
 	_facing = initial_direction
 	_refresh()
@@ -66,6 +68,7 @@ func _ready() -> void:
 func _refresh() -> void:
 	sprite_frames = make_frames(character_id, stained_outfit)
 	play_action("idle", _facing)
+	Grounding.sync(self)
 
 
 static func make_frames(id: String, use_stained_outfit := false) -> SpriteFrames:
@@ -139,7 +142,11 @@ func play_action(action: String, direction: String) -> void:
 	if not sprite_frames.has_animation(name):
 		push_error("Unknown character animation: " + name)
 		return
+	# Do not restart a held casualty frame or reset an active walk cycle.
+	if animation == name:
+		return
 	play(name)
+	Grounding.sync(self)
 
 
 func set_outfit_stained(value: bool) -> void:

@@ -15,6 +15,7 @@ current_state = "full"
 [node name="Splash" parent="." instance=ExtResource("3")]
 
 [node name="SpikingHand" parent="." instance=ExtResource("4")]
-position = Vector2(0, -26)
+position = Vector2(20, -35)
+flip_h = true
 
 [connection signal="animation_finished" from="SpikingHand" to="." method="_on_spiking_finished"]

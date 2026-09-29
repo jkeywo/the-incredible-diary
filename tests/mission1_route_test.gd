@@ -14,7 +14,7 @@ func _initialize() -> void:
   var flags := {"bag_found":true,"bag_found_tick":found}
   var start: int = maxi(found,boarding-routes.duration(routes.path("docks",Vector2(390,430),"docks",Vector2(580,105))))
   var arrival: int = start+cabin_duration
-  var final_departure: int = 9000-routes.duration(routes.path("cabins",Vector2(580,315),"salon",Vector2(800,330)))-60
+  var final_departure: int = 9000-routes.duration(routes.path("cabins",Vector2(580,315),"salon",Sim.Rooms.BAR_GUEST))-60
   var expected: int = maxi(arrival+50,1000) if arrival < 1080 else final_departure
   assert(routes.next_commitment("guest",start,boarding,9000,flags) == expected)
   if arrival < 1080:
@@ -43,7 +43,7 @@ func _initialize() -> void:
  advance(run, Sim.TRAP+240)
  assert(run.flag("chat_delay") and run.party_arrival() == 4*Sim.HOUR)
  run.s.room = "salon"
- run.s.pos = [800,330]
+ run.s.pos = [Sim.Rooms.BAR_GUEST.x,Sim.Rooms.BAR_GUEST.y]
  advance(run, 4*Sim.HOUR+35)
  assert(run.start("bump"))
  advance(run, Sim.END-1)

@@ -3,7 +3,7 @@ extends RefCounted
 const Rooms = preload("res://mission1/rooms.gd")
 const Routes = preload("res://mission1/routines.gd")
 const Speech = preload("res://mission1/conversations.gd")
-const STATION := Vector2(860,555)
+const STATION := Vector2(865,205)
 const DRINKS := {"lemonade":"Lemonade", "water":"Sparkling water", "tea":"Tea"}
 const GUESTS := {
  "guest":{"name":"Mr. Felix Harcourt", "door":"cabin_middle", "number":1, "drink":"lemonade", "request":"Lemonade, please, Boy.", "thanks":"Excellent lemonade, Boy. Thank you.", "wrong":"I asked for lemonade, Boy. Do try to remember."},
@@ -34,7 +34,7 @@ static func busy(run, id: String) -> bool:
 static func detour_plan(run, id: String, door: String) -> Dictionary:
  if busy(run,id) or not run.s.hospitality.detours.is_empty(): return {}
  var actor: Dictionary = run.s.actors[id]
- if actor.room not in ["foyer","cabins","salon"] or actor.action == "walk": return {}
+ if actor.room != "foyer": return {}
  var target := Vector2(Rooms.CABIN_DOORS[door],465)
  var outward := Routes.path(actor.room,Rooms.point(actor.pos),"cabins",target)
  var returning := Routes.path("cabins",target,actor.room,Rooms.point(actor.pos))
@@ -47,7 +47,7 @@ static func options(run, result: Array[Dictionary], local: bool) -> void:
  var state: Dictionary = run.s.hospitality
  if not str(state.menu).is_empty():
   var id: String = state.menu
-  if not run.s.actors.has(id) or busy(run,id): return
+  if not run.s.actors.has(id) or busy(run,id) or not can_direct(run,id): return
   var actor: Dictionary = run.s.actors[id]
   for door in run.memory.cabins:
    var correct: bool = GUESTS[id].door == door
@@ -57,20 +57,25 @@ static func options(run, result: Array[Dictionary], local: bool) -> void:
   run._option(result,"duties_back","Back",actor.room,Rooms.point(actor.pos),local,true)
   return
  for door in Rooms.CABIN_DOORS:
-  run._option(result,"plate:"+door,"Inspect nameplate", "cabins",Vector2(Rooms.CABIN_DOORS[door],427),local,true)
+  run._option(result,"plate:"+door,"Inspect nameplate", "cabins",Vector2(Rooms.CABIN_DOORS[door],405),local,true)
  if state.carried == "":
-  for drink in DRINKS: run._option(result,"collect:"+drink,"Get "+DRINKS[drink],"foyer",STATION,local,true)
- else: run._option(result,"return_drink","Return drink","foyer",STATION,local,true)
+  for drink in DRINKS: run._option(result,"collect:"+drink,"Get "+DRINKS[drink],"salon",STATION,local,true)
+ else: run._option(result,"return_drink","Return drink","salon",STATION,local,true)
  for id in GUESTS:
   if not run.s.actors.has(id) or busy(run,id) or state.detours.has(id): continue
   var actor: Dictionary = run.s.actors[id]
   var outcome: Dictionary = state.outcomes.get(id,{})
   var request_label: String = "Prefers "+DRINKS[GUESTS[id].drink] if run.memory.preferences.has(id) else "Ask about drinks"
-  run._option(result,"request:"+id,request_label,actor.room,Rooms.point(actor.pos),local,not outcome.get("served",false))
-  if state.carried != "" and not outcome.get("served",false):
+  run._option(result,"request:"+id,request_label,actor.room,Rooms.point(actor.pos),local,actor.room == "salon" and not outcome.get("asked",false) and not outcome.get("served",false))
+  if actor.room == "salon" and state.carried != "" and not outcome.get("served",false):
    var allowed: bool = not outcome.get("wrong_drink",false) or state.carried == GUESTS[id].drink
    run._option(result,"serve:"+id,"Offer "+DRINKS[state.carried],actor.room,Rooms.point(actor.pos),local,allowed)
-  run._option(result,"directions:"+id,"Give cabin directions",actor.room,Rooms.point(actor.pos),local,not run.memory.cabins.is_empty() and not outcome.get("directed",false))
+  run._option(result,"directions:"+id,"Give cabin directions",actor.room,Rooms.point(actor.pos),local,not run.memory.cabins.is_empty() and can_direct(run,id))
+
+static func can_direct(run, id: String) -> bool:
+ var actor: Dictionary = run.s.actors.get(id,{})
+ var outcome: Dictionary = run.s.hospitality.outcomes.get(id,{})
+ return actor.get("room","") == "foyer" and not outcome.get("found_cabin",false) and not outcome.get("directed",false)
 
 static func reply(run, id: String, text: String) -> void:
  Speech.say(run,id,text,"speech","duty_%s_%d" % [id,run.s.frame])
@@ -93,6 +98,8 @@ static func complete(run, action: String) -> bool:
   "duties_back": state.menu = ""
   "directions": state.menu = id
   "request":
+   if not state.outcomes.has(id): state.outcomes[id] = {}
+   state.outcomes[id].asked = true
    if not run.memory.preferences.has(id): run.memory.preferences.append(id)
    reply(run,id,GUESTS[id].request)
   "serve", "direct":
@@ -122,9 +129,14 @@ static func complete(run, action: String) -> bool:
 static func update(run) -> void:
  defaults(run)
  var state: Dictionary = run.s.hospitality
+ for id in GUESTS:
+  var guest_actor: Dictionary = run.s.actors.get(id,{})
+  if guest_actor.get("room","") == "cabins" and Rooms.point(guest_actor.pos).distance_to(Vector2(Rooms.CABIN_DOORS[GUESTS[id].door],315)) < 35:
+   if not state.outcomes.has(id): state.outcomes[id] = {}
+   state.outcomes[id].found_cabin = true
  if state.menu != "":
   var actor: Dictionary = run.s.actors.get(state.menu,{})
-  if actor.is_empty() or busy(run,state.menu) or not run.nearby(actor.room,Rooms.point(actor.pos)): state.menu = ""
+  if actor.is_empty() or busy(run,state.menu) or not can_direct(run,state.menu) or not run.nearby(actor.room,Rooms.point(actor.pos)): state.menu = ""
  for id in state.detours.keys():
   var trip: Dictionary = state.detours[id]
   var actor: Dictionary = run.s.actors[id]

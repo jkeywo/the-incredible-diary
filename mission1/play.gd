@@ -39,6 +39,9 @@ var progress: ProgressBar
 var shown_room := ""
 var accumulator := 0.0
 var highlight := false
+var idle_seconds := 0.0
+var application_focused := true
+var hint_prompt: Label
 var wait_latched := false
 var initial: Dictionary = {}
 var diary: Control
@@ -72,6 +75,12 @@ func _ready() -> void:
   actor.character_id = {"amelia":"player", "guest":"rake", "chandelier_guest":"glamorous", "chatterbox":"matron", "crew":"sailor", "porter":"ex_army", "dock_sailor":"sailor"}[id]
   entity_layer.add_child(actor)
   actors[id] = actor
+ for id in Simulation.Routines.INCIDENTAL_SKINS:
+  var skin: String = Simulation.Routines.INCIDENTAL_SKINS[id]
+  var actor := preload("res://assets/characters/generic/generic_animated_character.tscn").instantiate()
+  actor.character_id = skin
+  entity_layer.add_child(actor)
+  actors[id] = actor
  var captain := AnimatedSprite2D.new()
  captain.set_script(preload("res://assets/characters/captain.gd"))
  entity_layer.add_child(captain)
@@ -81,6 +90,8 @@ func _ready() -> void:
  add_child(world_overlay)
  world_overlay.draw.connect(_draw_world_markers)
  _build_hud()
+ hint_prompt = _label(Vector2.ZERO,Vector2(350,32),17)
+ hint_prompt.hide()
  _restore_initial()
  _refresh()
  if get_tree().current_scene == self: enable_controls()
@@ -177,6 +188,7 @@ func _build_hud() -> void:
  touch_controls.action_pressed.connect(_touch_action)
 
 func _touch_action(action: String) -> void:
+ idle_seconds = 0.0
  if not controls_enabled or get_tree().paused: return
  match action:
   "diary": _toggle_diary()
@@ -210,6 +222,7 @@ func _label(p: Vector2, dimensions: Vector2, font_size: int) -> Label:
  return label
 
 func _physics_process(delta: float) -> void:
+ _update_idle_hint(delta)
  if not controls_enabled or get_tree().paused: return
  if rewind_index >= 0:
   _rewind(delta)
@@ -275,6 +288,7 @@ func _unhandled_input(event: InputEvent) -> void:
  _refresh()
 
 func _choose(index: int) -> void:
+ idle_seconds = 0.0
  if sim.s.code_open:
   if index < 6 and sim.s.entry.length() < 3: sim.s.entry += str(index+1)
   elif index == 6: _submit_code()
@@ -320,6 +334,7 @@ func _refresh(direction := Vector2.INF) -> void:
   choices.append({"label":"Clear"})
   message.text = "CONTROL PANEL   [ %s ]   Enter: commit · Backspace: clear\n%s" % [state.entry, state.message]
  _sync_props(state)
+ _sync_highlights()
  sim.s = live
  _refresh_prompt(state)
  progress.visible = not state.action.is_empty()
@@ -346,10 +361,15 @@ func _refresh(direction := Vector2.INF) -> void:
 func _refresh_bubble(state: Dictionary) -> void:
  var line: Dictionary = state.get("dialogue",{})
  bubble.visible = not line.is_empty() and not diary_open and not state.finished and line.get("room","") == state.room and int(state.get("frame",state.tick)) < int(line.get("until",0))
- if not bubble.visible: return
+ if not bubble.visible:
+  hint_prompt.hide()
+  touch_controls.tutorial_action = ""
+  return
  var actor: Node2D = actors.get(line.speaker,actors.amelia)
  if not actor.visible:
   bubble.hide()
+  hint_prompt.hide()
+  touch_controls.tutorial_action = ""
   return
  var font: Font = bubble.message_label.get_theme_font("font")
  var font_size: int = bubble.message_label.get_theme_font_size("font_size")
@@ -366,6 +386,12 @@ func _refresh_bubble(state: Dictionary) -> void:
   wheel.position.y = minf(wheel.position.y,touch_controls.top_edge-20-wheel.size.y)
   if Rect2(wheel.position,wheel.size).intersects(Rect2(bubble.position,bubble.size)):
    bubble.position.y = maxf(12,wheel.position.y-bubble.size.y-8)
+ _place_bubble(anchor)
+ var hint: String = line.get("hint","")
+ touch_controls.tutorial_action = hint
+ hint_prompt.visible = not hint.is_empty()
+ hint_prompt.text = Simulation.Hints.prompt(hint,using_controller,touch_controls.active)
+ hint_prompt.position = Vector2(bubble.position.x,clampf(bubble.position.y+bubble.size.y,12,680))
  # Dialogue belongs to the character; keep the status strip for controls/results.
  if not state.code_open: message.text = ""
 
@@ -431,25 +457,13 @@ func _actor_facing(id: String, info: Dictionary) -> String:
 func _draw_world_markers() -> void:
  if not controls_enabled: return
  var state: Dictionary = sim.history[rewind_index] if rewind_index >= 0 else sim.s
- if state.room == "cabins":
-  for id in Simulation.Hospitality.GUESTS:
-   var guest: Dictionary = Simulation.Hospitality.GUESTS[id]
-   var p := Vector2(Rooms.CABIN_DOORS[guest.door]-96,376)
-   world_overlay.draw_rect(Rect2(p,Vector2(192,34)),Color("172b35"))
-   world_overlay.draw_rect(Rect2(p,Vector2(192,34)),Color("bd9149"),false,2)
-   world_overlay.draw_string(ThemeDB.fallback_font,p+Vector2(6,22),"%d · %s" % [guest.number,guest.name],HORIZONTAL_ALIGNMENT_LEFT,180,13,Color("fff1cc"))
- if state.room == "foyer":
-  var p: Vector2 = Simulation.Hospitality.STATION
-  world_overlay.draw_string(ThemeDB.fallback_font,p+Vector2(-58,-48),"Refreshments",HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color("fff1cc"))
- for door in Rooms.exits(state.room, state.flags.get("shortcut", false)):
-  var p := Rooms.point(door.point)
-  world_overlay.draw_circle(p, 12, Color("d4b571a0"))
-  world_overlay.draw_string(ThemeDB.fallback_font, p+Vector2(-45,-20), Rooms.ROOMS[door.room].title.split(" /")[0], HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color("fff1cc"))
- if highlight and rewind_index < 0:
+ for door in Rooms.exits(state.room,state.flags.get("shortcut",false)):
+  world_overlay.draw_rect(door.bounds,Color(0.83,0.71,0.44,0.35 if highlight else 0.13))
+  world_overlay.draw_rect(door.bounds,Color(0.83,0.71,0.44,0.85 if highlight else 0.4),false,1)
+ if highlight and rewind_index < 0 and not diary_open:
   for option in sim.options(false):
-   var p := Rooms.point(option.pos)
-   world_overlay.draw_arc(p, 27, 0, TAU, 28, Color("f8d873"), 2)
-   world_overlay.draw_string(ThemeDB.fallback_font, p+Vector2(-45,35), option.label,HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color("fff1cc"))
+   if not _highlight_entity(option.get("target","")):
+    world_overlay.draw_circle(Rooms.point(option.pos),12,Color("f8d87390"))
 
 func _show_room(id: String) -> void:
  for child in room_slot.get_children():
@@ -471,14 +485,27 @@ func _show_room(id: String) -> void:
    _prop("bag_hiding", Vector2(210,335))
   "foyer":
    _prop("chandelier", Rooms.CHANDELIER_FLOOR)
-   var station := preload("res://assets/props/mission_1/refreshment_station.gd").new()
-   station.position = Simulation.Hospitality.STATION
-   entity_layer.add_child(station)
-   props.refreshments = station
   "controls":
    _prop("code_panel", Vector2(350,280))
-   _prop("steam_vent", Vector2(915,420))
-  "salon": _prop("drink", Vector2(815,310))
+   _prop("steam_vent", Vector2(1035,615))
+   var smoke := preload("res://assets/effects/mission_1/room_steam.gd").new()
+   smoke.z_index = 8
+   entity_layer.add_child(smoke)
+   props.room_steam = smoke
+  "salon":
+   _prop("drink", Rooms.BAR_GLASS)
+   props.drink.scale = Vector2(0.38,0.38)
+   props.drink.z_index = 2
+   # Reuse the existing pillar pixels as a foreground mask for the hidden arm.
+   var pillar := Sprite2D.new()
+   pillar.texture = load("res://assets/rooms/mission_1/05_party_salon.png")
+   pillar.centered = false
+   pillar.region_enabled = true
+   pillar.region_rect = Rect2(944,0,41,100)
+   pillar.position = Vector2(944,0)
+   pillar.z_index = 3
+   entity_layer.add_child(pillar)
+   props.bar_pillar = pillar
   "cabins":
    for door_id in Rooms.CABIN_DOORS:
     _prop("cabin_door", Vector2(Rooms.CABIN_DOORS[door_id],427), door_id)
@@ -494,11 +521,16 @@ func _sync_props(state: Dictionary) -> void:
   if props.has(door_id): props[door_id].set_state("open" if state.flags.get(door_id,false) else "closed")
  if props.has("drink"):
   props.drink.visible = state.flags.get("party_arrived",false)
-  props.drink.set_state("spilled" if state.flags.get("spilled",false) else "empty" if state.dead.has("guest") else "spiked" if state.flags.get("spiked",false) else "full")
+  props.drink.show_at(state)
  var stained: bool = state.flags.get("spilled", false)
  if actors.guest.stained_outfit != stained: actors.guest.set_outfit_stained(stained)
  if props.has("steam_vent"):
-  props.steam_vent.set_state("off" if state.flags.get("steam_off",false) or int(state.tick) < Simulation.TRAP else "active")
+  var active := Rooms.steam_blocked(state.flags)
+  props.steam_vent.set_state("active" if active else "off")
+  var plume: AnimatedSprite2D = props.steam_vent.get_node("SteamPlume")
+  plume.pause()
+  plume.frame = int(state.tick/2) % 4
+  props.room_steam.show_at(float(state.tick)/10.0,active)
   props.code_panel.set_state("rejected" if state.flags.get("panel_rejected",false) else "entry" if state.code_open else "accepted" if state.flags.get("steam_off",false) else "standby")
  if props.has("chandelier"):
   var fraction := accumulator/0.1 if controls_enabled and rewind_index<0 and not diary_open else 0.0
@@ -514,9 +546,10 @@ func _sync_props(state: Dictionary) -> void:
 func _events() -> void:
  for event in sim.events:
   if event.kind == "sound": sounds.play_cue(StringName(event.text))
-  elif event.kind == "spike" and props.has("drink"): props.drink.play_spiking()
+
 
 func _toggle_diary() -> void:
+ idle_seconds = 0.0
  diary_open = not diary_open
  diary.visible = diary_open
  accumulator = 0.0
@@ -570,6 +603,7 @@ func _persist() -> void:
   message.text = result.reason
   push_warning(result.reason)
 func _restore_initial() -> void:
+ idle_seconds = 0.0
  if initial.is_empty(): return
  journal.restore_run(sim, initial)
 
@@ -577,4 +611,65 @@ func _exit_tree() -> void:
  _persist()
 
 func _notification(what: int) -> void:
- if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready(): _persist()
+ if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+  application_focused = false
+  idle_seconds = 0.0
+  if is_node_ready(): _persist()
+ elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+  application_focused = true
+  idle_seconds = 0.0
+
+func _input(event: InputEvent) -> void:
+ if event is InputEventKey and event.pressed or event is InputEventMouseButton and event.pressed or event is InputEventScreenTouch and event.pressed or event is InputEventJoypadButton and event.pressed:
+  idle_seconds = 0.0
+ elif event is InputEventJoypadMotion and absf(event.axis_value)>0.2:
+  idle_seconds = 0.0
+
+func _update_idle_hint(delta: float) -> void:
+ var eligible: bool = controls_enabled and application_focused and not get_tree().paused and not diary_open and rewind_index<0 and not sim.s.finished and not sim.tutorial_active() and sim.s.dialogue.is_empty() and sim.s.get("conversation",{}).is_empty() and sim.s.action.is_empty() and not sim.s.code_open and sim.s.hospitality.menu == ""
+ var active_input: bool = _movement_input().length_squared()>0.01 or Input.is_physical_key_pressed(KEY_F) or Input.get_joy_axis(0,JOY_AXIS_TRIGGER_LEFT)>0.5 or touch_controls.wait_held
+ if not eligible or active_input:
+  idle_seconds = 0.0
+  return
+ idle_seconds += delta
+ if idle_seconds >= 10.0:
+  Simulation.Hints.queue(sim,"wait")
+  idle_seconds = 0.0
+
+func _highlight_entity(id: String) -> bool:
+ var entity: Node = actors.get(id,props.get(id,null))
+ return entity != null and (entity is Sprite2D or entity is AnimatedSprite2D) and entity.visible
+
+func _sync_highlights() -> void:
+ var targets := {}
+ if highlight and not diary_open and rewind_index<0:
+  for option in sim.options(false): targets[option.get("target","")] = true
+ for collection in [actors,props]:
+  for id in collection:
+   var entity: Node = collection[id]
+   if not (entity is Sprite2D or entity is AnimatedSprite2D): continue
+   if entity.material == null:
+    entity.material = ShaderMaterial.new()
+    entity.material.shader = preload("res://assets/ui/mission_1/entity_outline.gdshader")
+   if not entity.material is ShaderMaterial: continue
+   entity.material.set_shader_parameter("interaction_outline",targets.has(id))
+   if entity is Sprite2D:
+    entity.material.set_shader_parameter("frame_origin",entity.region_rect.position if entity.region_enabled else Vector2.ZERO)
+    entity.material.set_shader_parameter("outline_frame_size",entity.region_rect.size if entity.region_enabled else entity.texture.get_size())
+
+func _place_bubble(anchor: Vector2) -> void:
+ var player_rect := Rect2(actors.amelia.position-Vector2(20,55),Vector2(40,60)).grow(6)
+ var candidates := [bubble.position,anchor+Vector2(35,-bubble.size.y/2),anchor-Vector2(bubble.size.x+35,bubble.size.y/2),anchor+Vector2(-bubble.size.x/2,35)]
+ var chosen: Vector2 = bubble.position
+ var score := INF
+ for candidate in candidates:
+  var p := Vector2(clampf(candidate.x,12,1148-bubble.size.x),clampf(candidate.y,12,680-bubble.size.y))
+  var rect := Rect2(p,bubble.size)
+  var overlap := rect.intersection(player_rect)
+  var cost := overlap.get_area()*100.0+p.distance_to(bubble.position)
+  if wheel.visible: cost += rect.intersection(Rect2(wheel.position,wheel.size)).get_area()*5.0
+  if touch_controls.active and rect.end.y > touch_controls.top_edge: cost += (rect.end.y-touch_controls.top_edge)*350
+  if cost < score: score = cost; chosen = p
+ bubble.position = chosen
+ bubble.tail_position = clampf((anchor.x-chosen.x)/bubble.size.x,0.15,0.85)
+ bubble.background_opacity = 0.5 if Rect2(chosen,bubble.size).intersects(player_rect) else 1.0

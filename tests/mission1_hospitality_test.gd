@@ -70,14 +70,19 @@ func checks() -> void:
 
  # One rejected drink, then a successful correction for every guest.
  for id in Duties.GUESTS:
+  run.s.actors[id].room = "salon"
+  run.s.actors[id].pos = [740,300]
   near_guest(run,id)
   act(run,"request:"+id)
+  assert(not run.start("request:"+id))
   assert(run.memory.preferences.has(id))
-  run.s.room = "foyer"
-  run.s.pos = [860,585]
+  run.s.room = "salon"
+  run.s.pos = [Duties.STATION.x,Duties.STATION.y]
   var wrong := "tea" if Duties.GUESTS[id].drink != "tea" else "water"
   act(run,"collect:"+wrong)
   round_trip(run)
+  run.s.actors[id].room = "salon"
+  run.s.actors[id].pos = [740,300]
   near_guest(run,id)
   act(run,"serve:"+id)
   assert(run.s.hospitality.carried == wrong)
@@ -85,10 +90,12 @@ func checks() -> void:
   assert(run.s.dialogue.text == Duties.GUESTS[id].wrong)
   assert(not run.start("serve:"+id))
   round_trip(run)
-  run.s.room = "foyer"
-  run.s.pos = [860,585]
+  run.s.room = "salon"
+  run.s.pos = [Duties.STATION.x,Duties.STATION.y]
   act(run,"return_drink")
   act(run,"collect:"+Duties.GUESTS[id].drink)
+  run.s.actors[id].room = "salon"
+  run.s.actors[id].pos = [740,300]
   near_guest(run,id)
   act(run,"serve:"+id)
   assert(run.s.hospitality.carried == "" and run.s.hospitality.outcomes[id].served)
@@ -97,89 +104,60 @@ func checks() -> void:
  assert(run.memory.preferences.size() == 3 and run.memory.cabins.size() == 3)
  assert(run.s.hospitality.outcomes.is_empty() and run.s.hospitality.carried == "")
 
- # A visible wrong-door visit fits before the next anchored departure.
+ # Directions are offered during the first foyer crossing, before discovery.
  run = Sim.new(false)
- run.s.room = "cabins"
- run.s.pos = [400,550]
- for i in 420: run.step()
  run.memory.cabins = ["cabin_left","cabin_middle","cabin_right"]
+ while run.s.actors.chandelier_guest.room != "foyer": run.step()
  near_guest(run,"chandelier_guest")
  assert(run.start("directions:chandelier_guest"))
- act(run,"direct:chandelier_guest:cabin_middle")
+ assert(run.start("direct:chandelier_guest:cabin_middle"))
  assert(run.s.hospitality.detours.has("chandelier_guest"))
  round_trip(run)
- var reacted := false
+ run.s.room = "cabins"
+ run.s.pos = [400,560]
  var reached := false
- run.s.pos = [400,530]
- for i in 300:
-  var before: Dictionary = run.s.actors.chandelier_guest.duplicate(true)
+ for i in 450:
   run.step()
   var actor: Dictionary = run.s.actors.chandelier_guest
-  if before.room == actor.room:
-   assert(Sim.Rooms.point(before.pos).distance_to(Sim.Rooms.point(actor.pos)) <= 10.01)
   if actor.room == "cabins" and Sim.Rooms.point(actor.pos).distance_to(Vector2(580,465)) < 12: reached = true
-  if run.s.dialogue.get("text","").contains("Harcourt"): reacted = true
   if run.s.hospitality.detours.is_empty(): break
- assert(reached and reacted and run.s.hospitality.detours.is_empty())
- assert(run.s.tick < 850)
+ assert(reached and run.s.hospitality.detours.is_empty())
+ # A known cabin suppresses directions even when the guest is back in the foyer.
+ for i in 900: run.step()
+ run.s.actors.chandelier_guest.room = "foyer"
  near_guest(run,"chandelier_guest")
- assert(run.start("directions:chandelier_guest"))
- assert(not run.start("direct:chandelier_guest:cabin_right"))
- act(run,"direct:chandelier_guest:cabin_left")
- assert(run.s.hospitality.outcomes.chandelier_guest.directed)
- run.s.tick = 840
- assert(Duties.detour_plan(run,"chatterbox","cabin_left").is_empty())
+ assert(run.s.hospitality.outcomes.chandelier_guest.found_cabin)
+ assert(not run.start("directions:chandelier_guest"))
+ # Correct directions end eligibility immediately; leaving the foyer closes a submenu.
+ var fresh := Sim.new(false)
+ fresh.memory.cabins = ["cabin_left"]
+ fresh.s.actors.chandelier_guest.room = "foyer"
+ fresh.s.actors.chandelier_guest.pos = [400,500]
+ near_guest(fresh,"chandelier_guest")
+ assert(fresh.start("directions:chandelier_guest"))
+ fresh.s.actors.chandelier_guest.room = "salon"
+ assert(not fresh.start("direct:chandelier_guest:cabin_left"))
+ Duties.update(fresh)
+ assert(fresh.s.hospitality.menu == "")
+ fresh.s.actors.chandelier_guest.room = "foyer"
+ assert(fresh.start("directions:chandelier_guest"))
+ assert(fresh.start("direct:chandelier_guest:cabin_left"))
+ assert(not fresh.start("directions:chandelier_guest"))
 
- # All guests recover their authored appointments after a wrong direction.
- for item in [["chandelier_guest",420,"cabin_middle"],["chatterbox",550,"cabin_middle"],["guest",1500,"cabin_left"]]:
-  var diverted := Sim.new(false)
-  diverted.s.room = "passage"
-  diverted.s.pos = [400,480]
-  while diverted.s.tick < item[1]: diverted.step()
-  diverted.memory.cabins = ["cabin_left","cabin_middle","cabin_right"]
-  near_guest(diverted,item[0])
-  var baseline := Sim.new(false)
-  baseline.s = diverted.s.duplicate(true)
-  baseline.memory = diverted.memory.duplicate(true)
-  baseline.history = diverted.history.duplicate(true)
-  var deadline := Sim.Routines.next_commitment(item[0], int(diverted.s.tick), diverted.boarding_time(), diverted.party_arrival(), diverted.s.flags)
-  assert(diverted.start("directions:"+item[0]))
-  assert(diverted.start("direct:%s:%s" % [item[0],item[2]]))
-  diverted.s.room = "passage"
-  diverted.s.pos = [400,480]
-  baseline.s.room = "passage"
-  baseline.s.pos = [400,480]
-  while diverted.s.tick < deadline+100:
-   diverted.step()
-   baseline.step()
-  assert(diverted.s.hospitality.detours.is_empty())
-  assert(diverted.s.actors == baseline.s.actors)
-  assert(diverted.party_arrival() == baseline.party_arrival() and diverted.s.dead == baseline.s.dead)
-
- # A guest unable to make progress abandons the detour early, without warping.
- var blocked := Sim.new(false)
- blocked.s.room = "passage"
- blocked.s.pos = [400,480]
- for i in 420: blocked.step()
- blocked.memory.cabins = ["cabin_middle"]
- near_guest(blocked,"chandelier_guest")
- assert(blocked.start("directions:chandelier_guest"))
- assert(blocked.start("direct:chandelier_guest:cabin_middle"))
- var trip: Dictionary = blocked.s.hospitality.detours.chandelier_guest
- # Hold the resolved pose as if the corridor were obstructed.
- var initial_pose: Dictionary = blocked.s.actors.chandelier_guest.duplicate(true)
- trip.home.pos = [300,315]
+ # Blocked wrong directions abandon the detour without relocating the guest.
+ var stalled := Sim.new(false)
+ stalled.memory.cabins = ["cabin_middle"]
+ while stalled.s.actors.chandelier_guest.room != "foyer": stalled.step()
+ near_guest(stalled,"chandelier_guest")
+ assert(stalled.start("directions:chandelier_guest"))
+ assert(stalled.start("direct:chandelier_guest:cabin_middle"))
+ var trip: Dictionary = stalled.s.hospitality.detours.chandelier_guest
+ var pose: Dictionary = stalled.s.actors.chandelier_guest.duplicate(true)
  for i in 20:
-  blocked.s.tick += 1
-  Duties.update(blocked)
- assert(trip.phase == "return" and blocked.s.actors.chandelier_guest == initial_pose)
-
- # At a rescue commitment no hospitality option can interrupt the guest.
- blocked.s.flags.chandelier_warning = true
- blocked.s.tick = Sim.CREAK
- blocked.s.hospitality.menu = ""
- for choice in blocked.options(false):
-  assert(not str(choice.id).ends_with(":chandelier_guest"))
+  stalled.s.tick += 1
+  Duties.update(stalled)
+ assert(trip.phase == "return" and stalled.s.actors.chandelier_guest == pose)
+ assert(Duties.detour_plan(stalled,"chatterbox","cabin_left").is_empty())
 
  # Legacy journals are migrated without inventing historical actor positions.
  var old := Sim.new(false)

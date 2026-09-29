@@ -12,6 +12,7 @@ uniform float foot_row = 35.0;
 uniform vec2 frame_origin = vec2(0.0);
 uniform vec2 plant_shift = vec2(0.0);
 
+#include "res://assets/ui/mission_1/entity_outline.gdshaderinc"
 void fragment() {
 	vec2 pixel = UV / TEXTURE_PIXEL_SIZE - frame_origin;
 	vec2 source_uv = UV;
@@ -26,4 +27,5 @@ void fragment() {
 		result = clamp(garment_color.rgb * luma / garment_base_luma, vec3(0.0), vec3(1.0));
 	}
 	COLOR = vec4(result, original.a);
+	#include "res://assets/ui/mission_1/outline_fragment.gdshaderinc"
 }

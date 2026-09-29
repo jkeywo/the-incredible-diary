@@ -10,6 +10,10 @@ var gameplay_enabled := false
 var modal := false
 var movement := Vector2.ZERO
 var wait_held := false
+var tutorial_action := "":
+ set(value):
+  tutorial_action = value
+  queue_redraw()
 var fingers: Dictionary = {}
 var buttons: Dictionary = {}
 var move_center := Vector2.ZERO
@@ -167,5 +171,6 @@ func _draw() -> void:
   if not _allowed(action): continue
   var rect: Rect2 = buttons[action]
   draw_style_box(FRAME.new(),rect)
+  if action == tutorial_action: draw_rect(rect.grow(3),Color("ffd578"),false,3)
   var color := Color("ffd578") if fingers.values().has(action) else Color("fff1d6")
   draw_string(font,rect.position+Vector2(4,rect.size.y/2+12 if portrait else rect.size.y/2+6),LABELS[i],HORIZONTAL_ALIGNMENT_CENTER,rect.size.x-8,36 if portrait else 18,color)

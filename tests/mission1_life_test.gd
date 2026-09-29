@@ -27,6 +27,7 @@ func _initialize() -> void:
  var seen := {}
  var previous: Dictionary = run.s.actors
  for id in previous:
+  if id.begins_with("incidental_"): continue
   check(previous[id].room == "docks", id+" starts on docks")
  for tick in Sim.END:
   run.step()
@@ -37,6 +38,9 @@ func _initialize() -> void:
    var p := Rooms.point(actor.pos)
    check(Rooms.can_stand(actor.room,p,run.s.flags),id+" stays on floor")
    seen[id+":"+actor.room] = true
+   if not previous.has(id):
+    check(actor.room == "cabins" and p.x < 80,"spawn in closet")
+    continue
    if actor.room == previous[id].room:
     check(p.distance_to(Rooms.point(previous[id].pos)) <= 10.01,id+" no same-room teleport at "+str(run.s.tick))
    else:
@@ -45,21 +49,29 @@ func _initialize() -> void:
      if door.room == actor.room and Rooms.point(previous[id].pos).distance_to(Rooms.point(door.point)) <= 35 and p.distance_to(Rooms.point(door.arrival)) <= 35: legal = true
     check(legal,id+" uses doorway at "+str(run.s.tick))
    for other in actors:
-    if other != id and actors[other].room == actor.room:
+    if actor.get("solid",true) and actors[other].get("solid",true) and other != id and actors[other].room == actor.room:
      check(p.distance_to(Rooms.point(actors[other].pos)) >= 24.9,id+" collides with "+other)
   for id in actors:
    for other in actors:
+    if not previous.has(id) or not previous.has(other): continue
+    if not actors[id].get("solid",true) or not actors[other].get("solid",true): continue
     if id >= other or actors[id].room != actors[other].room or actors[id].room != previous[id].room or actors[other].room != previous[other].room: continue
     for alpha in [0.25,0.5,0.75]:
      var a := Rooms.point(previous[id].pos).lerp(Rooms.point(actors[id].pos),alpha)
      var b := Rooms.point(previous[other].pos).lerp(Rooms.point(actors[other].pos),alpha)
      check(a.distance_to(b) >= 24.0,"render overlap "+id+" "+other+" at "+str(run.s.tick))
-  if run.s.tick == Sim.CREAK: check(Rooms.point(actors.chandelier_guest.pos).distance_to(Vector2(580,380)) < 1,"chandelier anchor")
+  if run.s.tick == Sim.CREAK: check(Rooms.point(actors.chandelier_guest.pos).distance_to(Rooms.CHANDELIER_GUEST) < 1,"chandelier anchor")
   if run.s.tick == Sim.TRAP: check(Rooms.point(actors.chatterbox.pos).distance_to(Vector2(840,360)) < 1,"steam anchor")
-  if run.s.tick == Sim.CREAK+20: check(Rooms.point(actors.guest.pos).distance_to(Vector2(800,330)) < 1,"drink anchor")
+  if run.s.tick == Sim.CREAK+20: check(Rooms.point(actors.guest.pos).distance_to(Sim.Rooms.BAR_GUEST) < 1,"drink anchor")
+  for id in previous:
+   if id.begins_with("incidental_") and not actors.has(id):
+    check(previous[id].room == "cabins" and previous[id].pos[0] < 0,id+" despawns inside closet")
   previous = actors
  for id in ["guest","chandelier_guest","chatterbox"]:
   check(seen.has(id+":cabins") and seen.has(id+":foyer"),id+" boards and visits cabin")
+ for id in Sim.Routines.INCIDENTAL_SKINS:
+  check(seen.has(id+":cabins") and seen.has(id+":foyer") and seen.has(id+":salon"),id+" completes public rounds")
+  if id.begins_with("incidental_sailor"): check(seen.has(id+":controls"),id+" visits machinery")
  check(seen.has("chatterbox:passage") and seen.has("chatterbox:salon"),"steam incoming route")
  print("MISSION1 LIFE PASS: full voyage, physical routes, event anchors, continuous collision and luggage deadlines" if failures.is_empty() else "MISSION1 LIFE FAIL: "+JSON.stringify(failures))
  quit(0 if failures.is_empty() else 1)

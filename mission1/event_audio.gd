@@ -3,6 +3,7 @@ extends Node
 ## play_cue(&"baggage_move"), etc. Players pause with the scene tree.
 
 const CUES := {
+ &"hour_chime": [preload("res://assets/audio/mission_1/sfx/hour_chime.wav")],
 	&"footstep_dock": [preload("res://assets/audio/mission_1/sfx/footstep_dock_01.wav"), preload("res://assets/audio/mission_1/sfx/footstep_dock_02.wav")],
 	&"footstep_wood": [preload("res://assets/audio/mission_1/sfx/footstep_wood_01.wav"), preload("res://assets/audio/mission_1/sfx/footstep_wood_02.wav"), preload("res://assets/audio/mission_1/sfx/footstep_wood_03.wav"), preload("res://assets/audio/mission_1/sfx/footstep_wood_04.wav")],
 	&"baggage_rustle": [preload("res://assets/audio/mission_1/sfx/baggage_rustle.wav")],

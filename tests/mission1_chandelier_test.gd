@@ -7,6 +7,7 @@ func checks() -> void:
  run.s.room = "foyer"
  run.s.pos = [580,380]
  run.s.tick = Sim.CREAK-1
+ run.s.actors = run.actor_positions()
  run.step()
  assert(run.start("shove"))
  for i in 80: run.step()

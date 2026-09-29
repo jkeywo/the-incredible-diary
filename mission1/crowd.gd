@@ -6,7 +6,7 @@ const DISTANCE := 25.0
 
 static func clear(room: String, p: Vector2, actors: Dictionary, except := "") -> bool:
  for id in actors:
-  if id != except and actors[id].room == room and p.distance_to(Rooms.point(actors[id].pos)) < DISTANCE-0.01: return false
+  if actors[id].get("solid",true) and id != except and actors[id].room == room and p.distance_to(Rooms.point(actors[id].pos)) < DISTANCE-0.01: return false
  return true
 
 static func move_player(room: String, origin: Vector2, step: Vector2, flags: Dictionary, actors: Dictionary) -> Vector2:
@@ -15,7 +15,7 @@ static func move_player(room: String, origin: Vector2, step: Vector2, flags: Dic
  for i in count:
   for delta in [piece,Vector2(piece.x,0),Vector2(0,piece.y)]:
    var candidate: Vector2 = origin+delta
-   if Rooms.can_stand(room,candidate,flags) and clear(room,candidate,actors):
+   if Rooms.can_step(room,origin,candidate,flags) and clear(room,candidate,actors):
     origin = candidate
     break
  return origin
@@ -31,7 +31,7 @@ static func free_near(room: String, p: Vector2, flags: Dictionary, actors: Dicti
 
 static func swept_clear(room: String, origin: Vector2, target: Vector2, others: Dictionary, previous: Dictionary, except := "") -> bool:
  for id in others:
-  if id == except or others[id].room != room: continue
+  if not others[id].get("solid",true) or id == except or others[id].room != room: continue
   var other_end := Rooms.point(others[id].pos)
   var other_start := other_end
   if previous.has(id) and previous[id].room == room: other_start = Rooms.point(previous[id].pos)
@@ -51,15 +51,22 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
  sweep_previous.merge(blockers,true)
  sweep_previous.merge(blocker_previous,true)
  # Keep previous positions and test the whole step, including interpolation.
- for id in ["chandelier_guest","chatterbox","guest","crew","porter","dock_sailor","captain"]:
+ var ordered := ["chandelier_guest","chatterbox","guest","crew","porter","dock_sailor","captain"]
+ for id in planned:
+  if not ordered.has(id): ordered.append(id)
+ for id in ordered:
   if not planned.has(id): continue
   var actor: Dictionary = planned[id].duplicate(true)
   var p := Rooms.point(actor.pos)
+  if actor.get("fixed",false):
+   result[id] = actor
+   occupied[id] = actor
+   continue
   if previous.has(id):
    var before: Dictionary = previous[id]
    var origin := Rooms.point(before.pos)
    var destination: String = actor.room
-   var route := Routines.path(before.room,origin,destination,p,false)
+   var route := Routines.path(before.room,origin,destination,p,false,flags)
    # The first waypoint after the current position is the next local goal.
    var goal := p
    var room: String = before.room
@@ -72,7 +79,7 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
     if origin.distance_to(Rooms.point(point.pos)) > 0.01:
      goal = Rooms.point(point.pos)
      break
-   if room != before.room and not clear(room,origin,occupied,id):
+   if room != before.room and (not Rooms.arrival_open(room,origin,flags) or (actor.get("solid",true) and not clear(room,origin,occupied,id))):
     room = before.room
     origin = Rooms.point(before.pos)
     goal = origin
@@ -83,7 +90,8 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
    if step.length_squared() > 0.001:
     for angle in [0,30,-30,60,-60,90,-90,120,-120]:
      var candidate := origin+step.rotated(deg_to_rad(float(angle)))
-     if not Rooms.can_stand(room,candidate,flags) or not swept_clear(room,origin,candidate,occupied,sweep_previous,id): continue
+     if not Rooms.can_step(room,origin,candidate,flags): continue
+     if actor.get("solid",true) and not swept_clear(room,origin,candidate,occupied,sweep_previous,id): continue
      var score := candidate.distance_to(goal)
      if score < best:
       p = candidate
@@ -94,7 +102,8 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
     actor.facing = ("right" if delta.x>0 else "left") if absf(delta.x)>absf(delta.y) else ("down" if delta.y>0 else "up")
    elif step.length_squared()>0.001: actor.action = "idle"
   else:
-   p = free_near(actor.room,p,flags,result)
+   p = free_near(actor.room,p,flags,occupied,id)
+   if not clear(actor.room,p,occupied,id): continue
   actor.pos = [p.x,p.y]
   result[id] = actor
   occupied[id] = actor

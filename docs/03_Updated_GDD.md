@@ -24,6 +24,19 @@ These later user decisions supersede conflicting layout and diary details below.
 - The in-game diary conceals Amelia's name and omits loop numbers. It records only witnessed observations in the current run, with hour and minute timestamps. Reset clears the written entries while retaining learned interaction knowledge.
 - Editor menus begin to the right of the settings cog.
 
+### Further playtest corrections — 29 September 2026
+
+- If Boy retrieves the luggage, the searching sailor automatically thanks him on a later close approach, once per loop. Automatic sailor recovery does not earn thanks.
+- All refreshment errands take place in the Salon. Drinks come from its bar. Each guest can be asked once per loop; learned preferences survive resets.
+- Cabin reading shares the door prop and remains available with the door open. No separate nameplate or occupant text is drawn in the world; reading produces a thought and learns the occupant.
+- Cabin directions are available only in the Foyer, before the guest finds their cabin or receives correct directions. Wrong directions retain the existing detour and deadline rules.
+- Room transitions use rectangles spanning the doorway width. Permanent destination labels and circles are removed; Highlight reveals the rectangles.
+- A short chime sounds at each voyage-hour boundary, including during accelerated waiting. Loading and rewind do not replay chimes.
+- The poisoned glass sits at the right edge of the Salon bar at background-glassware scale. A smaller hand emerges behind a pillar before pickup. The existing spiking-to-drinking rescue interval is retained.
+- Code entry is available at the steam controls immediately, without requiring the demonstration. The active vent physically blocks the trapped half's exit and steam fills that half of the room; shutdown clears both.
+- Three incidental sailors and four incidental guests circulate, using the left edge of the Cabin Corridor as a spawn/despawn closet. Two sailors watch the demonstration before resuming rounds. They have no rescue or hospitality objectives.
+- Errand completion, cabin discovery, incidental positions and effect timing are recorded in the current leg. Rewind shows the recorded state.
+
 ### Mobile browser controls — clarified 29 September 2026
 
 Touch play uses one virtual movement joystick. Interactions are activated by tapping their option buttons directly, including More… and steam-panel digits, Clear and Commit; mouse clicks also activate these buttons. Four compact touch buttons provide Diary, hold-to-Wait, Highlight and Cancel in a 2×2 grid at the bottom right. Rewind is available inside the diary. On touch devices, Settings includes a Controls tab with a saved Left/Right movement joystick preference; the button grid moves to the opposite side. When each side margin has room for the joystick and its touch area, the game stays centred at its fixed aspect ratio and the controls occupy those margins, with the four buttons in a vertical column. Narrow and portrait screens retain the overlaid joystick and 2×2 button grid. There is no selection joystick or Act button. Each finger is tracked independently, allowing movement and interaction together. Modal screens, focus loss and resizing release held controls. The mobile interface omits pause/editor controls.
@@ -69,13 +82,13 @@ tutorial; an unfinished tutorial resumes from its save.
 | Mrs. Mabel Pritchard (steam guest) | 3, right | Tea |
 
 These names replace provisional passenger labels in dialogue. The player's
-speaker label is Boy. All cabin doors have numbered, inspectable nameplates,
-including when open. Inspecting a plate teaches its occupant. Asking about
+speaker label is Boy. All cabin doors have a reading action, including when open; no separate
+nameplate text is drawn. Inspecting a plate teaches its occupant. Asking about
 refreshments reveals the guest's preference; learned preferences and cabin
 assignments survive diary resets, while written observations remain per-run.
 
 Optional errands have helpful and mischievous choices. Boy carries one drink
-from the foyer refreshment station and can return it to choose another. Correct
+from the Salon bar and can return it to choose another. Correct
 drinks receive thanks; wrong drinks are refused with personalised complaints and
 remain carried. Each guest permits one wrong-drink reaction and one successful
 delivery per loop. After rejection only the requested drink can be offered to
@@ -84,7 +97,8 @@ that guest. Refreshments do not replace the poisoned glass or change schedules.
 Cabin directions offer inspected cabin numbers. Correct directions receive
 thanks. Wrong directions make the guest visit the named door, read its plate,
 complain about the mismatch, and return without entering the wrong cabin.
-Detours are available only aboard, outside critical scenes, with sufficient
+Directions are offered only in the Foyer before cabin discovery. Detours remain
+available outside critical scenes, with sufficient
 time for travel, reaction and return before the next commitment. One wrong
 detour per guest per loop is allowed, followed by correct directions. Blocked
 detours return early; scheduled commitments take priority. No stacked detours,
@@ -588,3 +602,45 @@ Engineering details such as schema syntax, snapshot cadence and initial timing v
 ### Repository and local development — confirmed
 
 Repository: https://github.com/jkeywo/the-incredible-diary . Local checkout: `C:/coding/the-incredible-diary`. The repository's `docs/03_Updated_GDD.md` becomes the working copy for subsequent implementation; these conversation outputs retain the handoff snapshot. Windows and web export the same Godot project. Pushes to `main` build and deploy the web export through GitHub Actions/Pages; pull requests validate builds without deploying.
+
+
+### Mission 1 playtest implementation decisions — September 2026
+
+- Keep the cast and major event deadlines. Main rooms provide two triangular
+  guest groups of three and one sailor group of three, facing inward. Keep the
+  service passage for travel. Reserve distinct gathering positions.
+- Door crossings, visible unlabelled transition rectangles and inward arrival
+  positions are separate. Player and NPC arrivals use the same geometry and
+  wait or find a clear arrival when occupied.
+- Give principal guests about 20 real seconds in the Foyer before their first
+  cabin visit. Directions detours may adjust cabin departure without delaying
+  major appointments.
+- The steam operator leaves after the demonstration and returns at subsequent
+  voyage :00/:30 boundaries, allowing for travel. On finding pressure off, he
+  wonders aloud before operating the machine. Record each phase. A shutdown
+  lasting until the accident rescues the passenger permanently.
+- The chandelier guest paces and frets during her final Foyer visit and cannot
+  be body blocked during that approach. Preserve the warning and Shove window.
+  Place her slightly below the fixture so the casualty is partly visible.
+  Wreckage has a solid floor footprint, routes around it and an accessible
+  inspection point; living characters inside can move outward.
+- Remove the poisoned glass from the bar at pickup. Record its empty floor
+  position beside the actual casualty and move inspection there. Keep the
+  successful spill outcome separate.
+- Avoid covering Boy and controls with speech. Unavoidable overlap fades the
+  background, border and tail to 50% opacity, leaving text opaque.
+- Teach Highlight on first Foyer entry ("I wonder what I should do?"), Wait after
+  ten real seconds of eligible inactivity ("Hurry up and wait…"), and Diary on
+  first rewind unlock ("Something has changed in the diary. I should open it.").
+  Show device-appropriate prompts alongside thoughts without pausing voyage
+  time. Exclude focus loss, dialogue, actions, menus, pause, opening tutorial
+  and rewind from inactivity. Incidental mouse movement does not reset it.
+- Queue hints behind dialogue, prioritise Diary, and mark each shown only when
+  displayed. Retained knowledge remembers them through Continue and resets;
+  recorded state contains queued and displayed thoughts.
+- Highlight uses deduplicated entity targets and gold animated sprite outlines
+  that retain grounding and recolouring. Sprite-less targets use filled
+  circles. Remove interaction rings and floating action labels. Door rectangles
+  keep their own presentation. Clear unavailable or disabled outlines.
+- Save operator progress, assignments, chandelier collision state and dropped
+  glass location. Older saves use defaults without rewriting recorded history.

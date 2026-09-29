@@ -13,8 +13,7 @@ func _initialize() -> void:
  assert(not run.submit_code())
  run.s.entry = run.s.code
  assert(run.submit_code() and run.flag("steam_off"))
- run.s.tick = Sim.TRAP-1
- run.step()
+ while run.s.tick < Sim.TRAP: run.step()
  assert(not run.flag("steam_off") and run.flag("trapped"))
  assert(run.start("panel"))
  run.s.entry = run.s.code

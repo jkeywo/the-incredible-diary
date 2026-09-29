@@ -11,7 +11,8 @@ static func region(room: String, p: Vector2) -> String:
 static func waypoint(room: String, p: Vector2) -> Dictionary:
  return {"room":room,"pos":[p.x,p.y]}
 
-static func path(room: String, origin: Vector2, destination: String, target: Vector2, cache := true) -> Array:
+static func path(room: String, origin: Vector2, destination: String, target: Vector2, cache := true, flags: Dictionary = {}) -> Array:
+ if flags.get("chandelier_fallen",false): cache = false
  var key := "%s:%s:%s:%s" % [room,origin,destination,target]
  if cache and paths.has(key): return paths[key]
  var start := region(room,origin)
@@ -28,22 +29,25 @@ static func path(room: String, origin: Vector2, destination: String, target: Vec
     var to_point := Rooms.point(door.ap if reverse else door.bp)
     var next := region(to_room,to_point)
     if region(from_room,from_point) == current and not visited.has(next):
-     visited[next] = visited[current] + [{"from":waypoint(from_room,from_point),"to":waypoint(to_room,to_point)}]
+     visited[next] = visited[current] + [{"from":waypoint(from_room,from_point),"to":waypoint(to_room,Rooms.point(Rooms.arrival_point(to_room,to_point)))}]
      pending.append(next)
  assert(visited.has(finish), "No route between passenger destinations")
  var result := [waypoint(room,origin)]
  var here := origin
  var here_room := room
  for crossing in visited[finish]:
-  result.append_array(_inside(here_room,here,Rooms.point(crossing.from.pos)))
+  result.append_array(_inside(here_room,here,Rooms.point(crossing.from.pos),flags))
   result.append(crossing.to)
   here_room = crossing.to.room
   here = Rooms.point(crossing.to.pos)
- result.append_array(_inside(here_room,here,target))
+ result.append_array(_inside(here_room,here,target,flags))
  if cache: paths[key] = result
  return result
 
-static func _inside(room: String, origin: Vector2, target: Vector2) -> Array:
+static func _inside(room: String, origin: Vector2, target: Vector2, flags: Dictionary = {}) -> Array:
+ if room == "foyer" and flags.get("chandelier_fallen",false):
+  var detour := around_wreckage(origin,target)
+  if not detour.is_empty(): return detour
  var result: Array = []
  if origin.is_equal_approx(target): return result
  var straight := true
@@ -108,7 +112,7 @@ static func track(tick: int, room: String, origin: Vector2, stages: Array, actio
 
 static func passenger(id: String, tick: int, boarding: int, arrival: int, flags: Dictionary) -> Dictionary:
  var plan := _passenger_plan(id, tick, boarding, arrival, flags)
- return track(tick, "docks", plan.origin, plan.stages, plan.action, plan.facing)
+ return track(tick, "docks", plan.origin, with_foyer_stop(id,plan.stages,plan.origin), plan.action, plan.facing)
 
 static func next_commitment(id: String, tick: int, boarding: int, arrival: int, flags: Dictionary) -> int:
  var plan := _passenger_plan(id, tick, boarding, arrival, flags)
@@ -126,7 +130,7 @@ static func _passenger_plan(id: String, tick: int, boarding: int, arrival: int, 
    [850,"foyer",[495,365],"talk","left"],
    [1450,"salon",[735,345],"talk","right"],
    [2600,"cabins",[225,315],"idle"],
-   [3500,"foyer",[Rooms.CHANDELIER_FLOOR.x,Rooms.CHANDELIER_FLOOR.y],"idle"]],"talk","right")
+   [3500,"foyer",[Rooms.CHANDELIER_GUEST.x,Rooms.CHANDELIER_GUEST.y],"idle"]],"talk","right")
  if id == "chatterbox":
   var to_steam := path("cabins",Vector2(935,315),"controls",Vector2(840,360))
   return _plan(Vector2(765,440),[
@@ -148,6 +152,80 @@ static func _passenger_plan(id: String, tick: int, boarding: int, arrival: int, 
  if cabin_arrival < 1080:
   stages.append([maxi(cabin_arrival+50,1000),"cabins",[745,530],"talk","left"])
   stages.append([1380,"cabins",[580,315],"idle"])
- var salon_leg := path("cabins",Vector2(580,315),"salon",Vector2(800,330))
- stages.append([arrival-duration(salon_leg)-60,"salon",[800,330],"hold_drink" if tick >= arrival else "idle"])
+ var salon_leg := path("cabins",Vector2(580,315),"salon",Rooms.BAR_GUEST)
+ stages.append([arrival-duration(salon_leg)-60,"salon",[Rooms.BAR_GUEST.x,Rooms.BAR_GUEST.y],"hold_drink" if tick >= arrival else "idle"])
  return _plan(Vector2(390,430),stages,"talk" if not flags.get("bag_found",false) else "idle","right")
+
+const INCIDENTAL_SKINS := {"incidental_sailor_1":"sailor","incidental_sailor_2":"sailor","incidental_sailor_3":"sailor","incidental_guest_1":"guest_male_jacket","incidental_guest_2":"guest_female_dress","incidental_guest_3":"guest_female_coat","incidental_guest_4":"guest_male_waistcoat"}
+
+static func incidentals(tick: int, _flags: Dictionary) -> Dictionary:
+ var result := {}
+ var index := 0
+ for id in INCIDENTAL_SKINS:
+  if tick < index*95:
+   index += 1
+   continue
+  var phase := (tick-index*95) % 2400
+  if phase < 0: phase += 2400
+  var sailor: bool = index < 3
+  var group := 2 if sailor else 0 if index < 6 else 1
+  var slot := index if sailor else (index-3)%3
+  var stages := []
+  for visit in [[0,"foyer"],[360,"salon"],[950,"controls" if sailor else "salon"]]:
+   var place := Rooms.group_slot(visit[1],group,slot)
+   stages.append([visit[0],place.room,place.pos,"talk",place.facing])
+  stages.append([1550,"cabins",[-25,530],"idle"])
+  if index < 2 and tick >= 1550 and tick <= 2380:
+   stages = [[1550,"controls",[240+index*170,365],"idle","up"],[2310,"cabins",[-25,530],"idle"]]
+   result[id] = track(tick,"cabins",Vector2(-25,530),stages)
+  elif phase < 2050:
+   result[id] = track(phase,"cabins",Vector2(-25,530),stages)
+  index += 1
+ return result
+
+static func with_foyer_stop(id: String, stages: Array, origin: Vector2) -> Array:
+ if id not in ["guest","chandelier_guest","chatterbox"]: return stages
+ var result := stages.duplicate(true)
+ var first: Array = result[0]
+ var slot: int = ["guest","chandelier_guest","chatterbox"].find(id)
+ var stop := Rooms.group_slot("foyer",1,slot)
+ var outward := duration(path("docks",origin,"foyer",Rooms.point(stop.pos)))
+ var onward := duration(path("foyer",Rooms.point(stop.pos),first[1],Rooms.point(first[2])))
+ var deadline := int(result[1][0]) if result.size()>1 else 10800
+ var departure := mini(int(first[0])+outward+200,deadline-onward-30)
+ result[0] = [first[0],"foyer",stop.pos,"idle",stop.facing]
+ result.insert(1,[maxi(int(first[0])+outward,departure),first[1],first[2],first[3]])
+ return result
+
+static func around_wreckage(origin: Vector2, target: Vector2) -> Array:
+ var box := Rooms.WRECKAGE.grow(8)
+ if box.has_point(origin) or box.has_point(target) or not segment_hits_box(origin,target,box): return []
+ var points := [origin,target,box.position-Vector2.ONE,Vector2(box.end.x+1,box.position.y-1),box.end+Vector2.ONE,Vector2(box.position.x-1,box.end.y+1)]
+ var cost := [0.0,INF,INF,INF,INF,INF]
+ var previous := [-1,-1,-1,-1,-1,-1]
+ var visited := []
+ for iteration in points.size():
+  var best := -1
+  for i in points.size():
+   if not visited.has(i) and (best < 0 or cost[i]<cost[best]): best = i
+  if best == 1: break
+  visited.append(best)
+  for j in points.size():
+   if j == best or visited.has(j): continue
+   var clear := not segment_hits_box(points[best],points[j],box)
+   var candidate: float = cost[best]+points[best].distance_to(points[j])
+   if clear and candidate < cost[j]: cost[j] = candidate; previous[j] = best
+ if previous[1] < 0: return []
+ var route := []
+ var cursor := 1
+ while cursor != 0:
+  route.push_front(waypoint("foyer",points[cursor]))
+  cursor = previous[cursor]
+ return route
+
+static func segment_hits_box(a: Vector2, b: Vector2, box: Rect2) -> bool:
+ if box.has_point(a) or box.has_point(b): return true
+ var corners := [box.position,Vector2(box.end.x,box.position.y),box.end,Vector2(box.position.x,box.end.y)]
+ for i in 4:
+  if Geometry2D.segment_intersects_segment(a,b,corners[i],corners[(i+1)%4]) != null: return true
+ return false

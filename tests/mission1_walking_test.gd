@@ -41,7 +41,7 @@ func _initialize() -> void:
  walk(Vector2(140,635),"foyer")
  walk(Vector2(580,260))
  walk(Vector2(580,140),"salon")
- walk(Vector2(800,370))
+ walk(Sim.Rooms.BAR_GUEST+Vector2(0,40))
  until(4*Sim.HOUR+35)
  assert(run.flag("chat_delay"))
  assert(run.start("bump"))
@@ -50,7 +50,7 @@ func _initialize() -> void:
  # Salon's right exit crosses the tight passage to the far steam half.
  run.reset()
  run.s.room = "salon"
- run.s.pos = [800,330]
+ run.s.pos = [Sim.Rooms.BAR_GUEST.x,Sim.Rooms.BAR_GUEST.y]
  walk(Vector2(960,520),"passage")
  walk(Vector2(1100,480),"controls")
  assert(float(run.s.pos[0]) > 600)

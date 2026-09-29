@@ -27,6 +27,11 @@ extends Control
 const PAPER = preload("res://assets/ui/popup/body.png")
 const FRAME = preload("res://assets/ui/popup/nine_piece_style.gd")
 var kind := "speech"
+var background_opacity := 1.0:
+ set(value):
+  background_opacity = value
+  self_modulate.a = value
+  queue_redraw()
 
 func present(line: Dictionary, elapsed_seconds: float) -> void:
  speaker_name = line.get("name", "Passenger")

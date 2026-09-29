@@ -10,7 +10,7 @@ six-Hour rescue mission, including the dock tutorial.
   prompt below Boy, approach the captain, and select **Report for duty**.
   The captain's final instruction starts time and guest arrivals. Diary resets
   skip the tutorial; Continue restores it exactly if unfinished.
-- WASD / left stick moves Boy. Walk into a labelled doorway to change screens.
+- WASD / left stick moves Boy. Walk into a doorway to change screens.
 - Nearby actions appear in a radial wheel. Use its number, or right stick and RB.
 - Tab / Y opens the diary and pauses simulation time.
 - Hold F / LT to wait at 20x speed. Acceleration stops at the next Hour; release
@@ -34,16 +34,18 @@ waiting and recorded rewind change them with the simulation.
 
 ## Optional hospitality and mischief
 
-The foyer refreshment tray supplies lemonade, sparkling water and tea. Ask a
-guest for their preference, collect one drink, then offer it. A wrong drink
-earns a complaint and remains carried; return it to the tray to choose another.
+The Salon bar supplies lemonade, sparkling water and tea. Ask a
+guest once per loop for their preference, collect one drink, then offer it.
+Asking, collecting, returning and serving are available only in the Salon. A wrong drink
+earns a complaint and remains carried; return it to the bar to choose another.
 Each guest accepts one correct drink and reacts to one wrong drink per loop.
 
 Inspect cabin nameplates to learn their occupants: Felix Harcourt (1, middle),
 Evelyn Vale (2, left), and Mabel Pritchard (3, right). Give cabin directions opens
 a choice of inspected cabin numbers. Wrong directions produce a visit to that
 door, a complaint, and a return to the guest's normal activity. They are offered
-only when there is enough time before the next appointment. Blocked detours
+only in the Foyer before the guest discovers their cabin, and when there is
+enough time before the next appointment. Blocked detours
 return early. One wrong detour per guest per loop; correct directions remain
 available afterwards. These optional favours do not affect rescue outcomes or
 replace the poisoned drink. Luggage hiding still changes boarding time.
@@ -59,7 +61,8 @@ guest names, preferences, errand outcomes and temporary routes.
    bag beside the baggage screen. A familiar loop permits inspection to recover
    the lead. The normal boarding opportunity is 80 seconds into Hour 1.
 2. In Hour 2, stand by the engineer in the left controls room. Hear the complete
-   demonstration once; on subsequent loops, hearing the current code is enough.
+   demonstration to learn how the controls work and hear the current code.
+   Code entry is available immediately, even before hearing the demonstration.
    The demonstration waits only within its fixed window. Late arrivals hear
    remaining lines, not a replay.
 3. In Hour 3, stand near the foyer guest. The chandelier creaks at 3:16 on the
@@ -96,7 +99,7 @@ Browser persistence relies on the browser allowing IndexedDB storage.
 
 ## Verification
 
-`tools/dev.ps1 Test` runs the original probe, foundation checks and eight Mission
+`tools/dev.ps1 Test` runs the original probe, foundation checks and Mission
 1 suites covering watch hands, rooms, knowledge gates, each rescue, full victory
 and failure, real doorway travel, early-rescue conflicts, exact save/resume,
 corrupt-tail recovery, diary/editor pause, waiting, code entry and rewind skip.
@@ -110,3 +113,47 @@ browser smoke check is not a complete controller or browser compatibility test.
 
 The causal chain still needs unprompted human playtesting against the GDD's
 learning criterion. Timing and presentation can be tuned from that evidence.
+
+## Further playtest changes
+
+The searching sailor thanks Boy on a later close approach if Boy retrieved the
+bag. Door reading uses thoughts rather than visible nameplates. Subtle unlabelled rectangular room exits remain visible; Highlight strengthens
+them. Arrivals land inside the room, clear of the crossing zone. Each voyage-hour
+boundary chimes. Three incidental sailors and four guests circulate; two sailors
+watch the demonstration.
+
+Steam blocks the far exit physically and fills the trapped half with smoke.
+The smaller poisoned glass sits on the Salon bar; the hand and steam visuals
+follow recorded voyage time during pause, Continue and rewind.
+
+
+## Movement, hazards and contextual hints
+
+Main rooms have two triangular guest gathering groups and one sailor group,
+with reserved places facing inward. The service passage stays clear. Principal
+guests pause in the Foyer for about 20 real seconds before their first cabin
+visit; directions can extend that visit without moving major appointments.
+
+The operator leaves after the demonstration, then travels back for checks on
+voyage watch boundaries at :00 and :30. He speaks before restoring pressure.
+Keeping pressure off until the accident saves the passenger; later restarts
+cannot undo that rescue.
+
+The chandelier guest paces and frets on her final visit. She cannot be body
+blocked during the approach, but Shove remains available during its warning.
+The wreckage blocks its floor footprint, with space to walk around and inspect
+it. Her casualty position leaves the body partly visible. The poisoned glass
+leaves the bar at pickup and appears empty beside the actual collapse position.
+
+Contextual thoughts teach Highlight on first Foyer entry, Wait after ten real
+seconds without gameplay input, and Diary when rewind unlocks. Each hint is
+shown once per new game, retained through Continue and resets. They queue behind
+dialogue, with Diary taking priority. Idle time excludes unfocused play, menus,
+dialogue, actions, opening tutorial and rewind. Prompts follow keyboard,
+controller or touch input. Highlight outlines sprite silhouettes in gold;
+interactions without a sprite use filled circles. Action names stay in the menu.
+
+Speech placement avoids Boy and controls where possible. When overlap with Boy
+is unavoidable, the frame, background and tail use 50% opacity while text stays
+opaque. Operator progress, gathering assignments, casualty positions and hint
+queues are recorded for Continue and rewind.

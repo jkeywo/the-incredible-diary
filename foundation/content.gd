@@ -38,6 +38,8 @@ static func scenario() -> Dictionary:
 	}
 
 static func validate(data: Dictionary) -> Array[String]:
+	if data.get("kind", "") == "mission1":
+		return preload("res://mission1/authoring_content.gd").validate(data)
 	var errors: Array[String] = []
 	if data.get("schema") != SCHEMA:
 		errors.append("Unsupported scenario schema")

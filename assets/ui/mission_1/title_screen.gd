@@ -77,14 +77,17 @@ func _ready() -> void:
 	_start_background_load.call_deferred()
 
 
+var _preview_content: Dictionary = {}
+
 func _refresh_continue() -> void:
 	var loaded := Save.load_saved(mission_save_path)
+	_preview_content = loaded.get("data",{}).get("authored_content",{})
 	continue_button.visible = bool(loaded.ok)
 	if is_instance_valid(preview):
 		preview.visible = bool(loaded.ok)
 		if loaded.ok:
 			var state: Dictionary = loaded.data.current
-			var room_name: String = Rooms.ROOMS.get(str(state.get("room","docks")),Rooms.ROOMS.docks).title
+			var room_name: String = _preview_content.get("rooms",Rooms.ROOMS).get(str(state.get("room","docks")),Rooms.ROOMS.docks).title
 			var detail := Simulation.observation_time(int(state.get("tick",0)))
 			if state.get("finished",false): room_name = "Voyage complete" if state.get("dead",[]).is_empty() else "Voyage ended"
 			preview.text = "All Aboard · %s\n%s" % [detail,room_name]
@@ -144,7 +147,7 @@ func _start_background_load() -> void:
 	# Let the title draw before starting disk reads or the deferred web download.
 	await get_tree().process_frame
 	if _waiting or _opening: return
-	level_loader.start(LevelLoader.MISSION,_preview_state)
+	level_loader.start(LevelLoader.MISSION,_preview_state,false,_preview_content)
 
 
 func _launch_mission(saved: Dictionary = {}) -> void:
@@ -158,7 +161,7 @@ func _wait_for_level() -> void:
 	_waiting = true
 	_finish_entrance()
 	var state: Dictionary = _pending_saved.get("current",Simulation.new().s)
-	level_loader.start(_pending_scene,state,true)
+	level_loader.start(_pending_scene,state,true,_pending_saved.get("authored_content",{}))
 	if level_loader.ticket.done and str(level_loader.ticket.error).is_empty():
 		_enter_prepared_level()
 		return
@@ -376,3 +379,6 @@ func _controller_for(parent: Node, controls: Callable, active: Callable, on_back
 	navigator.back = on_back
 	parent.add_child(navigator)
 	return navigator
+
+func get_pause_editor_scene() -> Node:
+	return _game_world if is_instance_valid(_game_world) and _game_world.has_method("toggle_pause_editor") else self

@@ -6,13 +6,21 @@ const Sim = preload("res://mission1/simulation.gd")
 const SKINS := {"amelia":"player","guest":"rake","chandelier_guest":"glamorous","chatterbox":"matron","crew":"sailor","porter":"ex_army","dock_sailor":"sailor","captain":"captain"}
 const PROPS := {"docks":["suitcase","bag_hiding"],"foyer":["chandelier"],"controls":["code_panel","steam_vent"],"salon":["drink"],"cabins":["cabin_door"]}
 
-static func room_paths(id: String) -> Array:
+static func room_paths(id: String, content: Dictionary = {}) -> Array:
+	if not content.is_empty():
+		var result: Array = []
+		var room: Dictionary = content.rooms.get(id,{})
+		if not str(room.get("scene", "")).is_empty(): result.append("res://assets/rooms/mission_1/%s.tscn" % room.scene)
+		for entity_id in content.instances:
+			var entity := preload("res://mission1/authoring_content.gd").resolve(content,entity_id)
+			if entity.kind != "character" and entity.room == id: result.append("res://assets/props/mission_1/%s.tscn" % entity.appearance)
+		return result
 	var paths: Array = ["res://assets/rooms/mission_1/%s.tscn" % Rooms.ROOMS[id].scene]
 	for prop in PROPS.get(id,[]): paths.append("res://assets/props/mission_1/%s.tscn" % prop)
 	return paths
 
-static func character_paths(id: String) -> Array:
-	var skin: String = SKINS.get(id,Sim.Routines.INCIDENTAL_SKINS.get(id,""))
+static func character_paths(id: String, appearance := "") -> Array:
+	var skin: String = appearance if not appearance.is_empty() else SKINS.get(id,Sim.Routines.INCIDENTAL_SKINS.get(id,""))
 	if skin == "captain": return ["res://assets/characters/source/captain.png"]
 	if skin in ["sailor","guest_male_jacket","guest_male_waistcoat","guest_female_dress","guest_female_coat"]:
 		var paths: Array = ["res://assets/characters/generic/%s_sprites.png" % skin,"res://assets/characters/generic/%s_sprites_mask.png" % skin]
@@ -25,8 +33,8 @@ static func character_paths(id: String) -> Array:
 	if skin == "matron": paths.append("res://assets/characters/actions/matron_steam_casualty.png")
 	return paths
 
-static func for_state(state: Dictionary) -> Array:
-	return room_paths(str(state.room))
+static func for_state(state: Dictionary, content: Dictionary = {}) -> Array:
+	return room_paths(str(state.room),content)
 
 static func level_characters() -> Array:
 	var paths: Array = []
@@ -35,9 +43,9 @@ static func level_characters() -> Array:
 			if not paths.has(path): paths.append(path)
 	return paths
 
-static func neighbours(id: String) -> Array:
+static func neighbours(id: String, content: Dictionary = {}) -> Array:
 	var paths: Array = []
-	for door in Rooms.DOORS:
-		if door.a == id: paths.append_array(room_paths(door.b))
-		elif door.b == id: paths.append_array(room_paths(door.a))
+	for door in content.get("connections",Rooms.DOORS):
+		if door.a == id: paths.append_array(room_paths(door.b,content))
+		elif door.b == id: paths.append_array(room_paths(door.a,content))
 	return paths

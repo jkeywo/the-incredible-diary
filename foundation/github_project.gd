@@ -7,6 +7,7 @@ const MANIFEST_PATH := ".incredible-diary/project.json"
 const SCENARIO_PATH := ".incredible-diary/scenario.json"
 const FORMAT := "the-incredible-diary-project"
 const SCHEMA := 1
+const MISSION_FIELDS := ["kind","templates","instances","schedules","settings","timings","texts"]
 const AUTHORED_FIELDS := ["schema", "version", "assets", "scenes", "storylets", "rooms", "connections", "actors", "commitments", "interactions", "dialogue"]
 const ENTRY_FIELDS := {
 	"rooms": ["id", "name", "bounds", "walkable", "background_asset"],
@@ -57,9 +58,9 @@ static func open_files(files: Dictionary) -> Dictionary:
 static func _unexpected_fields(scenario: Dictionary) -> PackedStringArray:
 	var result := PackedStringArray()
 	for key in scenario:
-		if not key in AUTHORED_FIELDS:
+		if not key in AUTHORED_FIELDS and not (scenario.get("kind", "") == "mission1" and key in MISSION_FIELDS):
 			result.append(str(key))
-	for group in ENTRY_FIELDS:
+	for group in ({} if scenario.get("kind", "") == "mission1" else ENTRY_FIELDS):
 		if not scenario.get(group) is Array:
 			continue
 		for index in scenario[group].size():

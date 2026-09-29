@@ -4,6 +4,7 @@ const Rooms = preload("res://mission1/rooms.gd")
 const CPS := 36.0
 
 static func say(run, speaker: String, text: String, kind := "speech", key := "", duration := 0) -> void:
+ text = str(run.authored_content.get("texts",{}).get(text,text))
  if speaker != "amelia" and not run.s.actors.has(speaker): return
  var room: String = run.s.room if speaker == "amelia" else run.s.actors[speaker].room
  if room != run.s.room or run.s.dead.has(speaker): return
@@ -12,6 +13,12 @@ static func say(run, speaker: String, text: String, kind := "speech", key := "",
  run.s.dialogue = {"speaker":speaker,"name":"Thought" if kind == "thought" else run.display_name(speaker),"text":text,"kind":kind,"room":room,"started":frame,"until":frame+ticks,"key":key}
 
 static func start(run, id: String, lines: Array, people: Array) -> void:
+ if run.authored_content.get("scenes",{}).has(id):
+  var ids: Array[String] = []
+  for actor in run.authored_content.instances: ids.append(str(actor))
+  var parsed := preload("res://foundation/dialogue.gd").parse(run.authored_content.scenes[id],ids)
+  lines = []
+  for step in parsed.steps: lines.append([str(step.speaker).to_lower(),step.text,step.commands_before])
  var seen: Array = run.s.get("conversations_seen",[])
  if seen.has(id): return
  seen.append(id)
@@ -25,6 +32,9 @@ static func _next(run) -> void:
   run.s.conversation = {}
   return
  var line: Array = scene.lines[scene.index]
+ if line.size() > 2:
+  for command in line[2]:
+   if command.name == "delay_guest": run.s.flags.guest_delay_ticks = int(run.s.flags.get("guest_delay_ticks",0)) + int(command.ticks)
  say(run,line[0],line[1],"speech","spoken_%s_%d" % [scene.id,scene.index])
  scene.index += 1
 
@@ -51,6 +61,9 @@ static func update(run) -> void:
    if not run.s.dialogue.is_empty(): return
   else: run.s.conversation = {}
  if run.tutorial_active(): return
+ if not run.authored_content.is_empty():
+  preload("res://mission1/authoring_runtime.gd").play_conversations(run)
+  return
  # Important conversations take precedence over ambient exchanges.
  if run.flag("chat_delay") and run.s.tick < run._chat_departure() and run.s.room == str(run.s.flags.get("chat_room","cabins")):
   start(run,"nephew",[["chatterbox","Before you go, you must hear about my nephew."],["guest","Could it wait? They are serving drinks."],["chatterbox","He bought a motorcar. Without asking his mother!"],["guest","How very rash."],["chatterbox","That is exactly what I said. Now, listen…"]],["guest","chatterbox"])

@@ -12,23 +12,25 @@ var character_ticket: Dictionary = {}
 var neighbour_ticket: Dictionary = {}
 var requested_scene := ""
 var requested_state: Dictionary = {}
+var requested_content: Dictionary = {}
 
 func _ready() -> void:
  process_mode = Node.PROCESS_MODE_ALWAYS
  resources = get_node("/root/ResourceStream").resources
  set_process(false)
 
-func start(scene_path: String = MISSION, state: Dictionary = {}, foreground := false) -> void:
+func start(scene_path: String = MISSION, state: Dictionary = {}, foreground := false, content: Dictionary = {}) -> void:
  if state.is_empty(): state = Plan.Sim.new().s
- if scene_path == requested_scene and state == requested_state and error.is_empty() and not ticket.is_empty():
+ if scene_path == requested_scene and state == requested_state and content == requested_content and error.is_empty() and not ticket.is_empty():
   ticket.foreground = foreground or ticket.foreground
   return
  requested_scene = scene_path
  if not ticket.is_empty(): ticket.cancelled = true
  requested_state = state.duplicate(true)
+ requested_content = content.duplicate(true)
  is_prepared = false
  error = ""
- var paths := Plan.for_state(state)
+ var paths := Plan.for_state(state,content)
  paths.append(scene_path)
  if scene_path != MISSION:
   # The authoring test scene is a separate explicit destination.
@@ -36,7 +38,7 @@ func start(scene_path: String = MISSION, state: Dictionary = {}, foreground := f
  ticket = get_node("/root/ResourceStream").request_resources(paths,foreground)
  if not neighbour_ticket.is_empty(): neighbour_ticket.cancelled = true
  if scene_path == MISSION:
-  neighbour_ticket = get_node("/root/ResourceStream").request_resources(Plan.neighbours(str(state.room)))
+  neighbour_ticket = get_node("/root/ResourceStream").request_resources(Plan.neighbours(str(state.room),content))
  if scene_path == MISSION and character_ticket.is_empty():
   character_ticket = get_node("/root/ResourceStream").request_resources(Plan.level_characters(),false,2)
  progress = ticket.progress

@@ -516,6 +516,8 @@ Pausing opens the integrated editor interface. Editing, including authoring undo
 
 **Editor layout — confirmed 29 September 2026:** Space reveals the editor only while paused; editor hotkeys do nothing while it is hidden. Put editor actions in dropdown menus. Forms, source views, history inspection and GitHub project controls belong in floating panels that can be dragged, resized, minimised to a bottom dock, restored and closed. The game uses the full viewport when the editor is hidden. The browser build has a small four-corner fullscreen toggle at the upper right on the title screen and in play.
 
+**Mission 1 authoring — confirmed 29 September 2026:** the editor uses authored setup definitions, not the live Godot scene tree. Setup and History are separate tabs. The setup tree, searchable entity palette, linked templates with instance overrides, room authoring, schedules, storylets and prop states edit one persistent document. History is read-only and selects recorded frames; its scrubber stays fixed at the bottom below the floating-panel dock. Template fields propagate unless overridden; resetting a field restores inheritance. Instance identity, room and placement remain instance-specific. Existing Mission 1 content must use the same authoring system as newly created content.
+
 **Stepping — confirmed:** provide separate controls for advancing one simulation tick and advancing to the next meaningful event, such as an NPC arrival, conversation start or action completion. Each step ends paused with the editor showing the updated state. The exact event categories and simulation tick rate remain implementation details to specify. Stepping executes the simulation, so pending edits must pass the same validation/application gate as resuming; script errors block advancement.
 
 ### Visual and source authoring — confirmed
@@ -534,7 +536,7 @@ Feasibility basis: GitHub's REST Git database API can create multi-file commits 
 
 Character schedules and storylet conditions have forms/timelines plus a source view, both editing the same underlying data. Dialogue Manager scenes use text editing. Exact schemas and synchronization/validation behaviour remain to be specified.
 
-**Room map authoring — confirmed:** use supplied background artwork for each room, with walkable areas drawn over it and doors, props and interaction points placed in the integrated editor. This is the selected approach for the first playable, matching the fixed whole-room camera. Tile painting and a combined tile/background workflow are not part of the selected first-playable scope.
+**Room map authoring — confirmed:** use supplied background artwork for each room, with walkable areas drawn over it and doors, props and interaction points placed in the integrated editor. This is the selected approach for the first playable, matching the fixed whole-room camera. Updated 29 September 2026: retain room background artwork and author collision on a fixed 25 x 25 world-unit grid, matching the character collision width. Paint or erase whole square cells. This supersedes the earlier geometry-only authoring decision; movement remains continuous.
 
 **Interaction positions — confirmed:** authors place one or more explicit interaction positions beside each room object, defining where characters stand to interact. Positions are authored rather than inferred from any nearby walkable point.
 

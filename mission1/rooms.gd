@@ -27,10 +27,41 @@ const DOORS := [
  {"a":"foyer", "ap":[580,140], "b":"salon", "bp":[580,650]}
 ]
 
+# Scoped by Simulation entry points; never persisted in a snapshot.
+static var authored: Dictionary = {}
+static var authored_connections: Array = []
+static var behaviour: Dictionary = {}
+static var prop_states: Dictionary = {}
+
+static func definitions() -> Dictionary:
+ return authored if not authored.is_empty() else ROOMS
+
+static func connections() -> Array:
+ return authored_connections if not authored.is_empty() else DOORS
+
 static func point(value: Array) -> Vector2:
  return Vector2(float(value[0]), float(value[1]))
 
 static func can_stand(room: String, p: Vector2, flags: Dictionary = {}) -> bool:
+ if not authored.is_empty():
+  if not authored.has(room) or not preload("res://mission1/authoring_grid.gd").contains(authored[room],p): return false
+  for id in behaviour.get("instances",{}):
+   var instance: Dictionary = behaviour.instances[id]
+   if instance.room != room: continue
+   var entity: Dictionary = behaviour.templates.get(instance.template,{}).duplicate()
+   entity.merge(instance.overrides,true)
+   if entity.get("kind") == "character": continue
+   var state_name: String = prop_states.get(id,entity.get("initial_state",""))
+   for transition in entity.get("transitions",[]):
+    var allowed := true
+    for condition in transition.get("conditions",[]):
+     if not condition.has("flag") or flags.get(condition.flag,false) != condition.get("equals",true): allowed = false
+    if allowed: state_name = transition.state
+   var state: Dictionary = entity.get("states",{}).get(state_name,{})
+   if not state.get("solid",false): continue
+   var box: Array = state.get("bounds",[-12.5,-12.5,25,25])
+   if Rect2(instance.position[0]+box[0],instance.position[1]+box[1],box[2],box[3]).has_point(p): return false
+  return true
  if room == "foyer" and flags.get("chandelier_fallen",false) and WRECKAGE.has_point(p): return false
  if room == "controls" and steam_blocked(flags) and STEAM_EXIT.has_point(p): return false
  if room == "cabins":
@@ -54,8 +85,18 @@ static func move(room: String, origin: Vector2, step: Vector2, flags: Dictionary
 
 static func exits(room: String, shortcut: bool) -> Array[Dictionary]:
  var result: Array[Dictionary] = []
- for door in DOORS:
+ for door in connections():
   if door.get("shortcut", false) and not shortcut: continue
+  if not authored.is_empty():
+   for side in ["a","b"]:
+    if door[side] != room: continue
+    var other := "b" if side == "a" else "a"
+    var p: Array = door[side+"p"]
+    var target: Array = door[other+"p"]
+    var box: Array = door.get(side+"_bounds",[p[0]-20,p[1]-20,40,40])
+    var arrival: Array = door.get(other+"_arrival",[target[0],target[1]+40])
+    result.append({"room":door[other],"point":p,"arrival":arrival,"bounds":Rect2(box[0],box[1],box[2],box[3])})
+   continue
   if door.a == room: result.append({"room":door.b, "point":door.ap, "arrival":arrival_point(door.b,point(door.bp)),"bounds":exit_bounds(room,point(door.ap))})
   elif door.b == room: result.append({"room":door.a, "point":door.bp, "arrival":arrival_point(door.a,point(door.ap)),"bounds":exit_bounds(room,point(door.bp))})
  return result
@@ -76,7 +117,7 @@ static func exit_bounds(room: String, p: Vector2) -> Rect2:
   "salon":
    if p.y > 600: return Rect2(525,630,110,55)
    return Rect2(945,480,50,105)
- return Rect2()
+ return Rect2(p-Vector2(20,20),Vector2(40,40))
 
 static func arrival_point(room: String, p: Vector2) -> Array:
  var inward := Vector2.ZERO

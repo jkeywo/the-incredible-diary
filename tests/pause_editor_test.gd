@@ -77,7 +77,7 @@ func _run() -> void:
 		check(frames.size() == 4 and game.actors.amelia.animation == "walk_" + direction, "full looping walk: " + direction)
 		Input.action_release("move_" + direction)
 	press_pause()
-	check(paused and editor.overlay.visible, "docks inherits shared editor through title host")
+	check(paused and game.authoring_editor.overlay.visible, "docks opens authored editor through title host")
 	var position: Array = game.sim.s.pos.duplicate()
 	var time: int = game.sim.s.tick
 	var recorded_frame: int = game.sim.s.frame
@@ -104,7 +104,7 @@ func _run() -> void:
 	title._game_world = continued
 	continued.enable_controls()
 	press_pause()
-	check(paused and editor.overlay.visible and continued.sim.s == saved.current and continued.sim.history == saved.history, "continued mission uses shared editor with recorded state")
+	check(paused and continued.authoring_editor.overlay.visible and continued.sim.s == saved.current and continued.sim.history == saved.history, "continued mission uses shared editor with recorded state")
 	press_pause()
 	Save.clear(SAVE_PATH)
 	var tutorial := Play.instantiate()

@@ -15,6 +15,7 @@ static func waypoint(room: String, p: Vector2) -> Dictionary:
 static func path(room: String, origin: Vector2, destination: String, target: Vector2, cache := true, flags: Dictionary = {}) -> Array:
  if flags.get("chandelier_fallen",false): cache = false
  var key := "%s:%s:%s:%s" % [room,origin,destination,target]
+ if not Rooms.authored.is_empty(): key = str(Rooms.behaviour.get("version","")) + ":" + key
  if cache and paths.has(key): return paths[key]
  var start := region(room,origin)
  var finish := region(destination,target)
@@ -22,7 +23,7 @@ static func path(room: String, origin: Vector2, destination: String, target: Vec
  var visited := {start:[]}
  while not pending.is_empty() and not visited.has(finish):
   var current: String = pending.pop_front()
-  for door in Rooms.DOORS:
+  for door in Rooms.connections():
    for reverse in [false,true]:
     var from_room: String = door.b if reverse else door.a
     var to_room: String = door.a if reverse else door.b
@@ -30,9 +31,9 @@ static func path(room: String, origin: Vector2, destination: String, target: Vec
     var to_point := Rooms.point(door.ap if reverse else door.bp)
     var next := region(to_room,to_point)
     if region(from_room,from_point) == current and not visited.has(next):
-     visited[next] = visited[current] + [{"from":waypoint(from_room,from_point),"to":waypoint(to_room,Rooms.point(Rooms.arrival_point(to_room,to_point)))}]
+     visited[next] = visited[current] + [{"from":waypoint(from_room,from_point),"to":waypoint(to_room,Rooms.point(door.get(("a" if reverse else "b")+"_arrival",Rooms.arrival_point(to_room,to_point))))}]
      pending.append(next)
- assert(visited.has(finish), "No route between passenger destinations")
+ if not visited.has(finish): return []
  var result := [waypoint(room,origin)]
  var here := origin
  var here_room := room
@@ -46,6 +47,10 @@ static func path(room: String, origin: Vector2, destination: String, target: Vec
  return result
 
 static func _inside(room: String, origin: Vector2, target: Vector2, flags: Dictionary = {}) -> Array:
+ if not Rooms.authored.is_empty():
+  var result := []
+  for p in preload("res://mission1/authoring_grid.gd").path(Rooms.authored[room],origin,target): result.append(waypoint(room,p))
+  return result
  if room == "foyer" and flags.get("chandelier_fallen",false):
   var detour := around_wreckage(origin,target)
   if not detour.is_empty(): return detour
@@ -113,7 +118,7 @@ static func track(tick: int, room: String, origin: Vector2, stages: Array, actio
 
 static func passenger(id: String, tick: int, boarding: int, arrival: int, flags: Dictionary) -> Dictionary:
  var plan := _passenger_plan(id, tick, boarding, arrival, flags)
- return track(tick, "docks", plan.origin, with_foyer_stop(id,plan.stages,plan.origin), plan.action, plan.facing)
+ return track(tick, plan.get("room","docks"), plan.origin, with_foyer_stop(id,plan.stages,plan.origin) if plan.get("room","docks") == "docks" else plan.stages, plan.action, plan.facing)
 
 static func next_commitment(id: String, tick: int, boarding: int, arrival: int, flags: Dictionary) -> int:
  var plan := _passenger_plan(id, tick, boarding, arrival, flags)
@@ -125,6 +130,17 @@ static func _plan(origin: Vector2, stages: Array, action := "idle", facing := "d
  return {"origin":origin, "stages":stages, "action":action, "facing":facing}
 
 static func _passenger_plan(id: String, tick: int, boarding: int, arrival: int, flags: Dictionary) -> Dictionary:
+ var authored: Dictionary = Rooms.behaviour.get("schedules",{}).get(id,{})
+ if authored.has("stages"):
+  var stages: Array = authored.stages.duplicate(true)
+  for stage in stages:
+   if stage[0] is Dictionary:
+    var timing: Dictionary = stage[0]
+    stage[0] = int(timing.arrive)-duration(path(timing.from_room,Rooms.point(timing.from),stage[1],Rooms.point(stage[2])))-int(timing.get("margin",0))
+  var entity: Dictionary = Rooms.behaviour.instances[id]
+  var result := _plan(Rooms.point(entity.position),stages,str(authored.get("action","idle")),str(authored.get("facing","down")))
+  result.room = entity.room
+  return result
  if id == "chandelier_guest":
   return _plan(Vector2(720,440),[
    [160,"cabins",[225,315],"idle"],

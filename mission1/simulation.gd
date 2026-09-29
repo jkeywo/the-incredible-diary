@@ -10,6 +10,9 @@ const Operator = preload("res://mission1/operator.gd")
 const Hints = preload("res://mission1/tutorial_hints.gd")
 const CAPTAIN := Vector2(650,280)
 const BRIEFING := [["captain","Boy! Report for duty."],["amelia","Yes, Captain."],["captain","Explore the ship and make sure our guests are comfortable. Help with their luggage, bring refreshments, and show them to their cabins."],["amelia","Very good, Captain."],["captain","Passengers are coming aboard. Get to it."]]
+const Authored = preload("res://mission1/authoring_runtime.gd")
+var authored_content: Dictionary = {}
+var content_versions: Dictionary = {}
 var opening_enabled := true
 const HOUR := 1800
 const CLOCK_RATE := 1.5
@@ -55,6 +58,15 @@ func reset() -> void:
  Hospitality.defaults(self)
  _open_passenger_doors(_planned_actors())
  s.actors = actor_positions()
+ if not authored_content.is_empty():
+  var player := preload("res://mission1/authoring_content.gd").resolve(authored_content,"amelia")
+  s.room = player.room
+  s.pos = player.position.duplicate()
+  s.content_version = authored_content.version
+  s.prop_states = {}
+  for id in authored_content.instances:
+   var entity := preload("res://mission1/authoring_content.gd").resolve(authored_content,id)
+   if entity.kind != "character": s.prop_states[id] = entity.get("initial_state","idle")
  history = [s.duplicate(true)]
  events.clear()
 
@@ -62,6 +74,8 @@ func tutorial_active() -> bool:
  return s.get("tutorial","done") != "done"
 
 func display_name(id: String) -> String:
+ var entity := preload("res://mission1/authoring_content.gd").resolve(authored_content,id)
+ if not entity.is_empty(): return str(entity.get("name",id))
  if id.begins_with("incidental_"): return "Sailor" if id.contains("sailor") else "Guest"
  if Hospitality.GUESTS.has(id): return Hospitality.GUESTS[id].name
  return {"amelia":"Boy","captain":"Captain","crew":"Sailor","dock_sailor":"Sailor","porter":"Porter"}.get(id,id)
@@ -70,6 +84,7 @@ func flag(key: String) -> bool:
  return bool(s.flags.get(key, false))
 
 func note(key: String, text: String, permanent := true, show_message := true) -> void:
+ text = str(authored_content.get("texts",{}).get(text,text))
  if s.observed.has(key): return
  s.observed.append(key)
  var line := "%s — %s" % [observation_time(int(s.tick)), text]
@@ -84,6 +99,22 @@ func nearby(room: String, p: Vector2, radius := 80.0) -> bool:
  return s.room == room and Rooms.point(s.pos).distance_to(p) <= radius
 
 func options(local := true) -> Array[Dictionary]:
+ var prior := Rooms.authored
+ var prior_connections := Rooms.authored_connections
+ var prior_states := Rooms.prop_states
+ Rooms.prop_states = s.get("prop_states",{})
+ var prior_behaviour := Rooms.behaviour
+ Rooms.behaviour = authored_content
+ Rooms.authored = authored_content.get("rooms", {})
+ Rooms.authored_connections = authored_content.get("connections", [])
+ var result := Authored.options(self, _authored_options(local), local) if s.action.is_empty() and not s.finished else _authored_options(local)
+ Rooms.authored = prior
+ Rooms.authored_connections = prior_connections
+ Rooms.behaviour = prior_behaviour
+ Rooms.prop_states = prior_states
+ return result
+
+func _authored_options(local := true) -> Array[Dictionary]:
  var result: Array[Dictionary] = []
  if not s.action.is_empty() or s.finished: return result
  if tutorial_active():
@@ -121,6 +152,10 @@ func interaction_target(id: String) -> String:
 func start(id: String) -> bool:
  for item in options():
   if item.id == id:
+   if id.begins_with("authored:"):
+    var definition := Authored.interaction(self,id)
+    s.action = {"id":id,"progress":0,"duration":int(definition.get("duration",10)),"pos":item.pos,"room":item.room}
+    return true
    memory.interactions = int(memory.get("interactions",0))+1
    if id == "report":
     s.tutorial = "briefing"
@@ -138,11 +173,27 @@ func start(id: String) -> bool:
  return false
 
 func step(direction := Vector2.ZERO, cancel := false) -> void:
+ var prior := Rooms.authored
+ var prior_connections := Rooms.authored_connections
+ var prior_states := Rooms.prop_states
+ Rooms.prop_states = s.get("prop_states",{})
+ var prior_behaviour := Rooms.behaviour
+ Rooms.behaviour = authored_content
+ Rooms.authored = authored_content.get("rooms", {})
+ Rooms.authored_connections = authored_content.get("connections", [])
+ _authored_step(direction, cancel)
+ Rooms.authored = prior
+ Rooms.authored_connections = prior_connections
+ Rooms.behaviour = prior_behaviour
+ Rooms.prop_states = prior_states
+
+func _authored_step(direction := Vector2.ZERO, cancel := false) -> void:
  if s.finished: return
  events.clear()
  s.frame = int(s.get("frame",s.tick))+1
  if tutorial_active():
   _tutorial_step(direction)
+  Authored.update(self)
   history.append(s.duplicate(true))
   return
  var player_before := {"room":s.room,"pos":s.pos.duplicate()}
@@ -176,7 +227,7 @@ func step(direction := Vector2.ZERO, cancel := false) -> void:
  var ticks := int(clock_progress)
  s.clock_fraction = clock_progress-ticks
  for elapsed in ticks:
-  s.tick = mini(previous_tick+elapsed+1,END)
+  s.tick = mini(previous_tick+elapsed+1,timing("end", END))
   if s.tick % HOUR == 0: events.append({"kind":"sound","text":"hour_chime"})
   _schedule()
   if s.tick % HOUR == 0:
@@ -190,7 +241,7 @@ func step(direction := Vector2.ZERO, cancel := false) -> void:
  _open_passenger_doors(_planned_actors())
  _open_passenger_doors(s.actors)
  var previous: Dictionary = s.actors
- s.actors = Crowd.separate(_planned_actors(),s.flags,previous,{"player":{"room":s.room,"pos":s.pos}}, {"player":player_before})
+ s.actors = Crowd.separate(Authored.actors(self, _planned_actors()),s.flags,previous,{"player":{"room":s.room,"pos":s.pos}}, {"player":player_before})
  if s.actors.has("captain") and Rooms.point(s.actors.captain.pos).distance_to(Vector2(580,105)) < 10:
   s.flags.captain_departing = false
   s.actors.erase("captain")
@@ -198,11 +249,12 @@ func step(direction := Vector2.ZERO, cancel := false) -> void:
  _observe()
  Hints.update(self)
  Conversations.update(self)
- if s.tick >= END:
+ if s.tick >= timing("end", END):
   s.finished = true
   memory.completed = bool(memory.completed) or s.dead.is_empty()
   if s.dead.is_empty(): memory.location_rewriting = true
   events.append({"kind":"end", "text":"The unmooring party has ended."})
+ Authored.update(self)
  history.append(s.duplicate(true))
 
 func _tutorial_step(direction: Vector2) -> void:
@@ -218,6 +270,7 @@ func _tutorial_step(direction: Vector2) -> void:
 
 
 func _still_valid(id: String) -> bool:
+ if id.begins_with("authored:"): return not Authored.interaction(self,id).is_empty()
  var active: Dictionary = s.action
  s.action = {}
  var valid := false
@@ -227,6 +280,9 @@ func _still_valid(id: String) -> bool:
  return valid
 
 func _complete(id: String) -> void:
+ if id.begins_with("authored:"):
+  Authored.complete_interaction(self,id)
+  return
  if Hospitality.complete(self,id): return
  if Rooms.CABIN_DOORS.has(id):
   s.flags[id] = not flag(id)
@@ -265,10 +321,10 @@ func _complete(id: String) -> void:
    note("stair_open", "I released the latch. The centre stair leads straight to the salon.")
   _: _complete_rescue(id)
 
-func _schedule() -> void:
+func _legacy_schedule() -> void:
  _luggage_schedule()
  _party_schedule()
- if s.tick == TRAP:
+ if s.tick == timing("trap", TRAP):
   s.flags.trapped = true
   if flag("steam_off"):
    _steam_rescue()
@@ -276,21 +332,21 @@ func _schedule() -> void:
   if not flag("steam_off") and s.room == "controls":
    note("trapped", "Steam blocks the far room's normal exit. The talkative passenger is trapped.")
    events.append({"kind":"sound", "text":"steam_hiss"})
- if s.tick == STEAM_FATAL and not s.safe.has("chatterbox"):
+ if s.tick == timing("steam_fatal", STEAM_FATAL) and not s.safe.has("chatterbox"):
   _death("chatterbox", "The passenger collapsed behind the steam.", "controls")
- if s.tick == STEAM_FATAL + 30 and s.dead.has("chatterbox"):
+ if s.tick == timing("steam_fatal", STEAM_FATAL) + 30 and s.dead.has("chatterbox"):
   # The late public alarm is audible throughout the ship, but reveals no cause.
   note("alarm", "Crew: A passenger needs help in the steam passage!", true)
   events.append({"kind":"sound", "text":"crew_alarm"})
- if s.tick == CREAK:
+ if s.tick == timing("creak", CREAK):
   s.flags.chandelier_warning = true
   if s.room == "foyer":
    note("creak", "The chandelier creaks and trembles above the guest.")
    events.append({"kind":"sound", "text":"chandelier_creak"})
- if s.tick == FALL-DROP_TICKS and not s.flags.has("chandelier_drop_tick"):
+ if s.tick == timing("fall", FALL)-DROP_TICKS and not s.flags.has("chandelier_drop_tick"):
   s.flags.chandelier_drop_tick = s.tick
   s.flags.chandelier_drop_frame = s.frame
- if not flag("chandelier_fallen") and s.tick >= int(s.flags.get("chandelier_impact_tick",FALL)):
+ if not flag("chandelier_fallen") and s.tick >= int(s.flags.get("chandelier_impact_tick",timing("fall", FALL))):
   s.flags.chandelier_impact_tick = s.tick
   s.flags.chandelier_impact_frame = s.frame
   s.flags.chandelier_fallen = true
@@ -316,7 +372,7 @@ func _death(id: String, witnessed: String, room: String) -> void:
  events.append({"kind":"death", "text":id})
 
 func _observe() -> void:
- note("room_"+s.room, "I visited " + str(Rooms.ROOMS[s.room].title) + ".")
+ note("room_"+s.room, "I visited " + str(room_definition(s.room).title) + ".")
  var positions: Dictionary = s.actors
  if flag("bag_retrieved_by_boy") and not flag("sailor_thanked") and s.dialogue.is_empty() and s.get("conversation",{}).is_empty():
   var sailor: Dictionary = positions.get("dock_sailor",{})
@@ -328,7 +384,7 @@ func _observe() -> void:
   var actor: Dictionary = positions[id]
   if actor.room == s.room:
    var name := display_name(id)
-   note("seen_%s_%d_%s" % [id,int(s.tick/HOUR),s.room], name + " is in " + str(Rooms.ROOMS[s.room].title) + ".")
+   note("seen_%s_%d_%s" % [id,int(s.tick/HOUR),s.room], name + " is in " + str(room_definition(s.room).title) + ".")
  if nearby("docks", Vector2(390,430), 110) and not flag("bag_found"):
   memory.bag = true
   s.flags.bag_lead = true
@@ -336,7 +392,7 @@ func _observe() -> void:
  if memory.shortcut and s.tick >= 3*HOUR and nearby("foyer", Vector2(580,250)) and not flag("shortcut_lead"):
   s.flags.shortcut_lead = true
   note("stair_reminder", "The stair's brass catch is still here.")
- if s.tick >= 3500 and s.tick < CREAK and int(s.tick)%180 == 0 and s.dialogue.is_empty() and s.get("conversation",{}).is_empty() and nearby("foyer",Rooms.point(s.actors.chandelier_guest.pos),180):
+ if s.tick >= 3500 and s.tick < timing("creak", CREAK) and int(s.tick)%180 == 0 and s.dialogue.is_empty() and s.get("conversation",{}).is_empty() and nearby("foyer",Rooms.point(s.actors.chandelier_guest.pos),180):
   Conversations.say(self,"chandelier_guest","I do wish they would get on with it. Such a wait!","speech","fretting_%d" % s.tick)
  _observe_rescues()
 
@@ -401,7 +457,23 @@ func _observe_rescues() -> void:
   if flag("chandelier_fallen"): note("fallen_seen", "The guest lies dead beneath the fallen chandelier." if s.dead.has("chandelier_guest") else "The fallen chandelier lies in pieces. The guest is safe.")
 
 func actor_positions() -> Dictionary:
- return Crowd.separate(_planned_actors(),s.flags)
+ var prior := Rooms.authored
+ var prior_connections := Rooms.authored_connections
+ var prior_states := Rooms.prop_states
+ Rooms.prop_states = s.get("prop_states",{})
+ var prior_behaviour := Rooms.behaviour
+ Rooms.behaviour = authored_content
+ Rooms.authored = authored_content.get("rooms", {})
+ Rooms.authored_connections = authored_content.get("connections", [])
+ var result := _authored_actor_positions()
+ Rooms.authored = prior
+ Rooms.authored_connections = prior_connections
+ Rooms.behaviour = prior_behaviour
+ Rooms.prop_states = prior_states
+ return result
+
+func _authored_actor_positions() -> Dictionary:
+ return Crowd.separate(Authored.actors(self,_planned_actors()),s.flags)
 
 func _planned_actors() -> Dictionary:
  var result := {}
@@ -421,11 +493,11 @@ func _planned_actors() -> Dictionary:
    var entrance := Routines.path("docks",Vector2(970,620),"docks",Rooms.point(starts[id]))
    if t < delay: result.erase(id)
    elif t < delay+Routines.duration(entrance): result[id] = Routines.travel(entrance,t-delay)
- if t >= DEMO_START and t < DEMO_END and int(s.flags.get("demo_cursor",0)) < 3: result.crew.action = "demonstrate"
+ if t >= timing("demo_start", DEMO_START) and t < timing("demo_end", DEMO_END) and int(s.flags.get("demo_cursor",0)) < 3: result.crew.action = "demonstrate"
  result.crew = Operator.pose(self,result.crew)
  if t >= 3500:
   result.chandelier_guest.solid = false
-  if result.chandelier_guest.room == "foyer" and t < CREAK-20:
+  if result.chandelier_guest.room == "foyer" and t < timing("creak", CREAK)-20:
    result.chandelier_guest.pos = [580,412+sin(float(t-3500)*TAU/120.0)*55]
    result.chandelier_guest.action = "walk"
  if flag("chandelier_warning"): result.chandelier_guest.action = "chandelier_warn"
@@ -508,8 +580,8 @@ func _travel(from: Vector2, to: Vector2, time: int, start_tick: int, end_tick: i
  return [p.x,p.y]
 
 func party_arrival() -> int:
- if not luggage_delayed(): return CREAK-30
- return 4*HOUR if flag("chat_delay") else 3*HOUR+450
+ if not luggage_delayed(): return timing("creak", CREAK)-30+int(s.flags.get("guest_delay_ticks",0))
+ return (4*HOUR if flag("chat_delay") else 3*HOUR+450)+int(s.flags.get("guest_delay_ticks",0))
 
 func _party_schedule() -> void:
  if s.safe.has("chatterbox") and luggage_delayed() and not flag("chat_delay") and not flag("party_arrived"):
@@ -523,7 +595,7 @@ func _party_schedule() -> void:
  if s.tick >= arrival and not flag("party_arrived"):
   s.flags.party_arrived = true
   if s.room == "salon": note("party_arrival", "The luggage owner is waiting at the bar.")
- var spike := POISON
+ var spike := timing("poison", POISON)
  var drink := spike + (80 if luggage_delayed() else 40)
  if s.tick == spike:
   s.flags.spiked = true
@@ -546,7 +618,7 @@ func summary() -> String:
  return "THE PARTY HAS ENDED\n" + " · ".join(lines) + "\nYour diary records what you witnessed on this voyage. Turn back the pages to try again."
 
 func _demonstration() -> void:
- if s.tick < DEMO_START or s.tick > DEMO_END: return
+ if s.tick < timing("demo_start", DEMO_START) or s.tick > timing("demo_end", DEMO_END): return
  if not s.flags.has("demo_cursor"):
   s.flags.demo_cursor = 0
   s.flags.demo_progress = 0
@@ -556,7 +628,7 @@ func _demonstration() -> void:
  var close := nearby("controls", Vector2(310,305), 110)
  var remaining := (3-cursor)*30 - int(s.flags.demo_progress)
  # Waiting and pausing use only spare time inside the authored window.
- if not close and DEMO_END-int(s.tick) > remaining*CLOCK_RATE:
+ if not close and timing("demo_end", DEMO_END)-int(s.tick) > remaining*CLOCK_RATE:
 
   return
  s.flags.demo_progress += 1
@@ -591,7 +663,7 @@ func submit_code() -> bool:
  s.code_open = false
  note("shutoff_%d" % s.tick, "I stopped the steam.")
  events.append({"kind":"sound", "text":"steam_valve"})
- if flag("trapped") and s.tick < STEAM_FATAL and not s.dead.has("chatterbox"):
+ if flag("trapped") and s.tick < timing("steam_fatal", STEAM_FATAL) and not s.dead.has("chatterbox"):
   _steam_rescue()
  return true
 
@@ -635,6 +707,8 @@ static func observation_time(tick: int) -> String:
 
 ## Restore only recorded data; never sample current schedules for old frames.
 func restore_record(record: Dictionary) -> void:
+ authored_content = record.get("authored_content",{}).duplicate(true)
+ content_versions = record.get("content_versions",{}).duplicate(true)
  s = record.current.duplicate(true)
  memory = record.memory.duplicate(true)
  history = record.history.duplicate(true)
@@ -729,3 +803,77 @@ func nearest_options(available: Array[Dictionary]) -> Array[Dictionary]:
    distance = candidate
  var target: String = nearest.target
  return available.filter(func(option): return option.target == target if target != "" else option.pos == nearest.pos)
+
+func room_definition(id: String) -> Dictionary:
+ return authored_content.get("rooms", {}).get(id, Rooms.ROOMS.get(id, {"title":id,"scene":""}))
+
+func apply_authored(content: Dictionary, frame_index := -1) -> Dictionary:
+ var candidate: Dictionary = history[frame_index] if frame_index >= 0 and frame_index < history.size() else s
+ var errors := preload("res://mission1/authoring_content.gd").validate(content)
+ if errors.is_empty(): errors = Authored.compatibility(content, self, candidate)
+ if not errors.is_empty(): return {"ok":false,"reason":"; ".join(errors)}
+ if authored_content.is_empty() and not content_versions.has("legacy"):
+  content_versions.legacy = preload("res://mission1/authoring_content.gd").seed(history[0].get("actors",{}))
+ authored_content = content.duplicate(true)
+ content_versions[content.version] = content.duplicate(true)
+ if frame_index >= 0:
+  s = candidate.duplicate(true)
+  history = history.slice(0, frame_index + 1)
+  events.clear()
+ return {"ok":true,"reason":"Content applied"}
+
+func timing(key: String, fallback: int) -> int:
+ return int(authored_content.get("timings",{}).get(key,fallback))
+
+func _schedule() -> void:
+ if authored_content.is_empty(): _legacy_schedule()
+ else: Authored.execute_phase(self, "schedule")
+
+func execute_mission_effect(id: String) -> void:
+ match id:
+  "luggage_routine": _luggage_schedule()
+  "party_routine": _party_schedule()
+  "steam_trap": _effect_steam_trap()
+  "steam_fatal": _effect_steam_fatal()
+  "steam_alarm": _effect_steam_alarm()
+  "chandelier_warning": _effect_chandelier_warning()
+  "chandelier_drop": _effect_chandelier_drop()
+  "chandelier_impact": _effect_chandelier_impact()
+
+func _effect_steam_trap() -> void:
+ s.flags.trapped = true
+ if flag("steam_off"):
+  _steam_rescue()
+ else: s.flags.trapped = true
+ if not flag("steam_off") and s.room == "controls":
+  note("trapped", "Steam blocks the far room's normal exit. The talkative passenger is trapped.")
+  events.append({"kind":"sound", "text":"steam_hiss"})
+
+func _effect_steam_fatal() -> void:
+ _death("chatterbox", "The passenger collapsed behind the steam.", "controls")
+
+func _effect_steam_alarm() -> void:
+ # The late public alarm is audible throughout the ship, but reveals no cause.
+ note("alarm", "Crew: A passenger needs help in the steam passage!", true)
+ events.append({"kind":"sound", "text":"crew_alarm"})
+
+func _effect_chandelier_warning() -> void:
+ s.flags.chandelier_warning = true
+ if s.room == "foyer":
+  note("creak", "The chandelier creaks and trembles above the guest.")
+  events.append({"kind":"sound", "text":"chandelier_creak"})
+
+func _effect_chandelier_drop() -> void:
+ s.flags.chandelier_drop_tick = s.tick
+ s.flags.chandelier_drop_frame = s.frame
+
+func _effect_chandelier_impact() -> void:
+ s.flags.chandelier_impact_tick = s.tick
+ s.flags.chandelier_impact_frame = s.frame
+ s.flags.chandelier_fallen = true
+ s.flags.chandelier_warning = false
+ if not s.safe.has("chandelier_guest"): _death("chandelier_guest", "The chandelier fell on the guest.", "foyer")
+ elif s.room == "foyer": note("fall_safe", "The chandelier crashed onto the place where the guest had been standing.")
+ if s.room == "foyer":
+  events.append({"kind":"sound", "text":"chandelier_impact"})
+  events.append({"kind":"sound", "text":"chandelier_glass"})

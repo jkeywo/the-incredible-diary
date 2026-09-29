@@ -95,6 +95,8 @@ var time_presentation: Control
 var waiting_active := false
 var rewind_start := 0
 var visual_elapsed := 0.0
+var authoring_editor: CanvasLayer
+var pending_authoring_restart: Dictionary = {}
 
 func configure(saved: Dictionary = {}, enable_save := true) -> void:
  initial = saved.duplicate(true)
@@ -124,6 +126,10 @@ func _ready() -> void:
  hint_prompt = _label(Vector2.ZERO,Vector2(350,32),17)
  hint_prompt.hide()
  _restore_initial()
+ if initial.is_empty() and sim.authored_content.is_empty():
+  var content := preload("res://mission1/authoring_content.gd").seed(Simulation.new(false).s.actors)
+  var applied := sim.apply_authored(content)
+  if not applied.ok: push_error(applied.reason)
  _refresh()
  if get_tree().current_scene == self: enable_controls()
 
@@ -442,7 +448,7 @@ func _refresh(direction := Vector2.INF) -> void:
  _ensure_actor("amelia")
  if shown_room != state.room: _show_room(state.room)
  watch.elapsed_seconds = float(state.tick)/10.0
- heading.text = "All Aboard  ·  " + str(Rooms.ROOMS[state.room].title)
+ heading.text = "All Aboard  ·  " + str(sim.room_definition(state.room).title)
  message.text = state.message
  notice.text = state.get("notice", "") if int(state.tick) < int(state.get("notice_until",0)) else ""
  room_audio.set_game_time(int(state.tick)*100)
@@ -471,6 +477,7 @@ func _refresh(direction := Vector2.INF) -> void:
   choices.append({"label":"Clear"})
   message.text = ""
  _sync_props(state)
+ _sync_authored_props(state)
  _sync_prop_occlusion()
  _sync_highlights()
  sim.s = live
@@ -636,10 +643,12 @@ func _refresh_character_art() -> void:
  if changed: _refresh()
 
 func _ensure_actor(id: String) -> void:
+ var skin: String = preload("res://mission1/authoring_content.gd").resolve(sim.authored_content,id).get("appearance",ContentPlan.SKINS.get(id,Simulation.Routines.INCIDENTAL_SKINS.get(id,"")))
  if actors.has(id) and not actors[id] is PendingCharacter: return
  if stream_resources:
   var cache: Dictionary = get_node("/root/ResourceStream").resources
-  if not ContentPlan.character_paths(id).all(func(path): return cache.has(path)):
+  if not ContentPlan.character_paths(id,skin).all(func(path): return cache.has(path)):
+   if character_ticket.is_empty() or character_ticket.get("done",false): character_ticket = get_node("/root/ResourceStream").request_resources(ContentPlan.character_paths(id,skin))
    if not actors.has(id):
     var pending := PendingCharacter.new()
     pending.self_modulate.a = 0.0
@@ -651,7 +660,6 @@ func _ensure_actor(id: String) -> void:
   actors[id].queue_free()
   actors.erase(id)
  var actor: AnimatedSprite2D
- var skin: String = ContentPlan.SKINS.get(id,Simulation.Routines.INCIDENTAL_SKINS.get(id,""))
  if skin == "captain":
   actor = AnimatedSprite2D.new()
   actor.set_script(preload("res://assets/characters/captain.gd"))
@@ -670,7 +678,7 @@ func _prepare_visible(state: Dictionary) -> bool:
  if key != _content_key:
   _content_key = key
   if not _content_ticket.is_empty(): _content_ticket.cancelled = true
-  _content_ticket = stream.request_resources(ContentPlan.for_state(state),true)
+  _content_ticket = stream.request_resources(ContentPlan.for_state(state,sim.authored_content),true)
  if not _content_ticket.done or not str(_content_ticket.error).is_empty():
   if not is_instance_valid(_content_overlay):
    _content_overlay = CanvasLayer.new()
@@ -718,7 +726,7 @@ func _prepare_visible(state: Dictionary) -> bool:
  if _prefetched_room != str(state.room):
   _prefetched_room = str(state.room)
   if not _neighbour_ticket.is_empty(): _neighbour_ticket.cancelled = true
-  _neighbour_ticket = stream.request_resources(ContentPlan.neighbours(_prefetched_room))
+  _neighbour_ticket = stream.request_resources(ContentPlan.neighbours(_prefetched_room,sim.authored_content))
  return true
 
 func _show_room(id: String) -> void:
@@ -729,10 +737,21 @@ func _show_room(id: String) -> void:
   entity_layer.remove_child(prop)
   prop.queue_free()
  props.clear()
- var room := load("res://assets/rooms/mission_1/%s.tscn" % Rooms.ROOMS[id].scene).instantiate() as Node2D
+ var definition := sim.room_definition(id)
+ var room: Node2D
+ if not str(definition.get("background_asset", "")).is_empty() or str(definition.get("scene", "")).is_empty():
+  room = Node2D.new()
+  var picture := Sprite2D.new()
+  picture.centered = false
+  var asset: Dictionary = sim.authored_content.get("assets",{}).get(definition.get("background_asset", ""),{})
+  if not asset.is_empty(): picture.texture = preload("res://foundation/project_assets.gd").texture(asset)
+  if picture.texture != null: picture.scale = Vector2(definition.size[0],definition.size[1]) / picture.texture.get_size()
+  room.add_child(picture)
+ else:
+  room = load("res://assets/rooms/mission_1/%s.tscn" % definition.scene).instantiate() as Node2D
  room_slot.add_child(room)
  if room.has_method("set_motion_time"): room.animate_bobbing = false
- room_audio.set_room(room.get_node("RoomAudioSettings"), int(sim.s.tick)*100, opening_audio_fade)
+ if room.has_node("RoomAudioSettings"): room_audio.set_room(room.get_node("RoomAudioSettings"), int(sim.s.tick)*100, opening_audio_fade)
  opening_audio_fade = 1.0
  shown_room = id
  match id:
@@ -775,11 +794,27 @@ func _show_room(id: String) -> void:
    for door_id in Rooms.CABIN_DOORS:
     _prop("cabin_door", Vector2(Rooms.CABIN_DOORS[door_id],427), door_id)
 
+ for key in props.keys():
+  var authored := preload("res://mission1/authoring_content.gd").resolve(sim.authored_content,key)
+  if not authored.is_empty() and authored.room != id:
+   entity_layer.remove_child(props[key])
+   props[key].queue_free()
+   props.erase(key)
+ for entity_id in sim.authored_content.get("instances",{}):
+  var entity := preload("res://mission1/authoring_content.gd").resolve(sim.authored_content,entity_id)
+  if entity.kind != "character" and entity.room == id and not props.has(entity_id):
+   _prop(str(entity.appearance),Vector2(entity.position[0],entity.position[1]),entity_id)
+
 func _prop(id: String, p: Vector2, key := "") -> void:
+ var instance_key := id if key.is_empty() else key
+ var authored := preload("res://mission1/authoring_content.gd").resolve(sim.authored_content,id if key.is_empty() else key)
+ if not authored.is_empty():
+  p = Vector2(authored.position[0],authored.position[1])
+  id = str(authored.get("appearance", id))
  var prop := load("res://assets/props/mission_1/%s.tscn" % id).instantiate() as Node2D
  prop.position = p
  entity_layer.add_child(prop)
- props[id if key.is_empty() else key] = prop
+ props[instance_key] = prop
 
 func _effect_fraction() -> float:
  return clampf((accumulator+visual_elapsed)/0.1,0.0,0.99) if controls_enabled and rewind_index < 0 and not diary_open and not get_tree().paused and application_focused else 0.0
@@ -794,7 +829,7 @@ func _sync_props(state: Dictionary) -> void:
   props.drink.show_at(state,effect_fraction)
  var stained: bool = state.flags.get("spilled", false)
  if actors.has("guest") and actors.guest.stained_outfit != stained: actors.guest.set_outfit_stained(stained)
- if props.has("code_panel"):
+ if props.has("code_panel") and props.code_panel.has_node("Digits"):
   props.code_panel.get_node("Digits").text = " ".join(str(state.entry).rpad(3,"_").split("")) if state.code_open else ""
  if props.has("steam_vent"):
   var active := Rooms.steam_blocked(state.flags)
@@ -914,6 +949,12 @@ func _finish_reset() -> void:
  time_presentation.clear_announcements()
  time_presentation.finish_remaining = 0.15
  waiting_active = false
+ if not pending_authoring_restart.is_empty():
+  sim.authored_content = pending_authoring_restart.duplicate(true)
+  sim.content_versions[sim.authored_content.version] = sim.authored_content.duplicate(true)
+  pending_authoring_restart = {}
+  shown_room = ""
+  _content_key = ""
  sim.reset()
  end_presented = false
  accumulator = 0.0
@@ -1049,3 +1090,18 @@ func _sync_prop_occlusion() -> void:
     if obscures: break
    if obscures: break
   prop.self_modulate.a = 0.5 if obscures else 1.0
+
+func toggle_pause_editor() -> void:
+ if authoring_editor == null:
+  authoring_editor = preload("res://mission1/authoring_editor.gd").new()
+  authoring_editor.game = self
+  add_child(authoring_editor)
+ authoring_editor.toggle()
+
+func _sync_authored_props(state: Dictionary) -> void:
+ for id in state.get("prop_states",{}):
+  if not props.has(id): continue
+  var entity := preload("res://mission1/authoring_content.gd").resolve(sim.authored_content,id)
+  var definition: Dictionary = entity.get("states",{}).get(state.prop_states[id],{})
+  props[id].visible = definition.get("visible",true)
+  if props[id].has_method("set_state"): props[id].set_state(str(definition.get("appearance",state.prop_states[id])))

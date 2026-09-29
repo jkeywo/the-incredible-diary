@@ -69,8 +69,11 @@ func set_scene_source(scene_id: String, source: String) -> void:
 	_begin_edit_group("scene:" + scene_id, "Edit scene %s" % scene_id)
 	scene_drafts[scene_id] = source
 	var actor_ids: Array[String] = []
-	for actor in content.actors:
-		actor_ids.append(str(actor.id))
+	if content.get("kind", "") == "mission1":
+		for id in content.instances: actor_ids.append(str(id))
+	else:
+		for actor in content.actors:
+			actor_ids.append(str(actor.id))
 	var errors: Array[String] = Dialogue.parse(source, actor_ids).errors
 	if errors.is_empty():
 		var next_scenes: Dictionary = content.get("scenes", {}).duplicate(true)

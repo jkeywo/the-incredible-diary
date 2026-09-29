@@ -2,11 +2,12 @@ extends RefCounted
 ## Append-only transactions retain the entire recorded leg without rewriting it each second.
 ## A checksum protects each transaction; an interrupted tail is ignored and repaired on load.
 const DEFAULT_PATH := "user://mission1_v2.journal"
-const SCHEMA := 3
+const SCHEMA := 4
 const Rooms = preload("res://mission1/rooms.gd")
 var saved_count := 0
 var generation := -1
 var sequence := 0
+var saved_content_version := ""
 
 static func has_any(path: String = DEFAULT_PATH) -> bool:
  for suffix in ["", ".next", ".bak"]:
@@ -30,10 +31,14 @@ func save_run(run: RefCounted, path: String = DEFAULT_PATH) -> Dictionary:
  # Input such as code digits can change the current tick without advancing time.
  run.record_current_frame()
  var rewrite := saved_count == 0 or generation != int(run.s.loop) or not FileAccess.file_exists(path)
+ if not run.authored_content.is_empty() and saved_content_version != str(run.authored_content.version): rewrite = true
  if rewrite: saved_count = 0
  sequence += 1
  var batch := {"schema":SCHEMA, "sequence":sequence, "loop":run.s.loop, "start":saved_count,
   "history":run.history.slice(saved_count), "current":run.s, "memory":run.memory}
+ if rewrite:
+  batch.authored_content = run.authored_content
+  batch.content_versions = run.content_versions
  var body := JSON.stringify(batch)
  var line := JSON.stringify({"body":body,"sha256":body.sha256_text()})+"\n"
  var target := path+".next" if rewrite else path
@@ -55,6 +60,7 @@ func save_run(run: RefCounted, path: String = DEFAULT_PATH) -> Dictionary:
    if error != OK: return {"ok":false,"reason":"Could not protect previous voyage."}
   error = DirAccess.rename_absolute(absolute+".next", absolute)
   if error != OK: return {"ok":false,"reason":"Could not promote voyage journal."}
+ saved_content_version = str(run.authored_content.get("version", ""))
  saved_count = run.history.size()
  generation = int(run.s.loop)
  if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
@@ -84,21 +90,21 @@ static func _read(path: String) -> Dictionary:
   if str(wrapper.body).sha256_text() != wrapper.get("sha256",""): break
   if parser.parse(wrapper.body) != OK: break
   var batch: Variant = parser.data
-  if not batch is Dictionary or not _valid_batch(batch, history.size()): break
+  if not batch is Dictionary or not _valid_batch(batch, history.size(),latest.get("authored_content",{}),latest.get("content_versions",{})): break
   if not latest.is_empty() and (int(batch.sequence)<=int(latest.sequence) or int(batch.loop)!=int(latest.current.loop)): break
   history.append_array(batch.history)
   history[-1] = batch.current.duplicate(true)
-  latest = {"current":batch.current, "memory":batch.memory, "sequence":batch.sequence}
+  latest = {"current":batch.current, "memory":batch.memory, "sequence":batch.sequence,"authored_content":batch.get("authored_content",latest.get("authored_content",{})),"content_versions":batch.get("content_versions",latest.get("content_versions",{}))}
  file.close()
  if latest.is_empty(): return {}
  latest.history = history
  return {"ok":true,"data":latest,"source":path}
 
-static func _valid_state(state: Variant) -> bool:
+static func _valid_state(state: Variant, rooms: Dictionary = Rooms.ROOMS) -> bool:
  if not state is Dictionary: return false
  for key in ["tick","loop","room","pos","facing","code","flags","dead","safe","action","entry","code_open","dialogue","observed","message","finished","door_cooldown"]:
   if not state.has(key): return false
- if not Rooms.ROOMS.has(state.room) or not state.pos is Array or state.pos.size()!=2: return false
+ if not rooms.has(state.room) or not state.pos is Array or state.pos.size()!=2: return false
  if not state.flags is Dictionary or not state.action is Dictionary or not state.dead is Array or not state.safe is Array: return false
  if not state.observed is Array or not state.entry is String or not state.message is String: return false
  if str(state.code).length()!=3 or int(state.tick)<0 or int(state.tick)>10800: return false
@@ -110,9 +116,20 @@ static func _valid_state(state: Variant) -> bool:
    if not state.action.has(key): return false
  return true
 
-static func _valid_batch(batch: Dictionary, count: int) -> bool:
- if int(batch.get("schema",-1)) not in [2,SCHEMA] or int(batch.get("start",-1))!=count or not batch.get("history") is Array: return false
- if not _valid_state(batch.get("current")) or not batch.get("memory") is Dictionary: return false
+static func _valid_batch(batch: Dictionary, count: int, prior_content: Dictionary = {}, prior_versions: Dictionary = {}) -> bool:
+ if int(batch.get("schema",-1)) not in [2,3,SCHEMA] or int(batch.get("start",-1))!=count or not batch.get("history") is Array: return false
+ var content: Variant = batch.get("authored_content",prior_content)
+ if not content is Dictionary: return false
+ if batch.has("authored_content") and not content.is_empty() and not preload("res://mission1/authoring_content.gd").validate(content).is_empty(): return false
+ var rooms: Dictionary = content.get("rooms",Rooms.ROOMS)
+ var recorded_rooms := rooms.duplicate()
+ var versions: Variant = batch.get("content_versions",prior_versions)
+ if not versions is Dictionary: return false
+ for version in versions.values():
+  if not version is Dictionary or not version.get("rooms") is Dictionary: return false
+  recorded_rooms.merge(version.rooms,false)
+ if not batch.get("content_versions",{}) is Dictionary: return false
+ if not _valid_state(batch.get("current"),rooms) or not batch.get("memory") is Dictionary: return false
  var legacy: bool = batch.schema == 2
  if not legacy and not _valid_extension(batch.current): return false
  if int(batch.current.get("tick" if legacy else "frame",-1))!=count+batch.history.size()-1: return false
@@ -120,7 +137,7 @@ static func _valid_batch(batch: Dictionary, count: int) -> bool:
   if not batch.memory.has(key): return false
  if not batch.memory.notes is Array: return false
  for i in batch.history.size():
-  if not _valid_state(batch.history[i]) or int(batch.history[i].get("tick" if legacy else "frame",-1))!=count+i: return false
+  if not _valid_state(batch.history[i],recorded_rooms) or int(batch.history[i].get("tick" if legacy else "frame",-1))!=count+i: return false
   if not legacy and not _valid_extension(batch.history[i]): return false
  if legacy:
   for state in batch.history: _migrate_state(state)

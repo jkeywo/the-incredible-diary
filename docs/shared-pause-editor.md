@@ -11,17 +11,21 @@ numeric export ranges are respected. These edits last for the current scene
 session. Free-form content, resources and paths are excluded because they need
 domain validation before applying changes.
 
-A scene with `toggle_pause_editor()` supplies its own authoring adapter. The
-foundation harness uses this to retain its recorded simulation, validation,
-source editors, history and GitHub workflow. Its pause shortcut still routes
-through the shared autoload. The default inspector does not yet provide those
-content-authoring features to Mission 1.
+A scene with `toggle_pause_editor()` supplies its own authoring adapter. Mission 1 now uses `mission1/authoring_editor.gd`, including when hosted by the title scene. The foundation harness retains its existing adapter. The generic live-node inspector remains available only as a fallback for scenes without an adapter.
 
-`tests/pause_editor_test.gd`, included in `tools/dev.ps1 Test`, covers default
-activation without scene setup, title gating, paused property undo/redo,
-disabled edits while running, all four walk directions, frozen simulation and
-animation, recorded tutorial frames, continued Mission 1 state, shared panel
-lifecycle and authoring-adapter delegation.
+## Mission 1 authoring
+
+Space opens **Setup**. Select rooms and definitions in the Setup tree, or use the searchable Palette and click the map to place an instance. Create provides rooms, templates, scenes, storylets and paired room connections. Select a connection to place its endpoints in the chosen room. Map provides blocked-cell painting, erasing and native/web background import. Scroll zooms; middle-drag pans. A whole brush stroke is one undo operation.
+
+The Inspector provides scalar fields and a JSON definition editor for compound conditions, state transitions, interaction positions and route stages. Scenes use Dialogue Manager source. Source opens the full document. Invalid source is preserved in the draft and blocks resume. Instances inherit their template; individual override fields have Reset buttons. Saving an entity as a template relinks it to that template. Referenced templates cannot be deleted.
+
+The fixed bottom bar selects recorded frame indices and displays simulation ticks separately. Scrubbing switches to **History**, where state and recorded eligibility diagnostics are read-only. Latest returns to the current frame; Resume uses the live endpoint; Resume from here validates before replacing later history. Both tick and event stepping remain paused. Starting-position changes take effect on restart, and occupied geometry or active-script incompatibilities block continuation.
+
+Portable definitions include collision grids, imported image manifests, templates, instances, route schedules, storylets, prop states, dialogue scenes and message text. The existing authoring store saves invalid drafts and undo/redo independently of game saves. Save schema 4 carries applied definitions and retained content versions with history; schema 2/3 saves remain readable. Old records have no invented diagnostics. GitHub project serialization accepts the Mission 1 schema and keeps runtime history out of authored content.
+
+Mission-specific operations such as luggage recovery and the party sequence remain bounded GDScript commands. Their storylet triggers are editable; this does not provide arbitrary GDScript execution in either client. Mission schedules preserve specialised reactions; custom schedules provide authored destinations for new or existing characters.
+
+Verification includes the generic fallback tests, Mission 1 authoring transactions and save recovery, native UI checks, a whole authored leg, and the existing Mission 1 suites. Native/browser export checks remain separate from behavioural evidence.
 
 ## Amelia walk art
 

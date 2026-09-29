@@ -32,6 +32,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if scene.has_method("is_pause_editor_available") and not scene.is_pause_editor_available():
 		return
+	if scene.has_method("get_pause_editor_scene"):
+		scene = scene.get_pause_editor_scene()
 	# Recorded simulations provide their own authoring/validation adapter.
 	if scene.has_method("toggle_pause_editor"):
 		scene.toggle_pause_editor()

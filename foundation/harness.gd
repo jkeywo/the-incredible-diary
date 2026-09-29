@@ -45,7 +45,6 @@ var legacy_controls: HFlowContainer
 var editor_menus: Dictionary = {}
 var menu_actions: Dictionary = {}
 var floating_panels: Dictionary = {}
-var minimised_buttons: Dictionary = {}
 var next_menu_id := 1
 var queued_interaction := ""
 var queued_cancel := false
@@ -594,8 +593,7 @@ func _make_panel(caption: String, initial_position: Vector2, initial_size: Vecto
 	panel.configure(caption, initial_size)
 	panel.position = initial_position
 	panel.visible = false
-	panel.closed.connect(func(): _close_panel(caption))
-	panel.minimised.connect(func(): _minimise_panel(caption))
+	panel.attach_dock(panel_dock)
 	panel_layer.add_child(panel)
 	panel_layer.resized.connect(panel.fit_to_parent)
 	panel.fit_to_parent()
@@ -605,31 +603,7 @@ func _make_panel(caption: String, initial_position: Vector2, initial_size: Vecto
 func _open_panel(caption: String) -> void:
 	if not session.paused or not editor_overlay.visible or not floating_panels.has(caption):
 		return
-	if minimised_buttons.has(caption):
-		minimised_buttons[caption].queue_free()
-		minimised_buttons.erase(caption)
-	var panel: FoundationFloatingPanel = floating_panels[caption]
-	panel.fit_to_parent()
-	panel.visible = true
-	panel.move_to_front()
-
-func _close_panel(caption: String) -> void:
-	if floating_panels.has(caption):
-		floating_panels[caption].hide()
-	if minimised_buttons.has(caption):
-		minimised_buttons[caption].queue_free()
-		minimised_buttons.erase(caption)
-
-func _minimise_panel(caption: String) -> void:
-	if not floating_panels.has(caption) or minimised_buttons.has(caption):
-		return
-	floating_panels[caption].hide()
-	var restore := Button.new()
-	restore.text = caption
-	restore.tooltip_text = "Restore %s" % caption
-	restore.pressed.connect(func(): _open_panel(caption))
-	panel_dock.add_child(restore)
-	minimised_buttons[caption] = restore
+	floating_panels[caption].open_panel()
 
 func _field(parent: VBoxContainer, caption: String, field: Control) -> void:
 	var label := Label.new()
@@ -741,7 +715,7 @@ func _build_github_panel() -> void:
 
 func _toggle_github_panel() -> void:
 	if github_panel.visible:
-		_close_panel("GitHub project")
+		github_panel.close_panel()
 		return
 	_open_panel("GitHub project")
 	if not github_api.access_token.is_empty() and github_repo_picker.item_count <= 1:

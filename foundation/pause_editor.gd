@@ -53,10 +53,7 @@ func pause(scene: Node) -> void:
 	overlay.show()
 	_refresh_tree()
 	for panel in panels.values():
-		panel.show()
-		panel.fit_to_parent()
-	for button in dock.get_children():
-		button.hide()
+		panel.open_panel()
 
 
 func resume() -> void:
@@ -129,19 +126,12 @@ func _panel(caption: String, point: Vector2, dimensions: Vector2) -> FoundationF
 	panel.configure(caption, dimensions)
 	panel.position = point
 	panels[caption] = panel
-	var restore := Button.new()
-	restore.text = caption
-	restore.hide()
-	dock.add_child(restore)
-	restore.pressed.connect(func(): panel.show(); restore.hide())
-	panel.closed.connect(func(): panel.hide(); restore.hide())
-	panel.minimised.connect(func(): panel.hide(); restore.show())
+	panel.attach_dock(dock)
 	return panel
 
 
 func _show_panel(caption: String) -> void:
-	panels[caption].show()
-	panels[caption].fit_to_parent()
+	panels[caption].open_panel()
 
 
 func _refresh_tree() -> void:

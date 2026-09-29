@@ -1,8 +1,7 @@
 extends PanelContainer
 class_name FoundationFloatingPanel
 
-signal closed
-signal minimised
+var restore_button: Button
 
 const MINIMUM_PANEL_SIZE := Vector2(280, 180)
 
@@ -42,12 +41,12 @@ func configure(caption: String, starting_size: Vector2) -> void:
 	var minimise_button := Button.new()
 	minimise_button.text = "_"
 	minimise_button.tooltip_text = "Minimise to bottom bar"
-	minimise_button.pressed.connect(func(): minimised.emit())
+	minimise_button.pressed.connect(minimise_panel)
 	title_bar.add_child(minimise_button)
 	var close_button := Button.new()
 	close_button.text = "×"
 	close_button.tooltip_text = "Close panel"
-	close_button.pressed.connect(func(): closed.emit())
+	close_button.pressed.connect(close_panel)
 	title_bar.add_child(close_button)
 	body = Control.new()
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -103,3 +102,31 @@ func fit_to_parent() -> void:
 	var available: Vector2 = get_parent().size - Vector2(16, 54)
 	size = size.min(available.max(MINIMUM_PANEL_SIZE))
 	position = _clamp_position(position)
+
+func attach_dock(dock: HBoxContainer) -> void:
+	if is_instance_valid(restore_button): return
+	restore_button = Button.new()
+	restore_button.text = name
+	restore_button.tooltip_text = "Restore %s" % name
+	restore_button.hide()
+	dock.add_child(restore_button)
+	restore_button.pressed.connect(open_panel)
+
+func open_panel() -> void:
+	show()
+	fit_to_parent()
+	move_to_front()
+	if is_instance_valid(restore_button): restore_button.hide()
+
+func close_panel() -> void:
+	hide()
+	if is_instance_valid(restore_button): restore_button.hide()
+
+func minimise_panel() -> void:
+	hide()
+	if is_instance_valid(restore_button): restore_button.show()
+
+func _exit_tree() -> void:
+	if is_instance_valid(restore_button):
+		restore_button.queue_free()
+		restore_button = null

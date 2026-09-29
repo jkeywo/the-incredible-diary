@@ -509,6 +509,14 @@ func _finish_reset() -> void:
  help.text = ""
  _refresh()
  _persist()
+func save_before_leaving() -> bool:
+ if not save_enabled: return true
+ var result := journal.save_run(sim,save_path)
+ if not result.ok:
+  message.text = result.reason
+  return false
+ return true
+
 func _persist() -> void:
  if not save_enabled: return
  var result := journal.save_run(sim, save_path)

@@ -3,11 +3,14 @@ const PopupSkin = preload("res://assets/ui/popup/popup_skin.gd")
 ## Global player preferences, separate from voyage saves and authored room levels.
 ## Future voice players should use the Dialogue bus.
 
+const MAIN_MENU := "res://assets/ui/mission_1/title_screen.tscn"
 const DEFAULTS := {"Master": 50.0, "SFX": 100.0, "Dialogue": 100.0, "Music": 100.0}
 var settings_path := "user://audio_settings.cfg"
 var volumes: Dictionary = DEFAULTS.duplicate()
 var sliders: Dictionary = {}
 var toggle: Button
+var main_menu_button: Button
+var menu_status: Label
 var dialog: AcceptDialog
 var _was_paused := false
 var _opened := false
@@ -56,7 +59,10 @@ func open_settings() -> void:
 	get_tree().paused = true
 	for bus in sliders:
 		sliders[bus].value = volumes[bus]
-	dialog.popup_centered(Vector2i(440, 310))
+	menu_status.hide()
+	var scene := get_tree().current_scene
+	main_menu_button.disabled = scene == null or (scene.scene_file_path == MAIN_MENU and not is_instance_valid(scene.get("_game_world")))
+	dialog.popup_centered(Vector2i(440, 390))
 	sliders["Master"].grab_focus()
 
 
@@ -68,6 +74,32 @@ func close_settings() -> void:
 	get_tree().paused = _was_paused
 	save_settings()
 	toggle.grab_focus()
+
+
+func _save_before_leaving(node: Node) -> bool:
+	if node.has_method("save_before_leaving"):
+		return bool(node.save_before_leaving())
+	for child in node.get_children():
+		if not _save_before_leaving(child): return false
+	return true
+
+
+func return_to_main_menu() -> void:
+	var scene := get_tree().current_scene
+	if scene == null: return
+	if not _save_before_leaving(scene):
+		menu_status.text = "The game could not be saved. You are still in the current game; try again."
+		menu_status.show()
+		return
+	var result := get_tree().change_scene_to_file(MAIN_MENU)
+	if result != OK:
+		menu_status.text = "The main menu could not be opened. Please try again."
+		menu_status.show()
+		return
+	# Returning from Settings or the paused editor must leave the menu running.
+	_was_paused = false
+	close_settings()
+	get_tree().paused = false
 
 
 func _build_ui() -> void:
@@ -123,6 +155,15 @@ func _build_ui() -> void:
 			amount.text = "%d%%" % value
 			save_settings())
 		sliders[bus] = slider
+	main_menu_button = Button.new()
+	main_menu_button.text = "Return to main menu"
+	main_menu_button.pressed.connect(return_to_main_menu)
+	content.add_child(main_menu_button)
+	menu_status = Label.new()
+	menu_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	menu_status.custom_minimum_size.x = 400
+	menu_status.hide()
+	content.add_child(menu_status)
 
 
 func _draw_cog() -> void:

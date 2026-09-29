@@ -6,9 +6,11 @@ const Watch = preload("res://mission1/pocket_watch.gd")
 const Character = preload("res://assets/characters/character_sprite.tscn")
 const RoomAudio = preload("res://mission1/room_audio.gd")
 const EventAudio = preload("res://mission1/event_audio.gd")
+const Save = preload("res://mission1/save.gd")
+var journal := Save.new()
 var sim := Simulation.new()
 var controls_enabled := false
-var save_path := "user://mission1_v2.json"
+var save_path := Save.DEFAULT_PATH
 var save_enabled := false
 var room_slot: Node2D
 var actors := {}
@@ -355,7 +357,21 @@ func _finish_reset() -> void:
  _refresh()
  _persist()
 func _persist() -> void:
- pass
+ if not save_enabled: return
+ var result := journal.save_run(sim, save_path)
+ if not result.ok:
+  message.text = result.reason
+  push_warning(result.reason)
 func _restore_initial() -> void:
- pass
+ if initial.is_empty(): return
+ sim.s = initial.current.duplicate(true)
+ sim.memory = initial.memory.duplicate(true)
+ sim.history = initial.history.duplicate(true)
+ journal.sequence = int(initial.get("sequence",0))
+
+func _exit_tree() -> void:
+ _persist()
+
+func _notification(what: int) -> void:
+ if what == NOTIFICATION_APPLICATION_FOCUS_OUT and is_node_ready(): _persist()
 

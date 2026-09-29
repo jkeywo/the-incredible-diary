@@ -4,8 +4,8 @@ extends Control
 
 signal opened_to_game
 
-const Save = preload("res://mission1/opening_save.gd")
-const MissionOpening = preload("res://mission1/opening.tscn")
+const Save = preload("res://mission1/save.gd")
+const MissionOpening = preload("res://mission1/play.tscn")
 const TEST_LEVEL := "res://foundation/harness.tscn"
 
 @export var mission_save_path := Save.DEFAULT_PATH

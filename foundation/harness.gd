@@ -1349,17 +1349,9 @@ func _create_room() -> void:
 		status_label.text = "Pause before creating a room."
 		return
 	document.set_source(source_editor.text)
-	var next_content := document.content.duplicate(true)
-	var number: int = next_content.rooms.size() + 1
-	var room_id := "room_%d" % number
-	while not _room_in(next_content, room_id).is_empty():
-		number += 1
-		room_id = "room_%d" % number
-	next_content.rooms.append({"id": room_id, "name": "Room %d" % number, "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]]})
-	document.replace_content(next_content, "Create room %s" % room_id)
-	inspected_room = room_id
-	status_label.text = "Created %s. Add its background and walkable regions while paused." % room_id
-	_refresh()
+	var result := document.create_room()
+	if result.ok: inspected_room = str(result.id)
+	_show_edit_result(result)
 
 func _set_geometry_mode(mode: String) -> void:
 	if not session.paused or rewinding:
@@ -1421,17 +1413,13 @@ func _on_canvas_input(event: InputEvent) -> void:
 		status_label.text = "Select another room, then click its door endpoint."
 		return
 	if event.pressed and geometry_mode == "door_finish":
-		if pending_connection.is_empty() or pending_connection.room == inspected_room:
+		if pending_connection.is_empty():
 			status_label.text = "Select a different room for the paired door."
 			return
-		var next_content := document.content.duplicate(true)
-		var connection_id := "%s_%s" % [pending_connection.room, inspected_room]
-		var suffix := 2
-		while _connection_in(next_content, connection_id) != {}:
-			connection_id = "%s_%s_%d" % [pending_connection.room, inspected_room, suffix]
-			suffix += 1
-		next_content.connections.append({"id": connection_id, "from": pending_connection.room, "to": inspected_room, "from_x": pending_connection.point.x, "from_y": pending_connection.point.y, "to_x": point.x, "to_y": point.y})
-		document.replace_content(next_content, "Connect %s to %s" % [pending_connection.room, inspected_room])
+		var result := document.connect_rooms(str(pending_connection.room), pending_connection.point, inspected_room, point)
+		if not result.ok:
+			_show_edit_result(result)
+			return
 		pending_connection.clear()
 		geometry_mode = ""
 		status_label.text = "Connected rooms. Resume validates the door endpoints."
@@ -1456,174 +1444,46 @@ func _on_canvas_input(event: InputEvent) -> void:
 		geometry_start = point
 		geometry_region = _region_at(room, point)
 		if geometry_mode == "erase" and geometry_region >= 0:
-			_edit_geometry("Remove walkable region", func(regions: Array): regions.remove_at(geometry_region))
+			document.set_source(source_editor.text)
+			_show_edit_result(document.remove_walkable_region(inspected_room, geometry_region))
 		return
-	if geometry_mode == "erase":
-		return
+	if geometry_mode == "erase": return
 	if geometry_mode == "draw":
-		var top_left := Vector2(minf(geometry_start.x, point.x), minf(geometry_start.y, point.y))
-		var size := (point - geometry_start).abs()
-		if size.x >= 4.0 and size.y >= 4.0:
-			_edit_geometry("Draw walkable region", func(regions: Array): regions.append([top_left.x, top_left.y, size.x, size.y]))
+		document.set_source(source_editor.text)
+		_show_edit_result(document.add_walkable_region(inspected_room, geometry_start, point))
 	elif geometry_mode == "move" and geometry_region >= 0:
-		var delta := point - geometry_start
-		_edit_geometry("Move walkable region", func(regions: Array):
-			var values: Array = regions[geometry_region]
-			var bounds: Array = room.bounds
-			values[0] = clampf(float(values[0]) + delta.x, float(bounds[0]), float(bounds[0]) + float(bounds[2]) - float(values[2]))
-			values[1] = clampf(float(values[1]) + delta.y, float(bounds[1]), float(bounds[1]) + float(bounds[3]) - float(values[3])))
+		document.set_source(source_editor.text)
+		_show_edit_result(document.move_walkable_region(inspected_room, geometry_region, point - geometry_start))
 
-func _edit_geometry(label: String, action: Callable) -> void:
-	document.set_source(source_editor.text)
-	var next_content := document.content.duplicate(true)
-	for room in next_content.rooms:
-		if room.id == inspected_room:
-			if not room.has("walkable"):
-				room.walkable = [room.bounds.duplicate(true)]
-			action.call(room.walkable)
-			break
-	document.replace_content(next_content, label)
-	status_label.text = label + ". Resume validates the result."
+func _show_edit_result(result: Dictionary) -> void:
+	status_label.text = str(result.reason) + (". Resume validates the result." if result.ok else "")
 	_refresh()
-
-func _connection_in(data: Dictionary, id: String) -> Dictionary:
-	for connection in data.connections:
-		if connection.id == id:
-			return connection
-	return {}
 
 func _move_nearest_door(point: Vector2) -> void:
-	var next_content := document.content.duplicate(true)
-	var nearest: Dictionary = {}
-	var nearest_side := ""
-	var distance := INF
-	for connection in next_content.connections:
-		for side in ["from", "to"]:
-			if connection[side] != inspected_room:
-				continue
-			var endpoint := Vector2(float(connection.get(side + "_x")), float(connection.get(side + "_y", 160.0)))
-			if endpoint.distance_to(point) < distance:
-				distance = endpoint.distance_to(point)
-				nearest = connection
-				nearest_side = side
-	if nearest.is_empty():
-		status_label.text = "This room has no door endpoint to move."
-		return
-	nearest[nearest_side + "_x"] = point.x
-	nearest[nearest_side + "_y"] = point.y
-	document.replace_content(next_content, "Move %s door in %s" % [nearest.id, inspected_room])
-	status_label.text = "Moved door endpoint. Resume validates reachability."
-	_refresh()
+	_show_edit_result(document.move_nearest_door(inspected_room, point))
 
 func _remove_nearest_door(point: Vector2) -> void:
-	var next_content := document.content.duplicate(true)
-	var nearest_index := -1
-	var distance := INF
-	for index in next_content.connections.size():
-		var connection: Dictionary = next_content.connections[index]
-		for side in ["from", "to"]:
-			if connection[side] != inspected_room:
-				continue
-			var endpoint := Vector2(float(connection.get(side + "_x")), float(connection.get(side + "_y", 160.0)))
-			if endpoint.distance_to(point) < distance:
-				distance = endpoint.distance_to(point)
-				nearest_index = index
-	if nearest_index < 0 or distance > 20.0:
-		status_label.text = "Click near a door endpoint to remove it."
-		return
-	var removed_id := str(next_content.connections[nearest_index].id)
-	next_content.connections.remove_at(nearest_index)
-	document.replace_content(next_content, "Remove door %s" % removed_id)
-	status_label.text = "Removed door. Resume validates remaining routes."
-	_refresh()
+	_show_edit_result(document.remove_nearest_door(inspected_room, point))
 
 func _place_interaction(point: Vector2) -> void:
-	var next_content := document.content.duplicate(true)
-	var effect := "delay_guest" if interaction_effect_edit.selected == 1 else "close_valve"
-	var interaction_id := "guest_signal" if effect == "delay_guest" else "valve"
-	var placed: Dictionary = {}
-	for interaction in next_content.interactions:
-		if interaction.id == interaction_id:
-			placed = interaction
-			break
-	if placed.is_empty():
-		placed = {"id": interaction_id, "radius": 60.0}
-		next_content.interactions.append(placed)
-	placed.room = inspected_room
-	placed.x = point.x
-	placed.y = point.y
-	placed.label = interaction_label_edit.text.strip_edges()
-	placed.duration_ticks = int(interaction_duration_edit.value)
-	placed.effect = effect
-	if effect == "delay_guest":
-		placed.effect_ticks = int(interaction_effect_ticks_edit.value)
-	else:
-		placed.erase("effect_ticks")
-	document.replace_content(next_content, "Place %s interaction in %s" % [interaction_id, inspected_room])
-	status_label.text = "Placed interaction. Resume validates reachability, effect and duration."
-	_refresh()
+	_show_edit_result(document.place_interaction(inspected_room, point, "delay_guest" if interaction_effect_edit.selected == 1 else "close_valve", interaction_label_edit.text, int(interaction_duration_edit.value), int(interaction_effect_ticks_edit.value)))
 
 func _place_actor(point: Vector2) -> void:
-	var actor_id := actor_id_edit.text.strip_edges()
-	if actor_id.is_empty() or actor_id == "amelia":
-		status_label.text = "Enter a non-player actor ID before placement."
-		return
-	var next_content := document.content.duplicate(true)
-	var definition: Dictionary = {}
-	for actor in next_content.actors:
-		if actor.id == actor_id:
-			definition = actor
-			break
-	if definition.is_empty():
-		definition = {"id": actor_id}
-		next_content.actors.append(definition)
-	definition.room = inspected_room
-	definition.x = point.x
-	definition.y = point.y
-	definition.sprite = actor_sprite_edit.get_item_text(actor_sprite_edit.selected)
-	document.replace_content(next_content, "Place actor %s" % actor_id)
-	status_label.text = "Placed %s. Resume validates actor references." % actor_id
-	_refresh()
+	_show_edit_result(document.place_actor(actor_id_edit.text, inspected_room, point, actor_sprite_edit.get_item_text(actor_sprite_edit.selected)))
 
 func _place_commitment(point: Vector2) -> void:
-	var commitment_id := commitment_id_edit.text.strip_edges()
-	var actor_id := actor_id_edit.text.strip_edges()
-	if commitment_id.is_empty() or actor_id.is_empty():
-		status_label.text = "Enter an actor ID and commitment ID before scheduling."
-		return
-	var next_content := document.content.duplicate(true)
-	var commitment: Dictionary = {}
-	for item in next_content.commitments:
-		if item.id == commitment_id:
-			commitment = item
-			break
-	if commitment.is_empty():
-		commitment = {"id": commitment_id}
-		next_content.commitments.append(commitment)
-	commitment.actor = actor_id
-	commitment.at_tick = int(schedule_timeline.value)
-	commitment.room = inspected_room
-	commitment.x = point.x
-	commitment.y = point.y
-	commitment.speed = float(commitment_speed_edit.value)
-	document.replace_content(next_content, "Schedule %s at tick %d" % [commitment_id, int(schedule_timeline.value)])
-	status_label.text = "Scheduled %s. Resume validates actor, timing and route." % commitment_id
-	_show_schedule_warning(actor_id)
-	_refresh()
+	_show_edit_result(document.schedule_commitment(commitment_id_edit.text, actor_id_edit.text, int(schedule_timeline.value), inspected_room, point, float(commitment_speed_edit.value)))
+	_show_schedule_warning(actor_id_edit.text.strip_edges())
 
 func _move_commitment_on_timeline(commitment_id: String, at_tick: int) -> void:
-	if not session.paused or commitment_id.is_empty():
-		return
-	var next_content := document.content.duplicate(true)
-	for commitment in next_content.commitments:
-		if commitment.id == commitment_id:
-			commitment.at_tick = at_tick
-			document.replace_content(next_content, "Move %s to tick %d" % [commitment_id, at_tick])
-			status_label.text = "Moved %s on the schedule." % commitment_id
-			_show_schedule_warning(str(commitment.actor))
-			_refresh()
-			return
-	status_label.text = "Commitment %s does not exist; place its target first." % commitment_id
+	if not session.paused or commitment_id.is_empty(): return
+	var result := document.retime_commitment(commitment_id, at_tick)
+	_show_edit_result(result)
+	if result.ok:
+		for commitment in document.content.commitments:
+			if commitment.id == commitment_id:
+				_show_schedule_warning(str(commitment.actor))
+				break
 
 func _show_schedule_warning(actor_id: String) -> void:
 	for warning in Content.schedule_warnings(document.candidate()):
@@ -1635,36 +1495,12 @@ func _save_storylet() -> void:
 	if not session.paused or rewinding:
 		status_label.text = "Pause before authoring a storylet."
 		return
-	var storylet_id := storylet_id_edit.text.strip_edges()
-	var scene_id := scene_id_edit.text.strip_edges()
-	if storylet_id.is_empty() or scene_id.is_empty():
-		status_label.text = "Enter both a storylet ID and scene ID."
+	var flags := {}
+	if storylet_flag_edit.selected > 0: flags.close_valve = storylet_flag_edit.selected == 1
+	var result := document.save_storylet(storylet_id_edit.text, scene_id_edit.text, inspected_room, Array(required_actor_edit.text.split(",")), int(storylet_start_edit.value), int(storylet_end_edit.value), flags)
+	if not result.ok:
+		_show_edit_result(result)
 		return
-	var required: Array[String] = []
-	for raw_id in required_actor_edit.text.split(","):
-		var actor_id := raw_id.strip_edges()
-		if not actor_id.is_empty() and not required.has(actor_id):
-			required.append(actor_id)
-	var next_content := document.content.duplicate(true)
-	var entry: Dictionary = {}
-	for storylet in next_content.get("storylets", []):
-		if storylet.id == storylet_id:
-			entry = storylet
-			break
-	if entry.is_empty():
-		entry = {"id": storylet_id}
-		next_content.storylets.append(entry)
-	entry.scene = scene_id
-	entry.label = storylet_id.capitalize()
-	entry.room = inspected_room
-	entry.required_actors = required
-	entry.start_tick = int(storylet_start_edit.value)
-	entry.end_tick = int(storylet_end_edit.value)
-	entry.required_flags = {}
-	if storylet_flag_edit.selected > 0:
-		entry.required_flags.close_valve = storylet_flag_edit.selected == 1
-	entry.priority = 0
-	document.replace_content(next_content, "Save storylet %s" % storylet_id)
 	var errors := document.validate()
 	status_label.text = "Saved storylet draft; resume checks eligibility." if errors.is_empty() else "Storylet draft: " + "; ".join(errors)
 	_refresh()
@@ -1700,23 +1536,13 @@ func _on_web_image(args: Array) -> void:
 	_accept_image(str(args[0]), Marshalls.base64_to_raw(encoded.get_slice(",", 1)))
 
 func _accept_image(name: String, bytes: PackedByteArray) -> void:
-	if not session.paused or rewinding:
-		return
-	var imported: Dictionary = ProjectAssets.import_image(name, bytes)
-	if not imported.ok:
-		status_label.text = str(imported.reason)
-		return
+	if not session.paused or rewinding: return
 	document.set_source(source_editor.text)
-	var next_content := document.content.duplicate(true)
-	if not next_content.has("assets"):
-		next_content.assets = {}
-	next_content.assets[imported.id] = imported.asset
-	for room in next_content.rooms:
-		if room.id == inspected_room:
-			room.background_asset = imported.id
-			break
-	document.replace_content(next_content, "Import %s background" % inspected_room)
-	background_textures.erase(imported.id)
+	var result := document.import_background(inspected_room, name, bytes)
+	if not result.ok:
+		status_label.text = str(result.reason)
+		return
+	background_textures.erase(result.id)
 	status_label.text = "Imported %s for %s. Resume validates the room." % [name, inspected_room]
 	canvas.queue_redraw()
 

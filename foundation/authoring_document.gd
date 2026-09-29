@@ -3,6 +3,7 @@ class_name FoundationAuthoringDocument
 
 signal changed
 
+const ProjectAssets = preload("res://foundation/project_assets.gd")
 const Content = preload("res://foundation/content.gd")
 const Dialogue = preload("res://foundation/dialogue.gd")
 
@@ -315,3 +316,173 @@ func _record(label: String, previous: Dictionary) -> void:
 func _changed() -> void:
 	revision += 1
 	changed.emit()
+
+# Visual edits use the same draft/undo transaction as source and remote edits.
+func _edit_result(next_content: Dictionary, label: String, id: String = "") -> Dictionary:
+	replace_content(next_content, label)
+	return {"ok": true, "reason": label, "id": id}
+
+func _edit_error(reason: String) -> Dictionary:
+	return {"ok": false, "reason": reason}
+
+func _find_entry(entries: Array, id: String) -> Dictionary:
+	for entry in entries:
+		if entry.id == id: return entry
+	return {}
+
+func create_room() -> Dictionary:
+	var next := content.duplicate(true)
+	var number: int = next.rooms.size() + 1
+	while not _find_entry(next.rooms, "room_%d" % number).is_empty(): number += 1
+	var id := "room_%d" % number
+	next.rooms.append({"id": id, "name": "Room %d" % number, "bounds": [0, 0, 440, 280], "walkable": [[0, 0, 440, 280]]})
+	return _edit_result(next, "Create room %s" % id, id)
+
+func add_walkable_region(room_id: String, start: Vector2, finish: Vector2) -> Dictionary:
+	var size := (finish - start).abs()
+	if size.x < 4.0 or size.y < 4.0: return _edit_error("Walkable regions must be at least 4 by 4.")
+	var next := content.duplicate(true)
+	var room := _find_entry(next.rooms, room_id)
+	if room.is_empty(): return _edit_error("Room does not exist.")
+	if not room.has("walkable"): room.walkable = [room.bounds.duplicate(true)]
+	room.walkable.append([minf(start.x, finish.x), minf(start.y, finish.y), size.x, size.y])
+	return _edit_result(next, "Draw walkable region", room_id)
+
+func move_walkable_region(room_id: String, index: int, delta: Vector2) -> Dictionary:
+	var next := content.duplicate(true)
+	var room := _find_entry(next.rooms, room_id)
+	if room.is_empty(): return _edit_error("Room does not exist.")
+	var had_walkable := room.has("walkable")
+	if not had_walkable: room.walkable = [room.bounds.duplicate(true)]
+	if index < 0 or index >= room.walkable.size(): return _edit_error("Walkable region does not exist.")
+	var values: Array = room.walkable[index]
+	var previous := Vector2(float(values[0]), float(values[1]))
+	var bounds: Array = room.bounds
+	values[0] = clampf(float(values[0]) + delta.x, float(bounds[0]), float(bounds[0]) + float(bounds[2]) - float(values[2]))
+	values[1] = clampf(float(values[1]) + delta.y, float(bounds[1]), float(bounds[1]) + float(bounds[3]) - float(values[3]))
+	if not had_walkable and previous == Vector2(float(values[0]), float(values[1])): room.erase("walkable")
+	return _edit_result(next, "Move walkable region", room_id)
+
+func remove_walkable_region(room_id: String, index: int) -> Dictionary:
+	var next := content.duplicate(true)
+	var room := _find_entry(next.rooms, room_id)
+	if room.is_empty(): return _edit_error("Room does not exist.")
+	if not room.has("walkable"): room.walkable = [room.bounds.duplicate(true)]
+	if index < 0 or index >= room.walkable.size(): return _edit_error("Walkable region does not exist.")
+	room.walkable.remove_at(index)
+	return _edit_result(next, "Remove walkable region", room_id)
+
+func connect_rooms(from_room: String, from_point: Vector2, to_room: String, to_point: Vector2) -> Dictionary:
+	if from_room == to_room: return _edit_error("Select a different room for the paired door.")
+	if _find_entry(content.rooms, from_room).is_empty() or _find_entry(content.rooms, to_room).is_empty(): return _edit_error("Room does not exist.")
+	var next := content.duplicate(true)
+	var base := "%s_%s" % [from_room, to_room]
+	var id := base
+	var suffix := 2
+	while not _find_entry(next.connections, id).is_empty():
+		id = "%s_%d" % [base, suffix]
+		suffix += 1
+	next.connections.append({"id": id, "from": from_room, "to": to_room, "from_x": from_point.x, "from_y": from_point.y, "to_x": to_point.x, "to_y": to_point.y})
+	return _edit_result(next, "Connect %s to %s" % [from_room, to_room], id)
+
+func _nearest_door(data: Dictionary, room_id: String, point: Vector2) -> Dictionary:
+	var nearest := {"index": -1, "side": "", "distance": INF}
+	for index in data.connections.size():
+		var connection: Dictionary = data.connections[index]
+		for side in ["from", "to"]:
+			if connection[side] != room_id: continue
+			var endpoint := Vector2(float(connection.get(side + "_x")), float(connection.get(side + "_y", 160.0)))
+			var distance := endpoint.distance_to(point)
+			if distance < float(nearest.distance): nearest = {"index": index, "side": side, "distance": distance}
+	return nearest
+
+func move_nearest_door(room_id: String, point: Vector2) -> Dictionary:
+	var next := content.duplicate(true)
+	var nearest := _nearest_door(next, room_id, point)
+	if nearest.index < 0: return _edit_error("This room has no door endpoint to move.")
+	var connection: Dictionary = next.connections[nearest.index]
+	connection[nearest.side + "_x"] = point.x
+	connection[nearest.side + "_y"] = point.y
+	return _edit_result(next, "Move %s door in %s" % [connection.id, room_id], str(connection.id))
+
+func remove_nearest_door(room_id: String, point: Vector2) -> Dictionary:
+	var next := content.duplicate(true)
+	var nearest := _nearest_door(next, room_id, point)
+	if nearest.index < 0 or nearest.distance > 20.0: return _edit_error("Click near a door endpoint to remove it.")
+	var id := str(next.connections[nearest.index].id)
+	next.connections.remove_at(nearest.index)
+	return _edit_result(next, "Remove door %s" % id, id)
+
+func place_interaction(room_id: String, point: Vector2, effect: String, label: String, duration: int, effect_ticks: int) -> Dictionary:
+	if _find_entry(content.rooms, room_id).is_empty(): return _edit_error("Room does not exist.")
+	if effect not in ["delay_guest", "close_valve"]: return _edit_error("Unknown interaction effect.")
+	var next := content.duplicate(true)
+	var id := "guest_signal" if effect == "delay_guest" else "valve"
+	var entry := _find_entry(next.interactions, id)
+	if entry.is_empty():
+		entry = {"id": id, "radius": 60.0}
+		next.interactions.append(entry)
+	entry.merge({"room": room_id, "x": point.x, "y": point.y, "label": label.strip_edges(), "duration_ticks": duration, "effect": effect}, true)
+	if effect == "delay_guest": entry.effect_ticks = effect_ticks
+	else: entry.erase("effect_ticks")
+	return _edit_result(next, "Place %s interaction in %s" % [id, room_id], id)
+
+func place_actor(id: String, room_id: String, point: Vector2, sprite: String) -> Dictionary:
+	id = id.strip_edges()
+	if id.is_empty() or id == "amelia": return _edit_error("Enter a non-player actor ID before placement.")
+	if _find_entry(content.rooms, room_id).is_empty(): return _edit_error("Room does not exist.")
+	var next := content.duplicate(true)
+	var entry := _find_entry(next.actors, id)
+	if entry.is_empty():
+		entry = {"id": id}
+		next.actors.append(entry)
+	entry.merge({"room": room_id, "x": point.x, "y": point.y, "sprite": sprite}, true)
+	return _edit_result(next, "Place actor %s" % id, id)
+
+func schedule_commitment(id: String, actor: String, at_tick: int, room_id: String, point: Vector2, speed: float) -> Dictionary:
+	id = id.strip_edges()
+	actor = actor.strip_edges()
+	if id.is_empty() or actor.is_empty(): return _edit_error("Enter an actor ID and commitment ID before scheduling.")
+	if _find_entry(content.rooms, room_id).is_empty(): return _edit_error("Room does not exist.")
+	var next := content.duplicate(true)
+	var entry := _find_entry(next.commitments, id)
+	if entry.is_empty():
+		entry = {"id": id}
+		next.commitments.append(entry)
+	entry.merge({"actor": actor, "at_tick": at_tick, "room": room_id, "x": point.x, "y": point.y, "speed": speed}, true)
+	return _edit_result(next, "Schedule %s at tick %d" % [id, at_tick], id)
+
+func retime_commitment(id: String, at_tick: int) -> Dictionary:
+	var next := content.duplicate(true)
+	var entry := _find_entry(next.commitments, id)
+	if entry.is_empty(): return _edit_error("Commitment does not exist.")
+	entry.at_tick = at_tick
+	return _edit_result(next, "Move %s to tick %d" % [id, at_tick], id)
+
+func save_storylet(id: String, scene_id: String, room_id: String, required_actors: Array, start_tick: int, end_tick: int, required_flags: Dictionary) -> Dictionary:
+	id = id.strip_edges()
+	scene_id = scene_id.strip_edges()
+	if id.is_empty() or scene_id.is_empty(): return _edit_error("Enter both a storylet ID and scene ID.")
+	if _find_entry(content.rooms, room_id).is_empty(): return _edit_error("Room does not exist.")
+	var required: Array[String] = []
+	for raw_id in required_actors:
+		var actor_id := str(raw_id).strip_edges()
+		if not actor_id.is_empty() and not required.has(actor_id): required.append(actor_id)
+	var next := content.duplicate(true)
+	var entry := _find_entry(next.get("storylets", []), id)
+	if entry.is_empty():
+		entry = {"id": id}
+		if not next.has("storylets"): next.storylets = []
+		next.storylets.append(entry)
+	entry.merge({"scene": scene_id, "label": id.capitalize(), "room": room_id, "required_actors": required, "start_tick": start_tick, "end_tick": end_tick, "required_flags": required_flags.duplicate(true), "priority": 0}, true)
+	return _edit_result(next, "Save storylet %s" % id, id)
+
+func import_background(room_id: String, name: String, bytes: PackedByteArray) -> Dictionary:
+	if _find_entry(content.rooms, room_id).is_empty(): return _edit_error("Room does not exist.")
+	var imported := ProjectAssets.import_image(name, bytes)
+	if not imported.ok: return imported
+	var next := content.duplicate(true)
+	if not next.has("assets"): next.assets = {}
+	next.assets[imported.id] = imported.asset
+	_find_entry(next.rooms, room_id).background_asset = imported.id
+	return _edit_result(next, "Import %s background" % room_id, str(imported.id))

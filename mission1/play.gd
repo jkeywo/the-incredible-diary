@@ -296,6 +296,11 @@ func _prop(id: String, p: Vector2) -> void:
  props[id] = prop
 
 func _sync_props(state: Dictionary) -> void:
+ if props.has("drink"):
+  props.drink.visible = state.flags.get("party_arrived",false)
+  props.drink.set_state("spilled" if state.flags.get("spilled",false) else "empty" if state.dead.has("guest") else "spiked" if state.flags.get("spiked",false) else "full")
+ var stained: bool = state.flags.get("spilled", false)
+ if actors.guest.stained_outfit != stained: actors.guest.set_outfit_stained(stained)
  if props.has("steam_vent"):
   props.steam_vent.set_state("off" if state.flags.get("steam_off",false) or int(state.tick) < Simulation.TRAP else "active")
   props.code_panel.set_state("rejected" if state.flags.get("panel_rejected",false) else "entry" if state.code_open else "accepted" if state.flags.get("steam_off",false) else "standby")
@@ -308,6 +313,7 @@ func _sync_props(state: Dictionary) -> void:
 func _events() -> void:
  for event in sim.events:
   if event.kind == "sound": sounds.play_cue(StringName(event.text))
+  elif event.kind == "spike" and props.has("drink"): props.drink.play_spiking()
 
 func _toggle_diary() -> void:
  diary_open = not diary_open
@@ -324,7 +330,7 @@ func _refresh_diary() -> void:
   diary_text.text += "\n\nObservations are recorded here as you explore."
 
 func _summary() -> String:
- return "The party has ended."
+ return sim.summary()
 func _begin_reset() -> void:
  if not sim.memory.reset and not sim.s.finished:
   sim.s.message = "The diary has no earlier pages to turn to yet."

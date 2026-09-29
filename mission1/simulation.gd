@@ -50,7 +50,7 @@ func options(local := true) -> Array[Dictionary]:
  if not s.action.is_empty() or s.finished: return result
  _option(result, "inspect_bag", "Inspect luggage", "docks", Vector2(340,430), local, s.tick < HOUR and not flag("bag_hidden"))
  _option(result, "hide_bag", "Hide bag nearby", "docks", Vector2(340,430), local, s.tick < HOUR and flag("bag_lead") and not flag("bag_hidden"))
- _option(result, "porter", "Ask about the stair", "foyer", Vector2(450,365), local, not flag("shortcut"))
+ _option(result, "porter", "Ask about the stair", "foyer", Vector2(450,365), local, s.tick >= 3*HOUR and not flag("shortcut"))
  _option(result, "latch", "Release stair latch", "foyer", Vector2(580,250), local, flag("shortcut_lead") and not flag("shortcut"))
  _rescue_options(result, local)
  return result
@@ -138,6 +138,7 @@ func _complete(id: String) -> void:
   _: _complete_rescue(id)
 
 func _schedule() -> void:
+ _party_schedule()
  _demonstration()
  if s.tick == TRAP or s.tick == STEAM_FATAL + 100:
   s.flags.steam_off = false
@@ -184,23 +185,40 @@ func _observe() -> void:
   memory.bag = true
   s.flags.bag_lead = true
   note("bag_lead", "Guest: That is somebody else's suitcase! I will not board without mine.")
- if memory.shortcut and nearby("foyer", Vector2(580,250)) and not flag("shortcut_lead"):
+ if memory.shortcut and s.tick >= 3*HOUR and nearby("foyer", Vector2(580,250)) and not flag("shortcut_lead"):
   s.flags.shortcut_lead = true
   note("stair_reminder", "The stair's brass catch is still here.")
  _observe_rescues()
 
 func _rescue_options(_result: Array[Dictionary], _local: bool) -> void:
+ _option(_result, "bump", "Bump into guest", "salon", Vector2(800,330), _local, flag("spiked") and not s.safe.has("guest") and not s.dead.has("guest"))
+ _option(_result, "glass", "Inspect glass", "salon", Vector2(815,310), _local, s.dead.has("guest"))
  _option(_result, "panel", "Use controls", "controls", Vector2(350,300), _local, memory.procedure)
  _option(_result, "shove", "Shove", "foyer", Vector2(680,440), _local, flag("chandelier_warning") and not s.safe.has("chandelier_guest"))
  _option(_result, "wreckage", "Inspect wreckage", "foyer", Vector2(680,440), _local, flag("chandelier_fallen"))
 func _complete_rescue(_id: String) -> void:
  match _id:
+  "bump":
+   s.safe.append("guest")
+   s.flags.spilled = true
+   s.flags.spill_tick = s.tick
+   note("spill", "My elbow caught the glass. His drink soaked his suit; he stormed off to change.")
+   events.append({"kind":"sound", "text":"drink_spill"})
+  "glass": note("poison_evidence", "A sharp chemical residue in the glass. The drink was poisoned; nothing here identifies who did it.")
   "shove":
    s.safe.append("chandelier_guest")
    note("shove", "I shoved the guest out from beneath the chandelier. She was furious.")
    events.append({"kind":"sound", "text":"shove"})
   "wreckage": note("wreckage", "Broken glass and a snapped suspension pin. The chandelier fell during Hour 3.")
 func _observe_rescues() -> void:
+ if s.room == "salon":
+  if flag("party_arrived") and not s.dead.has("guest") and not s.safe.has("guest"):
+   note("party_arrival", "The luggage owner is at the party, holding a drink.")
+  if s.dead.has("guest"): note("guest_body", "The luggage owner has collapsed beside his glass.")
+ if s.room == "cabins" and flag("chat_delay") and s.tick < 4*HOUR:
+  note("chat_seen", "The talkative passenger has stopped the luggage owner in the corridor.")
+  if nearby("cabins", Vector2(700,530),100):
+   note("chat_heard", "Passenger: Before you go to the party, you must hear about my nephew…")
  if s.room == "controls":
   if flag("trapped") and not s.safe.has("chatterbox") and not s.dead.has("chatterbox"):
    note("trapped", "Steam blocks the far room's normal exit. The talkative passenger is trapped.")
@@ -214,6 +232,24 @@ func actor_positions() -> Dictionary:
  var guest := {"room":"docks", "pos":[390,430], "action":"search_bag" if flag("bag_hidden") else "idle", "skin":"rake"}
  if t >= (HOUR if flag("bag_hidden") else 800):
   guest = {"room":"cabins", "pos":[580,315], "action":"idle", "skin":"rake"}
+ if flag("chat_delay") and t < 4*HOUR:
+  guest.room = "cabins"
+  guest.pos = [745,530]
+  guest.action = "talk"
+ if flag("party_arrived"):
+  guest.room = "salon"
+  guest.pos = [800,330]
+  guest.action = "hold_drink"
+ if s.dead.has("guest"): guest.action = "poison_collapse"
+ if s.safe.has("guest"):
+  guest.action = "spill_react" if t-int(s.flags.spill_tick)<15 else "walk"
+  var travel := clampf(float(t-int(s.flags.spill_tick)-15)/45.0, 0, 1)
+  var p := Vector2(800,330).lerp(Vector2(580,650),travel)
+  guest.pos = [p.x,p.y]
+  if travel >= 1:
+   guest.room = "cabins"
+   guest.pos = [580,315]
+   guest.action = "idle"
  var chandelier := {"room":"foyer", "pos":[680,440], "action":"idle", "skin":"glamorous"}
  if s.safe.has("chandelier_guest"): chandelier.pos = [780,470]
  elif s.dead.has("chandelier_guest"): chandelier.action = "chandelier_casualty"
@@ -229,6 +265,36 @@ func actor_positions() -> Dictionary:
   chatter.pos = [700,530]
   chatter.action = "chatter"
  return {"guest":guest, "chandelier_guest":chandelier, "chatterbox":chatter, "crew":{"room":"controls", "pos":[310,305], "action":"talk" if t >= DEMO_START and t < DEMO_END else "idle", "skin":"ex_army"}}
+
+func party_arrival() -> int:
+ if not flag("bag_hidden"): return CREAK-30
+ return 4*HOUR if flag("chat_delay") else 3*HOUR+300
+
+func _party_schedule() -> void:
+ if s.safe.has("chatterbox") and flag("bag_hidden") and s.tick < 3*HOUR+300 and not flag("chat_delay"):
+  s.flags.chat_delay = true
+ var arrival := party_arrival()
+ if s.tick >= arrival and not flag("party_arrived"):
+  s.flags.party_arrived = true
+  if s.room == "salon": note("party_arrival", "The luggage owner is at the party, holding a drink.")
+ var spike := arrival+30 if flag("bag_hidden") else CREAK
+ var drink := spike+80
+ if s.tick == spike:
+  s.flags.spiked = true
+  if s.room == "salon":
+   note("spike", "An obscured hand tips something into the guest's glass.")
+   events.append({"kind":"spike", "text":""})
+ if s.tick == drink and not s.safe.has("guest"):
+  _death("guest", "The guest drank, then collapsed beside the poisoned glass.", "salon")
+
+func summary() -> String:
+ var lines: Array[String] = []
+ var names := {"guest":"Luggage owner", "chandelier_guest":"Foyer guest", "chatterbox":"Talkative passenger"}
+ for id in names:
+  lines.append("%s: %s" % [names[id], "died" if s.dead.has(id) else "survived"])
+ if s.dead.is_empty():
+  return "EVERYONE SURVIVED · MISSION 1 COMPLETE\n" + " · ".join(lines) + "\nThe next page reveals a new gift: location rewriting."
+ return "THE PARTY HAS ENDED\n" + " · ".join(lines) + "\nYour diary retains only what you witnessed. Continue to turn back the pages."
 
 func _demonstration() -> void:
  if s.tick < DEMO_START or s.tick > DEMO_END: return

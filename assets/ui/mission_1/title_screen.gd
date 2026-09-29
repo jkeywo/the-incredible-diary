@@ -33,6 +33,8 @@ var entrance: Tween
 var glint: TextureRect
 var confirm_motion: Node
 var error_motion: Node
+var controller_menu: Node
+var settings_button: Button
 
 
 func is_pause_editor_available() -> bool:
@@ -69,8 +71,8 @@ func _refresh_continue() -> void:
 			var state: Dictionary = loaded.data.current
 			var room_name: String = Rooms.ROOMS.get(str(state.get("room","docks")),Rooms.ROOMS.docks).title
 			var detail := Simulation.observation_time(int(state.get("tick",0)))
-			if state.get("finished",false): detail = "Voyage complete" if state.get("dead",[]).is_empty() else "Voyage ended"
-			preview.text = "All Aboard\n%s\n%s" % [room_name,detail]
+			if state.get("finished",false): room_name = "Voyage complete" if state.get("dead",[]).is_empty() else "Voyage ended"
+			preview.text = "All Aboard · %s\n%s" % [detail,room_name]
 	if not _opening:
 		_preview_destination(loaded.data.current if loaded.ok else Simulation.new().s)
 	if continue_button.visible:
@@ -212,15 +214,25 @@ func _set_frame_alpha(value: float) -> void:
 
 func _build_polish() -> void:
 	preview = Label.new()
-	preview.position = Vector2(468,340)
-	preview.size = Vector2(145,120)
+	preview.custom_minimum_size = Vector2(0,44)
+	preview.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	preview.add_theme_color_override("font_color",Color("f4dfb4"))
 	preview.add_theme_color_override("font_outline_color",Color("17243a"))
 	preview.add_theme_constant_override("outline_size",4)
 	preview.add_theme_font_size_override("font_size",16)
 	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(preview)
+	menu.add_child(preview)
+	menu.move_child(preview,1)
+	menu.position.y = 290
+	settings_button = $Menu/NewButton.duplicate(0)
+	settings_button.name = "SettingsButton"
+	settings_button.text = "SETTINGS"
+	# Duplicate appearance only; do not inherit the New action or feedback metadata.
+	for key in settings_button.get_meta_list(): settings_button.remove_meta(key)
+	menu.add_child(settings_button)
+	menu.move_child(settings_button,3)
+	settings_button.pressed.connect(_on_settings)
 	glint = TextureRect.new()
 	glint.texture = lettering.texture
 	glint.size = lettering.size
@@ -239,6 +251,10 @@ func _build_polish() -> void:
 	error_dialog.dialog_hide_on_ok = false
 	error_dialog.confirmed.connect(func(): error_motion.leave(func(): error_motion.restore_focus(continue_button if continue_button.visible else $Menu/NewButton)))
 	error_dialog.canceled.connect(func(): error_motion.leave(func(): error_motion.restore_focus($Menu/NewButton)))
+	controller_menu = _controller_for(self,func(): return menu.get_children(),func(): return menu.visible and not _opening and not get_tree().paused and not new_confirm.visible and not error_dialog.visible,func(): pass)
+	_controller_for(new_confirm,func(): return [new_confirm.get_cancel_button(),new_confirm.get_ok_button()],func(): return new_confirm.visible and not confirm_motion.closing,func(): new_confirm.canceled.emit())
+	_controller_for(error_dialog,func(): return [error_dialog.get_ok_button()],func(): return error_dialog.visible and not error_motion.closing,func(): error_dialog.canceled.emit())
+	new_confirm.about_to_popup.connect(func(): new_confirm.get_cancel_button().call_deferred("grab_focus"))
 
 func _start_entrance() -> void:
 	menu.modulate.a = 0.0
@@ -262,3 +278,21 @@ func _signal_web_ready() -> void:
 	if not OS.has_feature("web"): return
 	await RenderingServer.frame_post_draw
 	JavaScriptBridge.eval("window.diaryTitleReady = true; window.dispatchEvent(new Event('diary-title-ready'));",true)
+
+
+func _on_settings() -> void:
+	if _opening or new_confirm.visible or error_dialog.visible: return
+	_finish_entrance()
+	get_node("/root/AudioSettings").open_settings()
+
+func _controller_for(parent: Node, controls: Callable, active: Callable, on_back: Callable) -> Node:
+	var navigator := preload("res://foundation/controller_menu.gd").new()
+	navigator.available = func():
+		var buttons: Array = []
+		for item in controls.call():
+			if item is BaseButton: buttons.append(item)
+		return buttons
+	navigator.enabled = active
+	navigator.back = on_back
+	parent.add_child(navigator)
+	return navigator

@@ -310,9 +310,7 @@ func _death(id: String, witnessed: String, room: String) -> void:
   s.flags.guest_collapse = s.actors.guest.duplicate(true)
  if s.room == room: note("death_" + id, witnessed)
  s.message = witnessed if s.room == room else "The diary shivers."
- if not memory.reset:
-  memory.reset = true
-  s.message += " The ink runs backwards. Tab / Y: read the diary; R: return to the docks. You may keep investigating."
+ memory.reset = true
  s.notice = s.message
  s.notice_until = s.tick+150
  events.append({"kind":"death", "text":id})
@@ -388,12 +386,17 @@ func _observe_rescues() -> void:
  if s.room == "salon":
   if flag("party_arrived") and not s.dead.has("guest") and not s.safe.has("guest"):
    note("party_arrival", "The luggage owner is waiting at the bar.")
-  if s.dead.has("guest"): note("guest_body", "The luggage owner has collapsed beside his glass.")
+  if s.dead.has("guest"):
+   note("guest_body", "The luggage owner has collapsed beside his glass.")
+   Hints.see_body(self,"guest")
  if s.room == "controls":
   if flag("trapped") and not s.safe.has("chatterbox") and not s.dead.has("chatterbox"):
    note("trapped", "Steam blocks the far room's normal exit. The talkative passenger is trapped.")
-  if s.dead.has("chatterbox"): note("steam_body", "The passenger lies motionless beyond the steam leak.")
+  if s.dead.has("chatterbox"):
+   note("steam_body", "The passenger lies motionless beyond the steam leak.")
+   Hints.see_body(self,"chatterbox")
  if s.room == "foyer":
+  if s.dead.has("chandelier_guest"): Hints.see_body(self,"chandelier_guest")
   if flag("chandelier_warning"): note("creak", "The chandelier creaks and trembles above the guest.")
   if flag("chandelier_fallen"): note("fallen_seen", "The guest lies dead beneath the fallen chandelier." if s.dead.has("chandelier_guest") else "The fallen chandelier lies in pieces. The guest is safe.")
 

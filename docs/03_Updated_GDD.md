@@ -694,3 +694,22 @@ foreground props fade to 50% when their opaque pixels cover a character.
 PC startup now uses an animated diary while title resources load in the
 background. The engine’s brief pre-runtime splash remains static; the existing
 web loading animation remains in place.
+
+
+### Diary magic and page turning — clarified 29 September 2026
+
+The first body Amelia sees in a playthrough prompts: “What a tragedy. Hmmm, my
+diary is shaking, I feel like I should take a look.” This applies to witnessed
+deaths and later discoveries. Queue it behind current dialogue and show the
+input-specific Open diary prompt. Persist its shown flag across saves and loops;
+only starting a new playthrough makes it eligible again. Amelia does not know
+about rewinding in advance.
+
+The diary has turnable pages, without scrolling, and opens at the end. The final
+right-hand page holds the available voyage buttons, without rewind instructions.
+The rewind action reads “Turn back to the start” and has gold sparkles when
+available. At voyage end, keep the outcome together on the facing page.
+Previous/Next, keyboard Left/Right or Page Up/Page Down, and controller LB/RB
+turn spreads. Observations retain the existing current-voyage witness rules.
+
+Show “Turn back to the start” on the first spread as well as the last when the log spans multiple spreads. Reuse one visible button; a single-spread diary shows it only once.

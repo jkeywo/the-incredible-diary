@@ -74,6 +74,7 @@ func checks() -> void:
  hints.s.dialogue = {}
  hints.s.conversation = {}
  hints.memory.reset = true
+ Sim.Hints.see_body(hints,"chandelier_guest")
  Sim.Hints.queue(hints,"wait")
  Sim.Hints.update(hints)
  assert(hints.s.dialogue.hint == "diary" and hints.s.hint_queue.has("wait"))

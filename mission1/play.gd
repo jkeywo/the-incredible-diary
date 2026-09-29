@@ -57,6 +57,15 @@ var end_presented := false
 var bubble_identity := ""
 var bubble_offset := Vector2.ZERO
 var diary_text: RichTextLabel
+var diary_right_text: RichTextLabel
+var diary_space: Control
+var diary_previous_page: Button
+var diary_following_page: Button
+var diary_page_numbers: Label
+var diary_pages = preload("res://assets/ui/mission_1/diary_pages.gd").new()
+var diary_cached_text := ""
+var diary_seek_end := true
+var diary_navigation: Node
 var diary_open := false
 var _save_counter := 0
 var rewind_index := -1
@@ -152,6 +161,8 @@ func _build_hud() -> void:
  hud.add_child(bubble)
  bubble.hide()
  diary = preload("res://assets/ui/mission_1/open_diary.tscn").instantiate()
+ diary.get_node("LeftPageContent").offset_bottom = 580
+ diary.get_node("RightPageContent").offset_bottom = 580
  hud.add_child(diary)
  var column := VBoxContainer.new()
  diary.get_node("LeftPageContent").add_child(column)
@@ -166,6 +177,7 @@ func _build_hud() -> void:
  title.add_theme_font_size_override("font_size", 24)
  column.add_child(title)
  diary_text = RichTextLabel.new()
+ diary_text.scroll_active = false
  diary_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
  diary_text.add_theme_color_override("default_color", Color("342f29"))
  diary_text.add_theme_font_size_override("normal_font_size", 18)
@@ -182,6 +194,12 @@ func _build_hud() -> void:
  page_title.add_theme_color_override("font_color", Color("342f29"))
  page_title.add_theme_font_size_override("font_size", 24)
  right_page.add_child(page_title)
+ diary_right_text = RichTextLabel.new()
+ diary_right_text.scroll_active = false
+ diary_right_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+ diary_right_text.add_theme_color_override("default_color",Color("342f29"))
+ diary_right_text.add_theme_font_size_override("normal_font_size",18)
+ right_page.add_child(diary_right_text)
  var instructions := Label.new()
  diary_instructions = instructions
  instructions.text = "Observations from the current voyage, recorded as they happen."
@@ -190,6 +208,7 @@ func _build_hud() -> void:
  instructions.add_theme_font_size_override("font_size", 18)
  right_page.add_child(instructions)
  var space := Control.new()
+ diary_space = space
  space.size_flags_vertical = Control.SIZE_EXPAND_FILL
  right_page.add_child(space)
  right_page.theme = preload("res://assets/ui/popup/popup_skin.gd").make_theme()
@@ -200,9 +219,10 @@ func _build_hud() -> void:
  right_page.add_child(close)
  var reset := Button.new()
  diary_reset = reset
- reset.text = "Turn back the pages (R)"
+ reset.text = "Turn back to the start (R)"
  reset.pressed.connect(_begin_reset)
  right_page.add_child(reset)
+ reset.add_child(preload("res://assets/ui/mission_1/diary_sparkles.gd").new())
  diary_next = Button.new()
  diary_next.text = "Turn the Page"
  diary_next.pressed.connect(_return_to_menu)
@@ -211,6 +231,37 @@ func _build_hud() -> void:
  diary_menu.text = "Return to main menu"
  diary_menu.pressed.connect(_return_to_menu)
  right_page.add_child(diary_menu)
+ var page_navigation := HBoxContainer.new()
+ page_navigation.position = Vector2(205,590)
+ page_navigation.size = Vector2(795,38)
+ page_navigation.theme = right_page.theme
+ diary.add_child(page_navigation)
+ diary_previous_page = Button.new()
+ diary_previous_page.text = "‹ Previous"
+ diary_previous_page.pressed.connect(func(): _turn_diary(-1))
+ page_navigation.add_child(diary_previous_page)
+ diary_page_numbers = Label.new()
+ diary_page_numbers.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+ diary_page_numbers.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ diary_page_numbers.add_theme_color_override("font_color",Color("342f29"))
+ page_navigation.add_child(diary_page_numbers)
+ diary_following_page = Button.new()
+ diary_following_page.text = "Next ›"
+ diary_following_page.pressed.connect(func(): _turn_diary(1))
+ page_navigation.add_child(diary_following_page)
+ for page_button in [diary_previous_page,diary_following_page]:
+  page_button.add_theme_font_size_override("font_size",16)
+  for style_name in ["normal","hover","pressed","focus"]:
+   var style: StyleBox = page_navigation.theme.get_stylebox(style_name,"Button").duplicate()
+   style.set_content_margin(SIDE_TOP,4)
+   style.set_content_margin(SIDE_BOTTOM,4)
+   page_button.add_theme_stylebox_override(style_name,style)
+ diary_navigation = preload("res://foundation/controller_menu.gd").new()
+ diary_navigation.available = func(): return [diary_previous_page,diary_following_page,diary_close,diary_reset,diary_next,diary_menu]
+ diary_navigation.enabled = func(): return diary_open and diary_presentation.wanted and not get_tree().paused
+ diary_navigation.back = _toggle_diary
+ diary_navigation.change_tab = _turn_diary
+ diary.add_child(diary_navigation)
  diary.hide()
  diary_presentation = preload("res://assets/ui/mission_1/diary_presentation.gd").new()
  add_child(diary_presentation)
@@ -418,7 +469,9 @@ func _refresh(direction := Vector2.INF) -> void:
   room_slot.get_child(0).set_motion_time(float(state.get("frame",state.tick))/10.0)
  if state.finished and rewind_index < 0:
   diary_open = true
-  if not end_presented: diary_presentation.set_open(true)
+  if not end_presented:
+   diary_seek_end = true
+   diary_presentation.set_open(true)
   message.text = ""
   help.hide()
   if not end_presented:
@@ -659,9 +712,11 @@ func _toggle_diary() -> void:
  idle_seconds = 0.0
  diary_open = true
  waiting_active = false
+ if not diary_presentation.wanted: diary_seek_end = true
  diary_presentation.set_open(not diary_presentation.wanted)
  accumulator = 0.0
  _refresh()
+ if diary_presentation.wanted: diary_close.call_deferred("grab_focus")
  _persist()
 
 func _return_to_menu() -> void:
@@ -670,21 +725,39 @@ func _return_to_menu() -> void:
 func _refresh_diary() -> void:
  var ended: bool = sim.s.finished
  var victory: bool = ended and sim.s.dead.is_empty()
- diary_title.text = "VOYAGE COMPLETE" if victory else "VOYAGE ENDED" if ended else "VOYAGE NOTEBOOK"
- diary_page_title.text = "THE NEXT PAGE" if victory else "TRY AGAIN" if ended else "THE VOYAGE"
- diary_instructions.text = "Everyone survived. Turn the page when you are ready." if victory else "Turn back the pages and try to save everyone." if ended else "Observations from the current voyage, recorded as they happen."
- diary_close.visible = not ended
- diary_reset.visible = not victory
- diary_next.visible = victory
- diary_menu.visible = ended
- if ended:
-  diary_text.text = "5:30 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n")
-  return
- diary_text.text = "\n\n".join(sim.memory.notes)
- if sim.memory.reset:
-  diary_text.text += "\n\nThe pages can turn back time. R returns the whole leg to the docks. These pages record the current voyage."
- else:
-  diary_text.text += ("\n\n" if not diary_text.text.is_empty() else "") + "Observations are recorded here as you explore."
+ var text := "\n\n".join(sim.memory.notes)
+ var outcome := "5:30 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n") if ended else ""
+ if text+outcome != diary_cached_text or diary_pages.pages.is_empty():
+  diary_cached_text = text+outcome
+  diary_pages.rebuild(text,diary_text.get_theme_font("normal_font"),18,334,340,outcome)
+ if diary_seek_end:
+  diary_pages.spread = diary_pages.last_spread()
+  diary_seek_end = false
+ var final_page: bool = diary_pages.spread == diary_pages.last_spread()
+ diary_title.text = "VOYAGE COMPLETE" if victory and final_page else "VOYAGE ENDED" if ended and final_page else "VOYAGE NOTEBOOK"
+ diary_page_title.text = ("THE NEXT PAGE" if victory else "THE VOYAGE") if final_page else "THE VOYAGE"
+ diary_text.text = diary_pages.left_text()
+ diary_right_text.text = diary_pages.right_text()
+ diary_right_text.visible = not final_page
+ diary_instructions.visible = final_page and victory
+ diary_space.visible = final_page
+ diary_instructions.text = "Everyone survived. Now I can turn to the next page." if victory else ""
+ diary_close.visible = final_page and not ended
+ diary_reset.visible = (diary_pages.spread == 0 or final_page) and not victory
+ diary_reset.disabled = not sim.memory.reset and not ended
+ diary_next.visible = final_page and victory
+ diary_menu.visible = final_page and ended
+ diary_previous_page.disabled = diary_pages.spread == 0
+ diary_following_page.disabled = final_page
+ diary_page_numbers.text = "%d–%d / %d    ·    Left / Right · LB / RB" % [diary_pages.spread*2+1,diary_pages.spread*2+2,diary_pages.pages.size()+1]
+
+func _turn_diary(direction: int) -> void:
+ if not diary_open or not diary_presentation.wanted: return
+ diary_pages.turn(direction)
+ _refresh_diary()
+ var focus := get_viewport().gui_get_focus_owner()
+ if focus is BaseButton and (not focus.is_visible_in_tree() or focus.disabled):
+  (diary_previous_page if not diary_previous_page.disabled else diary_following_page if not diary_following_page.disabled else diary_close if diary_close.visible else diary_next if diary_next.visible else diary_reset).grab_focus()
 
 func _summary() -> String:
  return sim.summary()
@@ -752,6 +825,10 @@ func _notification(what: int) -> void:
   idle_seconds = 0.0
 
 func _input(event: InputEvent) -> void:
+ if diary_open and not get_tree().paused and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode in [KEY_LEFT,KEY_PAGEUP,KEY_RIGHT,KEY_PAGEDOWN]:
+  _turn_diary(-1 if event.physical_keycode in [KEY_LEFT,KEY_PAGEUP] else 1)
+  get_viewport().set_input_as_handled()
+  return
  if event is InputEventKey and event.pressed or event is InputEventMouseButton and event.pressed or event is InputEventScreenTouch and event.pressed or event is InputEventJoypadButton and event.pressed:
   idle_seconds = 0.0
  elif event is InputEventJoypadMotion and absf(event.axis_value)>0.2:

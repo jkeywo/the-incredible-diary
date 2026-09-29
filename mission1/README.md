@@ -236,3 +236,34 @@ steam save/history restoration, watch interpolation, rewind skip and dialogs.
 Run it with `-- --screenshots` on a rendering-capable Godot process for captures
 in ignored `build/`. `node tests/loading_handoff_test.js` checks both loader
 readiness orders, reduced motion, actual progress and persistent startup errors.
+
+
+### Front-end controller navigation
+
+The Continue preview occupies a reserved row below its button. Finished voyages
+show their outcome instead of the last room, alongside the saved voyage time.
+The title also has an explicit Settings entry.
+
+Left stick or D-pad moves focus, A selects, and B backs out of settings and
+dialogs. B on the top-level title does not quit. Menu/Start opens Settings on
+the title and during gameplay. In Settings, left/right adjusts sliders in five
+percentage-point steps or changes the joystick-side choice. LB/RB cycles visible
+tabs and focuses the selected tab's first control. Closing restores the previous
+pause state and focus. Controller events are consumed by the active menu.
+
+
+### The diary's magic and pages
+
+Seeing the first body in a playthrough queues Amelia's thought about the diary
+shaking, followed by the input-specific Open diary prompt. The thought waits
+behind current dialogue and persists across Continue and subsequent loops.
+A New playthrough can prompt again. Unseen deaths do not trigger it.
+
+Diary observations fill both sides of numbered spreads, without scrolling. Each
+opening starts at the last spread. The final right page holds the voyage actions without explaining rewinding. Earlier spreads contain observations only. Previous /
+Next buttons, Left/Right or Page Up/Page Down, and controller LB/RB turn spreads;
+A selects a focused action and B closes the diary during a running voyage.
+The pager measures the display font and balances the final text pages to reserve
+the final right page without inserting an empty spread.
+
+Diary discovery is once per playthrough, retained across loops and Continue. Amelia notices the diary shaking on first seeing a body; the Open diary prompt leads to a sparkling “Turn back to the start” button. The diary does not explain rewind in advance.

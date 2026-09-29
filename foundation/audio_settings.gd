@@ -23,6 +23,7 @@ var touch_available := false
 var tabs: TabContainer
 var controls_tab: VBoxContainer
 var stick_side: OptionButton
+var controller_menu: Node
 
 
 func _ready() -> void:
@@ -52,6 +53,12 @@ func set_stick_on_right(value: bool) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventJoypadButton and event.button_index == JOY_BUTTON_START:
+		get_viewport().set_input_as_handled()
+		if event.pressed:
+			if _opened: close_settings()
+			elif get_viewport().get_embedded_subwindows().all(func(window): return not window.visible): open_settings()
+		return
 	if event is InputEventScreenTouch and not touch_available:
 		touch_available = true
 		_refresh_controls_tab()
@@ -94,7 +101,7 @@ func open_settings() -> void:
 	var scene := get_tree().current_scene
 	main_menu_button.disabled = scene == null or (scene.scene_file_path == MAIN_MENU and not is_instance_valid(scene.get("_game_world")))
 	dialog.popup_centered(Vector2i(440, 390))
-	sliders["Master"].grab_focus()
+	_focus_tab()
 
 
 func close_settings() -> void:
@@ -224,6 +231,14 @@ func _build_ui() -> void:
 	menu_status.custom_minimum_size.x = 400
 	menu_status.hide()
 	content.add_child(menu_status)
+	controller_menu = preload("res://foundation/controller_menu.gd").new()
+	controller_menu.available = _controller_choices
+	controller_menu.enabled = func(): return _opened and not _closing and dialog.visible
+	controller_menu.start_is_back = true
+	controller_menu.back = close_settings
+	controller_menu.change_tab = _controller_tab
+	dialog.add_child(controller_menu)
+	tabs.tab_changed.connect(func(_index): _focus_tab())
 
 
 func _draw_cog() -> void:
@@ -233,3 +248,21 @@ func _draw_cog() -> void:
 	for tooth in range(8):
 		var direction := Vector2.from_angle(tooth * TAU / 8.0)
 		toggle.draw_line(center + direction * 9, center + direction * 14, color, 5, true)
+
+
+func _controller_choices() -> Array:
+	var controls: Array = sliders.values() if tabs.current_tab == 0 else [stick_side]
+	return controls + [main_menu_button,dialog.get_ok_button()]
+
+func _focus_tab() -> void:
+	if not _opened: return
+	var control: Control = sliders["Master"] if tabs.current_tab == 0 else stick_side
+	control.grab_focus()
+
+func _controller_tab(step: int) -> void:
+	for offset in range(1,tabs.get_tab_count()+1):
+		var index := posmod(tabs.current_tab+step*offset,tabs.get_tab_count())
+		if tabs.is_tab_hidden(index) or tabs.is_tab_disabled(index): continue
+		tabs.current_tab = index
+		_focus_tab()
+		return

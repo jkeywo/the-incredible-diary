@@ -1,0 +1,448 @@
+extends RefCounted
+class_name FoundationRun
+
+const Content = preload("res://foundation/content.gd")
+const Scenario = preload("res://foundation/scenario.gd")
+const Journal = preload("res://foundation/journal.gd")
+const Geometry = preload("res://foundation/room_geometry.gd")
+
+const TICKS_PER_HOUR := 1800
+const LEG_TICKS := TICKS_PER_HOUR * 6
+const DIALOGUE_TICKS := 10
+
+var content: Dictionary
+var authored: FoundationScenario
+var state: Dictionary
+var events: Array[Dictionary] = []
+var dialogue_steps: Array[Dictionary] = []
+var history: Array[Dictionary] = []
+var content_versions: Dictionary = {}
+var journal: RefCounted
+
+func _init(scenario: Dictionary = {}) -> void:
+	content = scenario.duplicate(true) if not scenario.is_empty() else Content.scenario()
+	var compiled := Scenario.compile(content)
+	if not compiled.ok:
+		push_error("Invalid scenario: " + "; ".join(compiled.errors))
+		return
+	authored = compiled.scenario
+	dialogue_steps = authored.dialogue_steps.duplicate(true)
+	content_versions[content.version] = content.duplicate(true)
+	var actor_state := {}
+	for actor in content.actors:
+		actor_state[actor.id] = {"room": actor.room, "x": float(actor.x), "y": float(actor.y), "activity": "idle", "destination": ""}
+	state = {"tick": 0, "loop_index": 0, "code": _code_for_loop(0), "actors": actor_state, "commitments_started": [], "completed_interactions": [], "completed_storylets": [], "completed_world_commands": [], "flags": {}, "action": {}, "dialogue": {}, "diary_observations": [], "current_knowledge": [], "content_version": content.version, "events": [], "diagnostics": {}}
+	_record_diagnostics()
+	history.append(inspect())
+
+func inspect() -> Dictionary:
+	return state.duplicate(true)
+
+func tick(input: Dictionary = {}) -> Dictionary:
+	if state.is_empty() or state.tick >= LEG_TICKS:
+		return inspect()
+	events.clear()
+	state.tick += 1
+	_move_amelia(input)
+	_advance_action(input)
+	_advance_dialogue(input)
+	_start_commitments()
+	_move_npcs()
+	if state.tick % TICKS_PER_HOUR == 0:
+		_emit("hour_boundary", "", "Hour 6 complete" if state.tick == LEG_TICKS else "Hour %d" % (1 + int(state.tick / TICKS_PER_HOUR)))
+	if state.tick == LEG_TICKS:
+		_emit("leg_end", "", "End of six-Hour demonstration")
+	state.events = events.duplicate(true)
+	_record_diagnostics()
+	history.append(inspect())
+	return inspect()
+
+func inspect_at(tick_number: int) -> Dictionary:
+	if tick_number < 0 or tick_number >= history.size():
+		return {}
+	return history[tick_number].duplicate(true)
+
+func restore_record(record: Dictionary) -> bool:
+	if not record.get("ok", false): return false
+	var restored_content: Dictionary = record.content
+	var compiled := Scenario.compile(restored_content)
+	if not compiled.ok: return false
+	content = restored_content.duplicate(true)
+	authored = compiled.scenario
+	content_versions = record.get("content_versions", {content.version: content}).duplicate(true)
+	dialogue_steps = authored.dialogue_steps.duplicate(true)
+	history.clear()
+	for snapshot in record.history: history.append(_normalize_snapshot(snapshot))
+	state = _normalize_snapshot(record.get("current", history[-1]))
+	events.clear()
+	return true
+
+func _normalize_snapshot(source: Dictionary) -> Dictionary:
+	var snapshot := source.duplicate(true)
+	snapshot.tick = int(snapshot.tick)
+	snapshot.loop_index = int(snapshot.get("loop_index", 0))
+	if not snapshot.has("completed_interactions"):
+		snapshot.completed_interactions = []
+	if not snapshot.has("completed_storylets"):
+		snapshot.completed_storylets = []
+	if not snapshot.action.is_empty():
+		snapshot.action.progress = int(snapshot.action.progress)
+		snapshot.action.duration = int(snapshot.action.duration)
+	if not snapshot.dialogue.is_empty():
+		snapshot.dialogue.cursor = int(snapshot.dialogue.cursor)
+		snapshot.dialogue.remaining = int(snapshot.dialogue.remaining)
+	if snapshot.flags.has("guest_delay_ticks"):
+		snapshot.flags.guest_delay_ticks = int(snapshot.flags.guest_delay_ticks)
+	for event in snapshot.events:
+		event.tick = int(event.tick)
+	return snapshot
+
+func reset_loop() -> void:
+	var observations: Array = state.diary_observations.duplicate(true)
+	var next_loop: int = int(state.loop_index) + 1
+	var fresh := FoundationRun.new(content)
+	state = fresh.state.duplicate(true)
+	state.diary_observations = observations
+	state.loop_index = next_loop
+	state.code = _code_for_loop(next_loop)
+	history.clear()
+	history.append(inspect())
+	events.clear()
+	content_versions = {content.version: content.duplicate(true)}
+
+func attach_journal(save_path: String) -> void:
+	journal = Journal.new(save_path)
+
+func load_saved() -> Dictionary:
+	if journal == null:
+		return {"ok": false, "reason": "No journal attached"}
+	var loaded := Journal.load(journal.path)
+	if not loaded.ok:
+		return loaded
+	if not restore_record(loaded):
+		return {"ok": false, "reason": "Saved run could not be restored"}
+	journal.saved_count = history.size() if str(loaded.reason).is_empty() and loaded.source == journal.path else 0
+	journal.last_content_version = content.version
+	return loaded
+
+func persist() -> Dictionary:
+	if journal == null:
+		return {"ok": false, "reason": "No journal attached"}
+	return journal.save(self)
+
+func _code_for_loop(index: int) -> String:
+	var value := 32541 + index * 7919
+	var digits := ""
+	for i in range(5):
+		digits = str(value % 6 + 1) + digits
+		value = int(value / 6)
+	return digits
+
+func continue_with_content(next_content: Dictionary, from_tick: int = -1) -> Dictionary:
+	var compiled := Scenario.compile(next_content)
+	if not compiled.ok:
+		return {"ok": false, "reason": "; ".join(compiled.errors), "restart": false}
+	if content_versions.has(next_content.version) and content_versions[next_content.version] != next_content:
+		return {"ok": false, "reason": "Content version ID already names different content", "restart": false}
+	var target_tick: int = int(state.tick) if from_tick < 0 else from_tick
+	if target_tick < 0 or target_tick >= history.size():
+		return {"ok": false, "reason": "Recorded tick does not exist", "restart": false}
+	var restored: Dictionary = history[target_tick]
+	for actor_id in restored.actors:
+		var actor: Dictionary = restored.actors[actor_id]
+		var actor_room := {}
+		for room in next_content.rooms:
+			if room.id == actor.room:
+				actor_room = room
+				break
+		if actor_room.is_empty() or not Geometry.contains(actor_room, Vector2(float(actor.x), float(actor.y))):
+			return {"ok": false, "reason": "Actor %s at recorded tick %d would be outside walkable geometry in room %s; revise the geometry or resume from an earlier tick" % [actor_id, target_tick, actor.room], "restart": true}
+	var old_actor_ids := []
+	var new_actor_ids := []
+	for actor in content.actors: old_actor_ids.append(actor.id)
+	for actor in next_content.actors: new_actor_ids.append(actor.id)
+	old_actor_ids.sort()
+	new_actor_ids.sort()
+	if target_tick == 0 and int(state.tick) == 0 and next_content.actors != content.actors:
+		var fresh := FoundationRun.new(next_content)
+		fresh.state.loop_index = state.loop_index
+		fresh.state.code = state.code
+		fresh.state.diary_observations = state.diary_observations.duplicate(true)
+		fresh.history[0] = fresh.inspect()
+		content = fresh.content.duplicate(true)
+		authored = fresh.authored
+		state = fresh.state.duplicate(true)
+		history = fresh.history.duplicate(true)
+		content_versions = fresh.content_versions.duplicate(true)
+		dialogue_steps = fresh.dialogue_steps.duplicate(true)
+		events.clear()
+		return {"ok": true, "reason": "Started with the authored actor definitions", "restart": false}
+	if old_actor_ids != new_actor_ids:
+		return {"ok": false, "reason": "Actor IDs changed; restart the leg", "restart": true}
+	if next_content.actors != content.actors:
+		return {"ok": false, "reason": "Actor definitions changed during the leg; restart before applying spawn positions or sprites", "restart": true}
+	var historical_content: Dictionary = content_versions.get(restored.content_version, {})
+	if historical_content.is_empty():
+		return {"ok": false, "reason": "Historical content version is unavailable; restart the leg", "restart": true}
+	for actor_id in restored.actors:
+		var active_id := str(restored.actors[actor_id].get("destination", ""))
+		if active_id.is_empty():
+			continue
+		if _find_commitment(historical_content, active_id) != _find_commitment(next_content, active_id):
+			return {"ok": false, "reason": "Active commitment %s for actor %s changed; restart the leg before altering its target or timing" % [active_id, actor_id], "restart": true}
+	if not restored.action.is_empty():
+		var old_interaction := _find_interaction(historical_content, str(restored.action.id))
+		var new_interaction := _find_interaction(next_content, str(restored.action.id))
+		if old_interaction != new_interaction:
+			return {"ok": false, "reason": "Active action structure changed; restart the leg", "restart": true}
+	if not restored.dialogue.is_empty():
+		var active_storylet := str(restored.dialogue.get("storylet_id", "legacy"))
+		if active_storylet != "legacy" and _find_storylet(historical_content, active_storylet) != _find_storylet(next_content, active_storylet):
+			return {"ok": false, "reason": "Active storylet %s changed; restart before editing its identity or conditions" % active_storylet, "restart": true}
+		var active_scene := str(restored.dialogue.get("scene_id", "legacy"))
+		var old_scene: Variant = historical_content.dialogue if active_scene == "legacy" else historical_content.get("scenes", {}).get(active_scene)
+		var new_scene: Variant = next_content.dialogue if active_scene == "legacy" else next_content.get("scenes", {}).get(active_scene)
+		if old_scene != new_scene:
+			return {"ok": false, "reason": "Active dialogue scene %s changed; restart the leg" % active_scene, "restart": true}
+	state = restored.duplicate(true)
+	content = next_content.duplicate(true)
+	authored = compiled.scenario
+	content_versions[content.version] = content.duplicate(true)
+	dialogue_steps = authored.dialogue_steps.duplicate(true)
+	state.content_version = content.version
+	if target_tick < history.size() - 1:
+		history.resize(target_tick + 1)
+	return {"ok": true, "reason": "Continued from tick %d" % target_tick, "restart": false}
+
+func _find_interaction(in_content: Dictionary, id: String) -> Dictionary:
+	for interaction in in_content.interactions:
+		if interaction.id == id:
+			return interaction
+	return {}
+
+func _find_commitment(in_content: Dictionary, id: String) -> Dictionary:
+	for commitment in in_content.commitments:
+		if commitment.id == id:
+			return commitment
+	return {}
+
+func _find_storylet(in_content: Dictionary, id: String) -> Dictionary:
+	for storylet in in_content.get("storylets", []):
+		if storylet.id == id:
+			return storylet
+	return {}
+
+func step_next_event() -> Dictionary:
+	while state.tick < LEG_TICKS:
+		tick()
+		if not events.is_empty():
+			return inspect()
+	return inspect()
+
+func _record_diagnostics() -> void:
+	state.diagnostics = authored.diagnostics(state)
+
+func _emit(category: String, actor_id: String, detail: String) -> void:
+	events.append({"tick": state.tick, "category": category, "actor": actor_id, "detail": detail})
+
+func available_interactions() -> Array[Dictionary]:
+	return authored.available_interactions(state)
+
+func _advance_action(input: Dictionary) -> void:
+	if not state.action.is_empty():
+		var action: Dictionary = state.action
+		var interaction := _interaction(str(action.id))
+		if bool(input.get("cancel_action", false)):
+			_cancel_action("Interrupted by Amelia")
+		elif interaction.is_empty() or not _interaction_available(interaction):
+			_cancel_action("Conditions no longer hold")
+		else:
+			action.progress += 1
+			if action.progress >= int(interaction.duration_ticks):
+				authored.complete_interaction(interaction, state)
+				_emit("action_completed", "amelia", str(action.id))
+				state.action = {}
+	if state.action.is_empty() and input.has("start_interaction"):
+		var interaction := _interaction(str(input.start_interaction))
+		if not interaction.is_empty() and _interaction_available(interaction):
+			state.action = {"id": interaction.id, "progress": 0, "duration": int(interaction.duration_ticks)}
+			_emit("action_started", "amelia", str(interaction.id))
+		else:
+			_emit("action_rejected", "amelia", "Interaction unavailable: " + str(input.start_interaction))
+
+func _cancel_action(reason: String) -> void:
+	_emit("action_cancelled", "amelia", str(state.action.id) + ": " + reason)
+	state.action = {}
+
+func dialogue_available() -> bool:
+	return authored.dialogue_available(state)
+
+func available_storylets() -> Array[Dictionary]:
+	return authored.available_storylets(state)
+
+func _advance_dialogue(input: Dictionary) -> void:
+	var requested: Variant = input.get("start_dialogue", false)
+	var start_requested := false
+	if requested is bool:
+		start_requested = requested
+	elif requested is String:
+		start_requested = not str(requested).is_empty()
+	if start_requested and dialogue_available():
+		var selected: Dictionary = {}
+		for candidate in available_storylets():
+			if requested is bool or str(candidate.id) == str(requested):
+				selected = candidate
+				break
+		if not selected.is_empty():
+			var scene_id := str(selected.scene)
+			state.dialogue = {"storylet_id": selected.id, "scene_id": scene_id, "cursor": 0, "remaining": 0, "line": _line_text(0, scene_id), "completed_commands": []}
+			_apply_step_commands(state.dialogue, scene_id, 0)
+			_observe_line(0, scene_id)
+			_emit("dialogue_started", str(selected.id), scene_id)
+			return
+	if state.dialogue.is_empty():
+		return
+	var dialogue: Dictionary = state.dialogue
+	var scene_id := str(dialogue.get("scene_id", "legacy"))
+	var steps := authored.steps_for(scene_id)
+	if int(dialogue.remaining) > 0:
+		dialogue.remaining -= 1
+		if int(dialogue.remaining) == 0:
+			var next_cursor: int = int(dialogue.cursor) + 1
+			if next_cursor >= steps.size():
+				var storylet_id := str(dialogue.get("storylet_id", "legacy"))
+				if storylet_id != "legacy" and not state.completed_storylets.has(storylet_id):
+					state.completed_storylets.append(storylet_id)
+				_emit("dialogue_finished", "amelia", storylet_id)
+				state.dialogue = {}
+			else:
+				_apply_step_commands(dialogue, scene_id, next_cursor)
+				dialogue.cursor = next_cursor
+				dialogue.line = _line_text(next_cursor, scene_id)
+				_observe_line(next_cursor, scene_id)
+				_emit("dialogue_line", str(steps[next_cursor].speaker), str(dialogue.line))
+	elif bool(input.get("advance_dialogue", false)):
+		dialogue.remaining = DIALOGUE_TICKS
+		_emit("dialogue_step_started", "amelia", str(dialogue.cursor))
+
+func _apply_step_commands(dialogue: Dictionary, scene_id: String, cursor: int) -> void:
+	var steps := authored.steps_for(scene_id)
+	for command_index in steps[cursor].commands_before.size():
+		var command: Dictionary = steps[cursor].commands_before[command_index]
+		var storylet_id := str(dialogue.get("storylet_id", "legacy"))
+		var command_key := "%d:%d" % [cursor, command_index] if storylet_id == "legacy" else "%s:%s:%d:%d" % [storylet_id, scene_id, cursor, command_index]
+		if not dialogue.completed_commands.has(command_key) and not state.completed_world_commands.has(command_key):
+			_apply_dialogue_command(command)
+			dialogue.completed_commands.append(command_key)
+			state.completed_world_commands.append(command_key)
+
+func _line_text(cursor: int, scene_id: String = "legacy") -> String:
+	var steps := authored.steps_for(scene_id)
+	return "%s: %s" % [steps[cursor].speaker, steps[cursor].text]
+
+func _observe_line(cursor: int, scene_id: String = "legacy") -> void:
+	var key := "%s:%d" % [content.version, cursor] if scene_id == "legacy" else "%s:%s:%d" % [content.version, scene_id, cursor]
+	if not state.diary_observations.has(key):
+		state.diary_observations.append(key)
+
+func _apply_dialogue_command(command: Dictionary) -> void:
+	var applied := authored.apply_command(command, state)
+	if not applied.is_empty():
+		_emit("dialogue_command", str(applied.actor), str(applied.detail))
+
+func _interaction(id: String) -> Dictionary:
+	return authored.interaction(id)
+
+func _interaction_available(interaction: Dictionary) -> bool:
+	return authored.interaction_available(interaction, state)
+
+func _move_amelia(input: Dictionary) -> void:
+	var direction := Vector2(float(input.get("x", 0.0)), float(input.get("y", 0.0))).limit_length()
+	var amelia: Dictionary = state.actors.amelia
+	var room := _room(str(amelia.room))
+	var before := Vector2(float(amelia.x), float(amelia.y))
+	var position := Geometry.move(room, before, direction * 4.0)
+	amelia.x = position.x
+	amelia.y = position.y
+	for connection in content.connections:
+		if not authored.connection_open(connection, state):
+			continue
+		var from_y := float(connection.get("from_y", 160.0))
+		var to_y := float(connection.get("to_y", 160.0))
+		var from_point := Vector2(float(connection.from_x), from_y)
+		var to_point := Vector2(float(connection.to_x), to_y)
+		if amelia.room == connection.from and _entered_door(before, position, from_point):
+			amelia.room = connection.to
+			amelia.x = float(connection.to_x)
+			amelia.y = to_y
+			_emit("room_transition", "amelia", str(connection.id))
+			break
+		if amelia.room == connection.to and _entered_door(before, position, to_point):
+			amelia.room = connection.from
+			amelia.x = float(connection.from_x)
+			amelia.y = from_y
+			_emit("room_transition", "amelia", str(connection.id))
+			break
+
+func _entered_door(before: Vector2, after: Vector2, endpoint: Vector2) -> bool:
+	var travel := after - before
+	if travel.length_squared() <= 0.000001 or (endpoint - before).dot(travel) <= 0.000001:
+		return false
+	var fraction := clampf((endpoint - before).dot(travel) / travel.length_squared(), 0.0, 1.0)
+	return (before + travel * fraction).distance_to(endpoint) <= 5.0
+
+func _start_commitments() -> void:
+	for commitment in content.commitments:
+		var start_tick: int = authored.commitment_start_tick(commitment, state)
+		if state.tick != start_tick or state.commitments_started.has(commitment.id):
+			continue
+		state.commitments_started.append(commitment.id)
+		var actor: Dictionary = state.actors[commitment.actor]
+		actor.activity = "travel"
+		actor.destination = commitment.id
+		_emit("commitment", commitment.actor, commitment.id)
+
+func _move_npcs() -> void:
+	for commitment in content.commitments:
+		var actor: Dictionary = state.actors[commitment.actor]
+		if actor.destination != commitment.id:
+			continue
+		var target_room: String = commitment.room
+		var target := Vector2(float(commitment.x), float(commitment.get("y", 160.0)))
+		if actor.room != target_room:
+			var connection := _connection(actor.room, target_room)
+			if connection.is_empty():
+				actor.activity = "blocked"
+				_emit("blocked", commitment.actor, "No connection to " + target_room)
+				continue
+			var exit_side := "from" if actor.room == connection.from else "to"
+			var entry_side := "to" if target_room == connection.to else "from"
+			var exit_point := Vector2(float(connection.get(exit_side + "_x")), float(connection.get(exit_side + "_y", 160.0)))
+			var next := Geometry.step_toward(_room(str(actor.room)), Vector2(float(actor.x), float(actor.y)), exit_point, float(commitment.speed))
+			actor.x = next.x
+			actor.y = next.y
+			if next.distance_to(exit_point) <= 0.01:
+				actor.room = target_room
+				actor.x = float(connection.get(entry_side + "_x"))
+				actor.y = float(connection.get(entry_side + "_y", 160.0))
+				_emit("room_transition", commitment.actor, str(connection.id))
+		else:
+			var next := Geometry.step_toward(_room(target_room), Vector2(float(actor.x), float(actor.y)), target, float(commitment.speed))
+			actor.x = next.x
+			actor.y = next.y
+			if next.distance_to(target) <= 0.01:
+				actor.activity = "idle"
+				actor.destination = ""
+				_emit("arrival", commitment.actor, commitment.id)
+
+func _connection(from_room: String, to_room: String) -> Dictionary:
+	for connection in content.connections:
+		if (connection.from == from_room and connection.to == to_room or connection.to == from_room and connection.from == to_room) and authored.connection_open(connection, state):
+			return connection
+	return {}
+
+func _room(id: String) -> Dictionary:
+	for room in content.rooms:
+		if room.id == id:
+			return room
+	return {}

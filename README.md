@@ -33,6 +33,8 @@ The web export uses Compatibility rendering and no threads, so it does not depen
 
 The foundation harness now records and journals its full current leg, including historical diagnostics. The earlier probe's small snapshot save remains separate. See the GDD and foundation demonstration for current scope and limitations.
 
+The foundation architecture refactor uses a new `foundation_run_v2.jsonl` save under Godot's user data directory. Earlier `foundation_run.jsonl` files are left untouched; this build starts a fresh foundation run.
+
 ## Design records
 
 - [Original research, unabridged](docs/01_Original_Research.md)

@@ -12,6 +12,9 @@ if (-not (Test-Path -LiteralPath $godot)) {
 Push-Location $root
 try {
     New-Item -ItemType Directory -Force build | Out-Null
+    if (-not (Test-Path -LiteralPath build/.gdignore)) {
+        New-Item -ItemType File -Path build/.gdignore | Out-Null
+    }
     switch ($Task) {
         'Editor' { & $godot --path $root --editor }
         'Run' { & $godot --path $root }

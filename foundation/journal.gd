@@ -2,7 +2,7 @@ extends RefCounted
 class_name FoundationJournal
 
 const Content = preload("res://foundation/content.gd")
-const SCHEMA := 1
+const SCHEMA := 2
 var path: String
 var saved_count := 0
 var last_content_version := ""
@@ -10,7 +10,7 @@ var last_content_version := ""
 func _init(save_path: String) -> void:
 	path = save_path
 
-func save(simulation: FoundationSimulation) -> Dictionary:
+func save(simulation) -> Dictionary:
 	if OS.has_feature("web") and not OS.is_userfs_persistent():
 		return {"ok": false, "reason": "Browser storage is not persistent; enable IndexedDB/cookies"}
 	if simulation.history.is_empty():
@@ -33,7 +33,7 @@ func save(simulation: FoundationSimulation) -> Dictionary:
 	saved_count = simulation.history.size()
 	return {"ok": true, "reason": "Saved tick %d" % simulation.state.tick}
 
-func _rewrite(simulation: FoundationSimulation) -> Dictionary:
+func _rewrite(simulation) -> Dictionary:
 	var next_path := path + ".next"
 	var file := FileAccess.open(next_path, FileAccess.WRITE)
 	if file == null:
@@ -171,6 +171,10 @@ static func _valid_snapshot(snapshot: Dictionary, versions: Dictionary) -> bool:
 		return false
 	if not snapshot.get("commitments_started") is Array or not snapshot.get("completed_world_commands") is Array or not snapshot.get("diagnostics") is Dictionary:
 		return false
+	if snapshot.has("completed_interactions") and not snapshot.completed_interactions is Array:
+		return false
+	if snapshot.has("completed_storylets") and not snapshot.completed_storylets is Array:
+		return false
 	if not snapshot.get("code") is String or not snapshot.get("loop_index") is float and not snapshot.get("loop_index") is int:
 		return false
 	if not snapshot.get("content_version") is String or not versions.has(snapshot.content_version):
@@ -187,6 +191,10 @@ static func _valid_snapshot(snapshot: Dictionary, versions: Dictionary) -> bool:
 	for id in snapshot.commitments_started:
 		if not id is String: return false
 	for id in snapshot.completed_world_commands:
+		if not id is String: return false
+	for id in snapshot.get("completed_interactions", []):
+		if not id is String: return false
+	for id in snapshot.get("completed_storylets", []):
 		if not id is String: return false
 	var rooms: Dictionary = {}
 	for room in versions[snapshot.content_version].rooms: rooms[room.id] = true

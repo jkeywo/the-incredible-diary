@@ -1,9 +1,38 @@
 extends SceneTree
 
 const Content = preload("res://foundation/content.gd")
-const Simulation = preload("res://foundation/simulation.gd")
+const Simulation = preload("res://foundation/run.gd")
+const AuthoringSession = preload("res://foundation/authoring_session.gd")
 const Journal = preload("res://foundation/journal.gd")
+const AuthoringDocument = preload("res://foundation/authoring_document.gd")
+const ProjectAssets = preload("res://foundation/project_assets.gd")
+const RoomGeometry = preload("res://foundation/room_geometry.gd")
+const AuthoringStore = preload("res://foundation/authoring_store.gd")
+const Inspector = preload("res://foundation/inspector.gd")
+const GithubProject = preload("res://foundation/github_project.gd")
+const GithubRepository = preload("res://foundation/github_repository.gd")
+const GithubApi = preload("res://foundation/github_api.gd")
+const GithubCredentials = preload("res://foundation/github_credentials.gd")
+const GithubCommit = preload("res://foundation/github_commit.gd")
+const GithubMerge = preload("res://foundation/github_merge.gd")
+const GithubSync = preload("res://foundation/github_sync.gd")
+const GithubConflict = preload("res://foundation/github_conflict.gd")
+const Harness = preload("res://foundation/harness.gd")
+const Scenario = preload("res://foundation/scenario.gd")
 var failures: Array[String] = []
+
+class FakeGithubTransport:
+	extends RefCounted
+	var replies: Dictionary = {}
+	var paths: Array[String] = []
+	var requests: Array[Dictionary] = []
+	func request(_method: int, path: String, _body: Dictionary = {}) -> Dictionary:
+		paths.append(path)
+		requests.append({"method": _method, "path": path, "body": _body.duplicate(true)})
+		var response: Variant = replies.get(path, {"ok": false, "status": 404, "reason": "Missing fake response"})
+		if response is Callable:
+			return response.call()
+		return response.pop_front() if response is Array else response
 
 func _initialize() -> void:
 	call_deferred("run")
@@ -27,6 +56,675 @@ func run() -> void:
 	expect_joy_button("reset_loop", JOY_BUTTON_START)
 	var scenario := Content.scenario()
 	expect(Content.validate(scenario).is_empty(), "valid_scenario")
+	var image_bytes := FileAccess.get_file_as_bytes("res://assets/props/valve_states.png")
+	var imported: Dictionary = ProjectAssets.import_image("test.png", image_bytes)
+	expect(imported.ok and ProjectAssets.validate(imported.asset).is_empty(), "portable_image_manifest_entry")
+	var illustrated := scenario.duplicate(true)
+	illustrated.assets[imported.id] = imported.asset
+	illustrated.rooms[0].background_asset = imported.id
+	expect(Content.validate(illustrated).is_empty(), "room_background_asset_reference")
+	var illustrated_package := GithubProject.package(AuthoringDocument.new(illustrated))
+	var illustrated_open := GithubProject.open_files(illustrated_package.files)
+	expect(illustrated_package.ok and illustrated_open.ok and illustrated_open.content.assets[imported.id].base64 == imported.asset.base64 and ProjectAssets.validate(illustrated_open.content.assets[imported.id]).is_empty(), "repository_project_keeps_background_bytes")
+	var fake_github := FakeGithubTransport.new()
+	if not OS.has_feature("web"):
+		var credential_store := GithubCredentials.new("res://build/foundation_github_credentials_test.json")
+		credential_store.clear_token()
+		expect(credential_store.load_token().is_empty() and credential_store.save_token("test-only-token").ok and credential_store.load_token() == "test-only-token" and credential_store.clear_token().ok and credential_store.load_token().is_empty(), "native_github_token_is_local_and_removable")
+	var github_prefix := "/repos/example/diary"
+	fake_github.replies["/user/repos?affiliation=owner,collaborator,organization_member&per_page=100"] = {"ok": true, "data": [{"full_name": "example/diary", "default_branch": "main", "permissions": {"pull": true, "push": true}}]}
+	fake_github.replies[github_prefix + "/branches?per_page=100"] = {"ok": true, "data": [{"name": "main", "commit": {"sha": "head1"}}]}
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "head1"}}}
+	fake_github.replies[github_prefix + "/git/commits/head1"] = {"ok": true, "data": {"tree": {"sha": "tree1"}}}
+	fake_github.replies[github_prefix + "/git/trees/tree1?recursive=1"] = {"ok": true, "data": {"truncated": false, "tree": [{"path": GithubProject.MANIFEST_PATH, "type": "blob", "sha": "manifest1"}, {"path": GithubProject.SCENARIO_PATH, "type": "blob", "sha": "scenario1"}]}}
+	fake_github.replies[github_prefix + "/git/blobs/manifest1"] = {"ok": true, "data": {"encoding": "base64", "content": Marshalls.utf8_to_base64(illustrated_package.files[GithubProject.MANIFEST_PATH])}}
+	fake_github.replies[github_prefix + "/git/blobs/scenario1"] = {"ok": true, "data": {"encoding": "base64", "content": Marshalls.utf8_to_base64(illustrated_package.files[GithubProject.SCENARIO_PATH])}}
+	var github_repository := GithubRepository.new(fake_github)
+	var unsigned_api := GithubApi.new()
+	expect(not (await unsigned_api.request(HTTPClient.METHOD_GET, "/user/repos")).ok, "github_api_requires_sign_in")
+	unsigned_api.free()
+	var listed_repositories: Dictionary = await github_repository.list_repositories()
+	var listed_branches: Dictionary = await github_repository.list_branches("example/diary")
+	var opened_from_github: Dictionary = await github_repository.open_project("example/diary", "main")
+	expect(listed_repositories.ok and listed_repositories.repositories[0].can_push and listed_branches.ok and listed_branches.branches[0].head == "head1", "github_repository_and_branch_selection_fake")
+	expect(opened_from_github.ok and opened_from_github.head == "head1" and opened_from_github.content.assets[imported.id].base64 == imported.asset.base64, "github_project_and_asset_open_fake")
+	var github_ui := Harness.new()
+	github_ui.simulation = Simulation.new(scenario)
+	github_ui.session = AuthoringSession.new(github_ui.simulation)
+	github_ui.session.pause()
+	github_ui.document = github_ui.session.document
+	github_ui.github_repository = github_repository
+	github_ui.status_label = Label.new()
+	github_ui.github_repo_picker = OptionButton.new()
+	github_ui.github_repo_picker.add_item("Choose repository")
+	github_ui.github_repo_picker.add_item("example/diary")
+	github_ui.github_repo_picker.select(1)
+	github_ui.github_branch_picker = OptionButton.new()
+	github_ui.github_branch_picker.add_item("Choose branch")
+	github_ui.github_branch_picker.add_item("main")
+	github_ui.github_branch_picker.select(1)
+	await github_ui._github_open_project()
+	expect(github_ui.document.remote_origin.repository == "example/diary" and github_ui.document.remote_origin.head == "head1" and github_ui.document.content.assets[imported.id].base64 == imported.asset.base64 and github_ui.simulation.content.assets.is_empty(), "paused_editor_opens_selected_github_project_fake")
+	fake_github.replies[github_prefix + "/git/trees/tree1?recursive=1"] = {"ok": true, "data": {"truncated": false, "tree": []}}
+	expect(not (await github_repository.open_project("example/diary", "main")).ok, "repository_without_manifest_rejected_fake")
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": false, "status": 401, "reason": "GitHub sign-in expired or was denied"}
+	expect(not (await github_repository.open_project("example/diary", "main")).ok and illustrated_open.content.assets[imported.id].base64 == imported.asset.base64, "expired_auth_preserves_local_project_fake")
+	var commit_document := AuthoringDocument.new(illustrated)
+	var commit_edit := commit_document.content.duplicate(true)
+	commit_edit.rooms[0].name = "Updated service room"
+	commit_document.replace_content(commit_edit, "Rename service room")
+	var github_commit := GithubCommit.new(fake_github)
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "other-head"}}}
+	var request_count := fake_github.requests.size()
+	expect(not (await github_commit.commit(commit_document, "example/diary", "main", "head1", "Rename room")).ok and fake_github.requests.size() == request_count + 1 and commit_document.undo_stack.size() == 1, "remote_head_race_does_not_write_or_clear_undo_fake")
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "head1"}}}
+	fake_github.replies[github_prefix + "/git/blobs"] = {"ok": true, "data": {"sha": "blob1"}}
+	fake_github.replies[github_prefix + "/git/trees"] = {"ok": true, "data": {"sha": "tree2"}}
+	fake_github.replies[github_prefix + "/git/commits"] = {"ok": true, "data": {"sha": "new-head"}}
+	fake_github.replies[github_prefix + "/git/refs/heads/main"] = {"ok": true, "data": {"object": {"sha": "new-head"}}}
+	var committed: Dictionary = await github_commit.commit(commit_document, "example/diary", "main", "head1", "Rename room")
+	expect(committed.ok and commit_document.baseline_head == "new-head" and commit_document.remote_origin.repository == "example/diary" and commit_document.remote_origin.content.rooms[0].name == "Updated service room" and commit_document.undo_stack.is_empty() and fake_github.requests[-1].body.force == false, "explicit_commit_moves_head_without_force_fake")
+	var committed_reopen := AuthoringDocument.new(illustrated)
+	expect(committed_reopen.restore(commit_document.serialize()) and committed_reopen.remote_origin.head == "new-head" and committed_reopen.remote_origin.content.rooms[0].name == "Updated service room", "remote_baseline_survives_authoring_reopen")
+	var committed_paths: Array[String] = []
+	for request in fake_github.requests:
+		if request.method == HTTPClient.METHOD_POST and str(request.path).ends_with("/git/blobs"):
+			committed_paths.append(str(request.body.content))
+	expect(committed_paths.size() == 2 and str(committed_paths).contains("Updated service room") and not str(committed_paths).contains("current_knowledge"), "commit_packages_only_authored_project_fake")
+	var private_scenario := illustrated.duplicate(true)
+	private_scenario.current_knowledge = {"secret": "do not publish"}
+	expect(not GithubProject.package(AuthoringDocument.new(private_scenario)).ok, "private_scenario_metadata_cannot_be_committed")
+	var nested_private_scenario := illustrated.duplicate(true)
+	nested_private_scenario.rooms[0].current_knowledge = {"secret": "do not publish"}
+	expect(not GithubProject.package(AuthoringDocument.new(nested_private_scenario)).ok, "nested_private_metadata_cannot_be_committed")
+	var moving_document := AuthoringDocument.new(illustrated)
+	moving_document.replace_content(commit_edit, "First edit")
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "head1"}}}
+	fake_github.replies[github_prefix + "/git/commits"] = func() -> Dictionary:
+		var later_content := moving_document.content.duplicate(true)
+		later_content.rooms[0].name = "Later edit"
+		moving_document.replace_content(later_content, "Edit while committing")
+		return {"ok": true, "data": {"sha": "orphan-head"}}
+	request_count = fake_github.requests.size()
+	var stale_commit: Dictionary = await github_commit.commit(moving_document, "example/diary", "main", "head1", "First edit")
+	expect(not stale_commit.ok and stale_commit.get("stale_snapshot", false) and moving_document.content.rooms[0].name == "Later edit" and moving_document.undo_stack.size() == 2 and not str(fake_github.requests.slice(request_count)).contains("/git/refs/heads/main"), "in_flight_edit_prevents_stale_branch_update")
+	fake_github.replies[github_prefix + "/git/commits"] = {"ok": true, "data": {"sha": "new-head"}}
+	var late_response_document := AuthoringDocument.new(illustrated)
+	late_response_document.replace_content(commit_edit, "First edit")
+	fake_github.replies[github_prefix + "/git/refs/heads/main"] = func() -> Dictionary:
+		var later_content := late_response_document.content.duplicate(true)
+		later_content.rooms[0].name = "Later edit"
+		late_response_document.replace_content(later_content, "Edit during update")
+		return {"ok": true, "data": {"object": {"sha": "new-head"}}}
+	var late_response: Dictionary = await github_commit.commit(late_response_document, "example/diary", "main", "head1", "First edit")
+	expect(late_response.ok and late_response.later_edits and late_response_document.content.rooms[0].name == "Later edit" and late_response_document.remote_origin.content.rooms[0].name == "Updated service room" and late_response_document.undo_stack.size() == 1 and late_response_document.undo() == "Edit during GitHub commit" and late_response_document.content.rooms[0].name == "Updated service room", "edit_during_branch_update_remains_undoable_draft")
+	fake_github.replies[github_prefix + "/git/refs/heads/main"] = {"ok": true, "data": {"object": {"sha": "new-head"}}}
+	var uncertain_document := AuthoringDocument.new(illustrated)
+	uncertain_document.replace_content(commit_edit, "Rename service room")
+	fake_github.replies[github_prefix + "/branches/main"] = [{"ok": true, "data": {"commit": {"sha": "head1"}}}, {"ok": true, "data": {"commit": {"sha": "new-head"}}}]
+	fake_github.replies[github_prefix + "/git/refs/heads/main"] = {"ok": false, "status": 0, "reason": "GitHub network request failed"}
+	expect((await github_commit.commit(uncertain_document, "example/diary", "main", "head1", "Rename room")).ok and uncertain_document.baseline_head == "new-head", "ambiguous_commit_response_reconciles_head_fake")
+	var invalid_commit_document := AuthoringDocument.new(illustrated)
+	invalid_commit_document.set_source("~ start\ndo invalid_command()\n=> END")
+	request_count = fake_github.requests.size()
+	expect(not (await github_commit.commit(invalid_commit_document, "example/diary", "main", "head1", "Broken source")).ok and fake_github.requests.size() == request_count and invalid_commit_document.source_draft.contains("invalid_command"), "invalid_draft_never_reaches_commit_transport_fake")
+	var merge_local := scenario.duplicate(true)
+	merge_local.version = "merge-local"
+	merge_local.rooms[0].name = "Service office"
+	var merge_remote := scenario.duplicate(true)
+	merge_remote.version = "merge-remote"
+	merge_remote.scenes.notice = "~ start\nAmelia: A notice.\n=> END"
+	var clean_merge := GithubMerge.combine(scenario, merge_local, merge_remote)
+	expect(clean_merge.ok and clean_merge.content.rooms[0].name == "Service office" and clean_merge.content.scenes.has("notice") and Content.validate(clean_merge.content).is_empty(), "independent_authored_changes_merge")
+	var repeated_merge := GithubMerge.combine(scenario, clean_merge.content, merge_remote)
+	expect(repeated_merge.ok and repeated_merge.content == clean_merge.content, "repeat_merge_is_idempotent")
+	var fast_forward := GithubMerge.combine(scenario, scenario, merge_remote)
+	expect(fast_forward.ok and fast_forward.content == merge_remote, "unchanged_local_fast_forwards")
+	var merge_remote_conflict := scenario.duplicate(true)
+	merge_remote_conflict.version = "merge-remote-conflict"
+	merge_remote_conflict.rooms[0].name = "Engine office"
+	var conflicting_merge := GithubMerge.combine(scenario, merge_local, merge_remote_conflict)
+	expect(not conflicting_merge.ok and str(conflicting_merge.conflicts).contains("service") and str(conflicting_merge.conflicts).contains("name"), "same_field_conflict_keeps_both_versions")
+	var semantic_base := scenario.duplicate(true)
+	semantic_base.actors.append({"id": "guard", "room": "service", "x": 120.0, "y": 160.0})
+	var semantic_local := semantic_base.duplicate(true)
+	semantic_local.version = "semantic-local"
+	semantic_local.scenes.guard_notice = "~ start\nGuard: A warning.\n=> END"
+	semantic_local.storylets.append({"id": "guard_notice", "scene": "guard_notice", "room": "service", "required_actors": ["guard"], "start_tick": 0, "end_tick": 100, "required_flags": {}})
+	var semantic_remote := semantic_base.duplicate(true)
+	semantic_remote.version = "semantic-remote"
+	semantic_remote.actors.pop_back()
+	expect(Content.validate(semantic_local).is_empty() and Content.validate(semantic_remote).is_empty() and not GithubMerge.combine(semantic_base, semantic_local, semantic_remote).ok, "semantically_invalid_combination_not_activated")
+	var sync_document := AuthoringDocument.new(scenario)
+	sync_document.checkout_remote("example/diary", "main", "head1", scenario)
+	sync_document.replace_content(merge_local, "Rename room locally")
+	var sync := GithubSync.new(github_repository)
+	fake_github.replies[github_prefix + "/branches/main"] = {"ok": true, "data": {"commit": {"sha": "head1"}}}
+	fake_github.replies[github_prefix + "/git/trees/tree1?recursive=1"] = {"ok": true, "data": {"truncated": false, "tree": [{"path": GithubProject.MANIFEST_PATH, "type": "blob", "sha": "manifest1"}, {"path": GithubProject.SCENARIO_PATH, "type": "blob", "sha": "scenario1"}]}}
+	var undo_before_fetch := sync_document.undo_stack.size()
+	expect((await sync.fetch(sync_document)).ok and sync_document.undo_stack.size() == undo_before_fetch and sync_document.baseline_head == "head1", "fetch_alone_preserves_authoring_history")
+	var fetched_remote := {"ok": true, "repository": "example/diary", "branch": "main", "head": "head2", "content": merge_remote}
+	var integrated := sync.integrate(sync_document, fetched_remote)
+	expect(integrated.ok and integrated.head_changed and integrated.needs_commit and sync_document.content.rooms[0].name == "Service office" and sync_document.content.scenes.has("notice") and sync_document.baseline_head == "head2" and sync_document.undo_stack.is_empty(), "diverged_clean_workspace_integrates_and_moves_baseline")
+	expect(sync.integrate(sync_document, fetched_remote).ok and sync_document.content == integrated.content, "repeat_sync_is_idempotent")
+	var committed_draft := AuthoringDocument.new(scenario)
+	committed_draft.set_source(str(scenario.dialogue).replace("coming soon", "arriving soon"))
+	var committed_package := GithubProject.package(committed_draft)
+	committed_draft.checkout_remote("example/diary", "main", "head2", committed_package.scenario)
+	var committed_repeat := sync.integrate(committed_draft, {"ok": true, "repository": "example/diary", "branch": "main", "head": "head2", "content": committed_package.scenario})
+	expect(committed_package.ok and committed_repeat.ok and not committed_repeat.needs_commit and committed_draft.has_protected_work() and committed_draft.serialize().remote_origin.head == "head2", "committed_draft_is_not_reported_as_uncommitted")
+	var invalid_sync_doc := AuthoringDocument.new(semantic_base)
+	invalid_sync_doc.checkout_remote("example/diary", "main", "head1", semantic_base)
+	invalid_sync_doc.replace_content(semantic_local, "Add guard storylet")
+	var invalid_sync_result := sync.integrate(invalid_sync_doc, {"ok": true, "repository": "example/diary", "branch": "main", "head": "head2", "content": semantic_remote})
+	var invalid_sync_reopened := AuthoringDocument.new(semantic_base)
+	expect(not invalid_sync_result.ok and invalid_sync_doc.baseline_head == "head1" and invalid_sync_doc.content == semantic_local and not invalid_sync_doc.scenario_error.is_empty() and invalid_sync_reopened.restore(invalid_sync_doc.serialize()) and not invalid_sync_reopened.validate().is_empty() and not GithubProject.package(invalid_sync_reopened).ok, "invalid_combination_is_preserved_for_repair_and_blocks_commit")
+	var asset_base := scenario.duplicate(true)
+	asset_base.assets[imported.id] = imported.asset
+	var asset_local := asset_base.duplicate(true)
+	asset_local.version = "asset-local"
+	asset_local.rooms[0].background_asset = imported.id
+	var asset_remote := asset_base.duplicate(true)
+	asset_remote.version = "asset-remote"
+	asset_remote.assets.erase(imported.id)
+	expect(Content.validate(asset_local).is_empty() and Content.validate(asset_remote).is_empty() and not GithubMerge.combine(asset_base, asset_local, asset_remote).ok, "asset_deletion_and_incoming_reference_rejected")
+	var independent_asset_remote := scenario.duplicate(true)
+	independent_asset_remote.version = "asset-added"
+	independent_asset_remote.assets[imported.id] = imported.asset
+	independent_asset_remote.rooms[0].background_asset = imported.id
+	var asset_merge := GithubMerge.combine(scenario, merge_local, independent_asset_remote)
+	expect(asset_merge.ok and asset_merge.content.rooms[0].name == "Service office" and asset_merge.content.assets[imported.id].base64 == imported.asset.base64, "independent_background_asset_integrates")
+	var alternate_image := Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	alternate_image.fill(Color.RED)
+	var red_asset := ProjectAssets.import_image("red.png", alternate_image.save_png_to_buffer())
+	alternate_image.fill(Color.BLUE)
+	var blue_asset := ProjectAssets.import_image("blue.png", alternate_image.save_png_to_buffer())
+	var asset_conflict_base := scenario.duplicate(true)
+	asset_conflict_base.assets.shared = imported.asset
+	var asset_conflict_local := asset_conflict_base.duplicate(true)
+	asset_conflict_local.version = "red-asset"
+	asset_conflict_local.assets.shared = red_asset.asset
+	var asset_conflict_remote := asset_conflict_base.duplicate(true)
+	asset_conflict_remote.version = "blue-asset"
+	asset_conflict_remote.assets.shared = blue_asset.asset
+	expect(Content.validate(asset_conflict_local).is_empty() and Content.validate(asset_conflict_remote).is_empty() and str(GithubMerge.combine(asset_conflict_base, asset_conflict_local, asset_conflict_remote).conflicts).contains("assets.shared"), "concurrent_asset_replacements_conflict")
+	var conflict_document := AuthoringDocument.new(scenario)
+	conflict_document.checkout_remote("example/diary", "main", "head1", scenario)
+	conflict_document.replace_content(merge_local, "Rename service room locally")
+	var conflict_writer := GithubConflict.new(fake_github)
+	var valid_premerge_package := GithubProject.package(AuthoringDocument.new(invalid_sync_doc.pending_conflict_local))
+	var invalid_merge_branch := "diary-conflict/" + JSON.stringify(valid_premerge_package.files).sha256_text().substr(0, 16)
+	fake_github.replies[github_prefix + "/git/ref/heads/" + invalid_merge_branch.uri_encode()] = {"ok": false, "status": 404, "reason": "Not found"}
+	fake_github.replies[github_prefix + "/git/refs"] = {"ok": true, "data": {"ref": "refs/heads/" + invalid_merge_branch}}
+	var preserved_invalid_merge: Dictionary = await conflict_writer.preserve(invalid_sync_doc)
+	expect(preserved_invalid_merge.ok and preserved_invalid_merge.branch == invalid_merge_branch and not invalid_sync_doc.scenario_error.is_empty() and invalid_sync_doc.baseline_head == "head1" and invalid_sync_doc.conflict_handoff.branch == invalid_merge_branch, "invalid_combination_preserves_last_valid_local_project_on_conflict_branch")
+	var conflict_package := GithubProject.package(conflict_document)
+	var conflict_branch := "diary-conflict/" + JSON.stringify(conflict_package.files).sha256_text().substr(0, 16)
+	var conflict_ref_path := github_prefix + "/git/ref/heads/" + conflict_branch.uri_encode()
+	fake_github.replies[conflict_ref_path] = {"ok": false, "status": 404, "reason": "Not found"}
+	fake_github.replies[github_prefix + "/git/refs"] = {"ok": true, "data": {"ref": "refs/heads/" + conflict_branch}}
+	var handoff: Dictionary = await conflict_writer.preserve(conflict_document)
+	expect(handoff.ok and handoff.branch == conflict_branch and conflict_document.conflict_handoff.branch == conflict_branch and conflict_document.baseline_head == "head1" and conflict_document.content.rooms[0].name == "Service office", "valid_local_conflict_preserved_without_touching_shared_head")
+	var conflict_reopened := AuthoringDocument.new(scenario)
+	expect(conflict_reopened.restore(conflict_document.serialize()) and conflict_reopened.conflict_handoff.branch == conflict_branch, "conflict_handoff_survives_restart")
+	fake_github.replies[conflict_ref_path] = {"ok": true, "data": {"object": {"sha": "new-head"}}}
+	fake_github.replies[github_prefix + "/branches/" + conflict_branch.uri_encode()] = {"ok": true, "data": {"commit": {"sha": "new-head"}}}
+	fake_github.replies[github_prefix + "/git/commits/new-head"] = {"ok": true, "data": {"tree": {"sha": "tree2"}}}
+	fake_github.replies[github_prefix + "/git/trees/tree2?recursive=1"] = {"ok": true, "data": {"truncated": false, "tree": [{"path": GithubProject.MANIFEST_PATH, "type": "blob", "sha": "conflict-manifest"}, {"path": GithubProject.SCENARIO_PATH, "type": "blob", "sha": "conflict-scenario"}]}}
+	fake_github.replies[github_prefix + "/git/blobs/conflict-manifest"] = {"ok": true, "data": {"encoding": "base64", "content": Marshalls.utf8_to_base64(conflict_package.files[GithubProject.MANIFEST_PATH])}}
+	fake_github.replies[github_prefix + "/git/blobs/conflict-scenario"] = {"ok": true, "data": {"encoding": "base64", "content": Marshalls.utf8_to_base64(conflict_package.files[GithubProject.SCENARIO_PATH])}}
+	request_count = fake_github.requests.size()
+	expect((await conflict_writer.preserve(conflict_reopened)).ok and fake_github.requests.size() > request_count and fake_github.requests[-1].method == HTTPClient.METHOD_GET, "conflict_retry_recovers_existing_branch_without_duplicate_commit")
+	var invalid_conflict_document := AuthoringDocument.new(scenario)
+	invalid_conflict_document.checkout_remote("example/diary", "main", "head1", scenario)
+	invalid_conflict_document.set_source("~ start\ndo invalid_command()\n=> END")
+	request_count = fake_github.requests.size()
+	expect(not (await conflict_writer.preserve(invalid_conflict_document)).ok and fake_github.requests.size() == request_count, "invalid_local_draft_cannot_create_conflict_branch")
+	var resolved_remote := merge_local.duplicate(true)
+	resolved_remote.version = "resolved-head"
+	resolved_remote.scenes.notice = merge_remote.scenes.notice
+	var resolved_result := sync.integrate(conflict_document, {"ok": true, "repository": "example/diary", "branch": "main", "head": "resolved-head", "content": resolved_remote})
+	expect(resolved_result.ok and conflict_document.conflict_handoff.is_empty() and conflict_document.baseline_head == "resolved-head", "resolved_remote_head_clears_conflict_handoff")
+	illustrated.assets.erase(imported.id)
+	expect(not Content.validate(illustrated).is_empty(), "missing_background_asset_rejected")
+	var bad_geometry := scenario.duplicate(true)
+	bad_geometry.rooms[0].walkable = [[0, 0, 200, 280]]
+	expect(not Content.validate(bad_geometry).is_empty(), "unreachable_geometry_reference_rejected")
+	expect(RoomGeometry.contains(scenario.rooms[0], Vector2(80, 160)) and not RoomGeometry.contains(scenario.rooms[0], Vector2(450, 160)), "walkable_coordinate_mapping")
+	var shaped_room := {"id": "shaped", "bounds": [0, 0, 100, 100], "walkable": [[0, 0, 40, 100], [40, 60, 60, 40]]}
+	expect(RoomGeometry.validate(shaped_room).is_empty(), "shaped_room_valid")
+	expect(RoomGeometry.move(shaped_room, Vector2(35, 20), Vector2(10, 0)) == Vector2(35, 20), "movement_stops_at_authored_boundary")
+	var narrow_gap := {"bounds": [0, 0, 100, 100], "walkable": [[0, 0, 40, 100], [41, 0, 59, 100]]}
+	expect(RoomGeometry.move(narrow_gap, Vector2(40, 50), Vector2(2, 0)) == Vector2(40, 50), "movement_cannot_jump_narrow_gap")
+	expect(RoomGeometry.path(shaped_room, Vector2(20, 20), Vector2(80, 80)).size() == 2, "npc_route_uses_overlapping_regions")
+	var path_position := Vector2(20, 20)
+	for i in range(100): path_position = RoomGeometry.step_toward(shaped_room, path_position, Vector2(80, 80), 4.0)
+	expect(path_position.distance_to(Vector2(80, 80)) < 0.01, "npc_step_reaches_target_through_authored_geometry")
+	var authored_layout := scenario.duplicate(true)
+	authored_layout.rooms[0].walkable = [[0, 0, 220, 280], [220, 190, 220, 90], [300, 0, 140, 190]]
+	authored_layout.commitments[1].at_tick = 200
+	expect(Content.validate(authored_layout).is_empty(), "authored_navigation_layout_valid")
+	var constrained_run := Simulation.new(authored_layout)
+	for i in range(70): constrained_run.tick({"x": 1.0})
+	expect(float(constrained_run.state.actors.amelia.x) <= 220.01 and constrained_run.state.actors.amelia.room == "service", "player_cannot_cross_unwalkable_gap")
+	for i in range(110): constrained_run.tick()
+	expect(constrained_run.state.actors.chatterbox.room == "corridor", "npc_routes_around_authored_gap")
+	var occupied_run := Simulation.new(scenario)
+	for i in range(30): occupied_run.tick({"x": 1.0})
+	var removed_ground := scenario.duplicate(true)
+	removed_ground.version = "removed-ground"
+	removed_ground.rooms[0].walkable = [[0, 0, 180, 280], [180, 220, 260, 60], [300, 0, 140, 220]]
+	expect(Content.validate(removed_ground).is_empty(), "removed_ground_statically_valid")
+	var occupied_history := occupied_run.history.duplicate(true)
+	var occupied_result := occupied_run.continue_with_content(removed_ground)
+	expect(not occupied_result.ok and occupied_result.restart and str(occupied_result.reason).contains("amelia") and occupied_run.history == occupied_history, "resume_rejects_ground_removed_under_actor")
+	var inaccessible_valve := scenario.duplicate(true)
+	inaccessible_valve.rooms[0].walkable = [[0, 0, 180, 280], [300, 0, 140, 280]]
+	expect("Interaction valve is unreachable from Amelia through authored walkable regions and room connections" in Content.validate(inaccessible_valve), "unreachable_interaction_blocks_resume")
+	var display := Harness.new()
+	display.simulation = Simulation.new(scenario)
+	display.session = AuthoringSession.new(display.simulation)
+	display.document = display.session.document
+	display.session.pause()
+	var changed_display := display.document.content.duplicate(true)
+	changed_display.rooms[0].bounds = [10, 20, 220, 140]
+	display.document.replace_content(changed_display, "Resize room")
+	expect(display._canvas_point(Vector2(460, 160)) == Vector2(120, 90) and display._world_to_canvas(changed_display.rooms[0], Vector2(120, 90)) == Vector2(460, 160), "authored_room_coordinate_mapping")
+	display.session.view_tick(0)
+	expect(display._shown_content(display.session.inspect()) == scenario, "historical_view_uses_recorded_content")
+	display.session.return_live()
+	expect(display._shown_content(display.session.inspect()) == changed_display, "paused_live_view_previews_draft")
+	display.free()
+	var placement := Harness.new()
+	placement.simulation = Simulation.new(scenario)
+	placement.session = AuthoringSession.new(placement.simulation)
+	placement.document = placement.session.document
+	placement.session.pause()
+	placement.status_label = Label.new()
+	placement.interaction_label_edit = LineEdit.new()
+	placement.interaction_label_edit.text = "Close test valve"
+	placement.interaction_duration_edit = SpinBox.new()
+	placement.interaction_duration_edit.min_value = 1
+	placement.interaction_duration_edit.value = 5
+	placement.interaction_effect_edit = OptionButton.new()
+	placement.interaction_effect_edit.add_item("Close valve")
+	placement.interaction_effect_edit.add_item("Delay guest")
+	placement.interaction_effect_edit.select(0)
+	placement.interaction_effect_ticks_edit = SpinBox.new()
+	placement.interaction_effect_ticks_edit.value = 60
+	placement.geometry_mode = "door_start"
+	var place_click := InputEventMouseButton.new()
+	place_click.button_index = MOUSE_BUTTON_LEFT
+	place_click.pressed = true
+	place_click.position = Vector2(780, 180)
+	placement._on_canvas_input(place_click)
+	placement.inspected_room = "corridor"
+	place_click.position = Vector2(100, 180)
+	placement._on_canvas_input(place_click)
+	expect(placement.document.content.connections.size() == 2 and placement.document.content.connections[1].from_x == 380.0, "door_endpoints_created_visually")
+	placement._move_nearest_door(Vector2(60, 160))
+	expect(placement.document.content.connections[1].to_x == 60.0 and placement.document.undo() == "Move service_corridor_2 door in corridor" and placement.document.redo() == "Move service_corridor_2 door in corridor", "door_endpoint_move_transaction")
+	placement._place_interaction(Vector2(240, 160))
+	expect(placement.document.content.interactions[0].room == "corridor" and placement.document.content.interactions[0].duration_ticks == 5, "timed_interaction_placed_visually")
+	expect(placement.document.undo() == "Place valve interaction in corridor" and placement.document.undo() == "Move service_corridor_2 door in corridor" and placement.document.undo() == "Connect service to corridor", "door_and_prop_undo_chronological")
+	expect(placement.document.redo() == "Connect service to corridor" and placement.document.redo() == "Move service_corridor_2 door in corridor" and placement.document.redo() == "Place valve interaction in corridor", "door_and_prop_redo_chronological")
+	placement._remove_nearest_door(Vector2(20, 160))
+	expect(placement.document.content.connections.size() == 1 and placement.document.content.connections[0].id == "service_corridor_2" and placement.document.undo() == "Remove door service_corridor" and placement.document.redo() == "Remove door service_corridor", "visual_door_removal_replaces_old_route")
+	var placed_run := Simulation.new(scenario)
+	expect(placement.document.apply_to(placed_run).ok, "placed_door_and_interaction_apply")
+	var start_x: float = float(placed_run.state.actors.amelia.x)
+	placed_run.tick({"start_interaction": "valve"})
+	expect(placed_run.state.actors.amelia.x == start_x and placed_run.state.action.is_empty(), "distant_choice_does_not_auto_walk")
+	for i in range(75): placed_run.tick({"x": 1.0})
+	expect(placed_run.state.actors.amelia.room == "corridor", "amelia_uses_authored_door")
+	expect(placed_run.state.actors.chatterbox.room == "corridor", "npc_uses_authored_door")
+	for i in range(45): placed_run.tick({"x": 1.0})
+	placed_run.tick({"start_interaction": "valve"})
+	for i in range(5): placed_run.tick()
+	expect(placed_run.state.flags.get("close_valve", false), "authored_timed_interaction_completes")
+	placement.inspected_room = "service"
+	placement.interaction_effect_edit.select(1)
+	placement.interaction_effect_ticks_edit.value = 70
+	placement.interaction_duration_edit.value = 3
+	placement.interaction_label_edit.text = "Signal the guest"
+	placement._place_interaction(Vector2(80, 160))
+	var signal_run := Simulation.new(scenario)
+	expect(placement.document.apply_to(signal_run).ok, "configured_guest_delay_interaction_applies")
+	signal_run.tick({"start_interaction": "guest_signal"})
+	for i in range(3): signal_run.tick()
+	expect(signal_run.state.flags.get("guest_delay_ticks", 0) == 70 and signal_run.state.completed_interactions.has("guest_signal"), "configured_interaction_effect_executes_once")
+	var signal_path := "res://build/signal-interaction-%d.jsonl" % OS.get_process_id()
+	signal_run.attach_journal(signal_path)
+	expect(signal_run.persist().ok, "configured_interaction_effect_saved")
+	var signal_reloaded := Simulation.new(scenario)
+	signal_reloaded.attach_journal(signal_path)
+	expect(signal_reloaded.load_saved().ok and signal_reloaded.state.completed_interactions.has("guest_signal") and signal_reloaded.state.flags.guest_delay_ticks == 70, "configured_interaction_effect_reloaded")
+	var left_door := scenario.duplicate(true)
+	left_door.connections[0].from_x = 50.0
+	var left_run := Simulation.new(left_door)
+	left_run.tick({"x": 1.0})
+	expect(left_run.state.actors.amelia.room == "service", "door_does_not_trigger_away_from_endpoint")
+	for i in range(9): left_run.tick({"x": -1.0})
+	expect(left_run.state.actors.amelia.room == "corridor", "leftward_authored_door_crossing")
+	var top_door := scenario.duplicate(true)
+	top_door.connections[0].from_x = 80.0
+	top_door.connections[0].from_y = 0.0
+	var top_run := Simulation.new(top_door)
+	for i in range(40): top_run.tick({"y": -1.0})
+	expect(top_run.state.actors.amelia.room == "corridor", "vertical_authored_door_crossing")
+	var off_grid_door := scenario.duplicate(true)
+	off_grid_door.connections[0].from_x = 381.0
+	off_grid_door.connections[0].from_y = 161.0
+	var off_grid_run := Simulation.new(off_grid_door)
+	for i in range(76): off_grid_run.tick({"x": 1.0})
+	expect(off_grid_run.state.actors.amelia.room == "corridor", "off_grid_door_has_usable_visual_radius")
+	var conditional_door := scenario.duplicate(true)
+	conditional_door.connections[0].requires_flag = "close_valve"
+	expect(Content.validate(conditional_door).is_empty(), "intentional_conditional_access_validates")
+	var conditional_run := Simulation.new(conditional_door)
+	for i in range(90): conditional_run.tick({"x": 1.0})
+	expect(conditional_run.state.actors.amelia.room == "service", "conditional_door_blocks_without_flag")
+	conditional_run.state.flags.close_valve = true
+	for i in range(5): conditional_run.tick({"x": -1.0})
+	expect(conditional_run.state.actors.amelia.room == "corridor", "conditional_door_opens_after_flag")
+	var separated_choice := scenario.duplicate(true)
+	separated_choice.rooms[0].walkable = [[0, 0, 100, 280], [110, 0, 330, 280], [100, 220, 10, 60]]
+	separated_choice.interactions[0].x = 120.0
+	expect(Content.validate(separated_choice).is_empty() and Simulation.new(separated_choice).available_interactions().is_empty(), "interaction_not_local_through_unwalkable_wall")
+	placement.free()
+	var room_document := AuthoringDocument.new(scenario)
+	room_document.set_source("~ start\ndo broken(\n=> END")
+	var room_change := room_document.content.duplicate(true)
+	room_change.rooms.append({"id": "gallery", "name": "Gallery", "bounds": [0, 0, 100, 100], "walkable": [[0, 0, 100, 100]]})
+	room_document.replace_content(room_change, "Create gallery")
+	expect(room_document.source_draft.contains("broken("), "geometry_edit_preserves_invalid_source_draft")
+	expect(room_document.undo() == "Create gallery" and room_document.content.rooms.size() == 2, "shared_undo_reverses_room_edit")
+	expect(room_document.undo() == "Edit scene source" and room_document.source_draft == scenario.dialogue, "shared_undo_reverses_prior_source_edit")
+	expect(room_document.redo() == "Edit scene source" and room_document.redo() == "Create gallery", "shared_redo_chronological_order")
+	room_document.set_source(scenario.dialogue)
+	expect(room_document.apply_to(Simulation.new(scenario)).ok and room_document.content.version != scenario.version, "geometry_document_applies_new_version")
+	var authoring_snapshot := room_document.serialize()
+	var reopened_document := AuthoringDocument.new(scenario)
+	expect(reopened_document.restore(authoring_snapshot) and reopened_document.content == room_document.content and reopened_document.undo_stack.size() == room_document.undo_stack.size(), "authoring_document_restores_transactions")
+	var draft_before_head := reopened_document.source_draft
+	var undo_before_same_head := reopened_document.undo_stack.size()
+	reopened_document.change_head("local")
+	expect(reopened_document.undo_stack.size() == undo_before_same_head, "unchanged_head_retains_authoring_history")
+	reopened_document.change_head("remote-main-2")
+	expect(reopened_document.undo_stack.is_empty() and reopened_document.redo_stack.is_empty() and reopened_document.source_draft == draft_before_head, "head_change_clears_history_preserves_draft")
+	var separate_run := Simulation.new(scenario)
+	var separate_session := AuthoringSession.new(separate_run)
+	separate_session.pause()
+	var separate_change := separate_session.document.content.duplicate(true)
+	separate_change.rooms.append({"id": "attic", "name": "Attic", "bounds": [0, 0, 100, 100], "walkable": [[0, 0, 100, 100]]})
+	separate_session.document.replace_content(separate_change, "Create attic")
+	var run_before_undo := separate_run.history.duplicate(true)
+	expect(separate_session.document.undo() == "Create attic" and separate_run.history == run_before_undo, "authoring_undo_does_not_rewind_run")
+	separate_session.document.redo()
+	separate_session.view_tick(0)
+	separate_session.return_live()
+	separate_run.reset_loop()
+	expect(separate_session.document.content.rooms.size() == 3 and separate_session.document.undo_stack.size() == 1 and separate_session.document.undo_stack[0].label == "Create attic", "scrub_and_reset_keep_authoring_journal")
+	var stale_document := AuthoringDocument.new(scenario)
+	stale_document.replace_content(separate_change, "Create attic")
+	var newer_run := Simulation.new(scenario)
+	var newer_content := scenario.duplicate(true)
+	newer_content.version = "newer-run-content"
+	newer_content.dialogue = str(newer_content.dialogue).replace("coming soon", "arriving now")
+	expect(newer_run.continue_with_content(newer_content).ok, "newer_runtime_content_saved")
+	var recovered_document := AuthoringDocument.new(scenario)
+	expect(recovered_document.restore(stale_document.serialize()) and recovered_document.reconcile_runtime(newer_run.content) and recovered_document.recovery_conflict and recovered_document.undo_stack.is_empty() and recovered_document.content.rooms.size() == 3, "stale_authoring_draft_protected_on_reopen")
+	var twice_reopened := AuthoringDocument.new(scenario)
+	expect(twice_reopened.restore(recovered_document.serialize()) and not twice_reopened.reconcile_runtime(newer_run.content) and twice_reopened.recovery_conflict, "recovered_draft_conflict_survives_second_reopen")
+	var newer_history := newer_run.history.duplicate(true)
+	expect(not recovered_document.apply_to(newer_run).ok and newer_run.history == newer_history and newer_run.content == newer_content, "stale_draft_cannot_silently_replace_newer_run")
+	recovered_document.allow_recovered_draft()
+	expect(recovered_document.apply_to(newer_run).ok and newer_run.content.rooms.size() == 3 and newer_run.content.dialogue == scenario.dialogue, "reviewed_recovered_draft_can_be_applied_explicitly")
+	var packaged := GithubProject.package(recovered_document)
+	var opened_package := GithubProject.open_files(packaged.files)
+	expect(packaged.ok and opened_package.ok and opened_package.content.version == recovered_document.candidate().version and opened_package.content.rooms.size() == recovered_document.content.rooms.size(), "repository_project_manifest_round_trip")
+	expect(not GithubProject.open_files({"README.md": "hello"}).ok, "arbitrary_repository_not_interpreted_as_project")
+	var malformed_package: Dictionary = packaged.files.duplicate(true)
+	malformed_package[GithubProject.SCENARIO_PATH] = "{broken"
+	expect(not GithubProject.open_files(malformed_package).ok, "invalid_repository_scenario_rejected")
+	var invalid_project_document := AuthoringDocument.new(scenario)
+	invalid_project_document.set_source("~ start\ndo unknown_world_effect()\n=> END")
+	expect(not GithubProject.package(invalid_project_document).ok and invalid_project_document.source_draft.contains("unknown_world_effect"), "invalid_local_draft_blocked_from_project_package")
+	var schedule_ui := Harness.new()
+	schedule_ui.simulation = Simulation.new(scenario)
+	schedule_ui.session = AuthoringSession.new(schedule_ui.simulation)
+	schedule_ui.document = schedule_ui.session.document
+	schedule_ui.session.pause()
+	schedule_ui.status_label = Label.new()
+	schedule_ui.source_editor = CodeEdit.new()
+	schedule_ui.source_editor.text = schedule_ui.document.source_draft
+	schedule_ui.scenario_source_editor = CodeEdit.new()
+	schedule_ui.actor_id_edit = LineEdit.new()
+	schedule_ui.actor_id_edit.text = "porter"
+	schedule_ui.actor_sprite_edit = OptionButton.new()
+	for sprite_id in ["player", "rake", "glamorous", "ex_army", "matron"]:
+		schedule_ui.actor_sprite_edit.add_item(sprite_id)
+	schedule_ui.actor_sprite_edit.select(2)
+	schedule_ui._place_actor(Vector2(100, 100))
+	expect(schedule_ui.document.content.actors.size() == 4 and schedule_ui.document.content.actors[-1].sprite == "glamorous", "actor_created_in_visual_view")
+	schedule_ui.inspected_room = "corridor"
+	schedule_ui.commitment_id_edit = LineEdit.new()
+	schedule_ui.commitment_id_edit.text = "porter_cross"
+	schedule_ui.commitment_speed_edit = SpinBox.new()
+	schedule_ui.commitment_speed_edit.value = 6
+	schedule_ui.schedule_timeline = HSlider.new()
+	schedule_ui.schedule_timeline.min_value = 1
+	schedule_ui.schedule_timeline.max_value = Simulation.LEG_TICKS
+	schedule_ui.schedule_timeline.value = 5
+	schedule_ui._place_commitment(Vector2(300, 100))
+	expect(schedule_ui.document.content.commitments[-1].actor == "porter" and schedule_ui.document.content.commitments[-1].at_tick == 5, "commitment_created_in_visual_view")
+	schedule_ui._move_commitment_on_timeline("porter_cross", 10)
+	expect(schedule_ui.document.content.commitments[-1].at_tick == 10, "timeline_drag_updates_shared_document")
+	var source_schedule := schedule_ui.document.content.duplicate(true)
+	source_schedule.commitments[-1].speed = 8.0
+	source_schedule.dialogue = str(source_schedule.dialogue).replace("coming soon", "arriving soon")
+	schedule_ui.document.set_scenario_source(JSON.stringify(source_schedule, "\t"))
+	schedule_ui._sync_scenario_source()
+	expect(schedule_ui.document.content.commitments[-1].speed == 8.0 and schedule_ui.source_editor.text.contains("arriving soon"), "scenario_source_updates_visual_and_dialogue_views")
+	schedule_ui.document.finish_scenario_group()
+	var valid_schedule := schedule_ui.document.content.duplicate(true)
+	schedule_ui.document.set_scenario_source("{broken")
+	var schedule_run := Simulation.new(scenario)
+	var prior_schedule_history := schedule_run.history.duplicate(true)
+	expect(not schedule_ui.document.apply_to(schedule_run).ok and schedule_run.history == prior_schedule_history and schedule_ui.document.content == valid_schedule, "invalid_schedule_source_preserves_applied_run")
+	var draft_reopen := AuthoringDocument.new(scenario)
+	expect(draft_reopen.restore(schedule_ui.document.serialize()) and draft_reopen.scenario_draft == "{broken" and not draft_reopen.scenario_error.is_empty(), "invalid_schedule_source_survives_reopen")
+	expect(schedule_ui.document.undo() == "Edit scenario source" and schedule_ui.document.scenario_error.is_empty(), "invalid_schedule_source_undo")
+	expect(schedule_ui.document.undo() == "Edit scenario source" and schedule_ui.document.content.commitments[-1].speed == 6.0, "valid_source_edit_undo")
+	expect(schedule_ui.document.undo() == "Move porter_cross to tick 10" and schedule_ui.document.content.commitments[-1].at_tick == 5, "timeline_drag_undo")
+	expect(schedule_ui.document.undo() == "Schedule porter_cross at tick 5" and schedule_ui.document.content.commitments.size() == 3, "commitment_form_undo")
+	expect(schedule_ui.document.undo() == "Place actor porter" and schedule_ui.document.content.actors.size() == 3, "actor_form_undo")
+	for i in range(5): schedule_ui.document.redo()
+	expect(schedule_ui.document.scenario_draft == "{broken", "mixed_schedule_redo_chronological")
+	schedule_ui.document.undo()
+	expect(schedule_ui.document.apply_to(schedule_run).ok and schedule_run.state.actors.has("porter"), "new_actor_applies_at_leg_start")
+	for i in range(145): schedule_run.tick()
+	expect(schedule_run.state.actors.porter.room == "corridor" and absf(float(schedule_run.state.actors.porter.x) - 300.0) < 0.01, "authored_npc_schedule_runs_across_rooms")
+	var porter_path := "res://build/porter-schedule-%d.jsonl" % OS.get_process_id()
+	schedule_run.attach_journal(porter_path)
+	expect(schedule_run.persist().ok, "authored_npc_schedule_saved")
+	var porter_reopened := Simulation.new(scenario)
+	porter_reopened.attach_journal(porter_path)
+	expect(porter_reopened.load_saved().ok and porter_reopened.state.actors.porter == schedule_run.state.actors.porter and porter_reopened.history.size() == schedule_run.history.size(), "authored_npc_schedule_reloaded_with_history")
+	var late_roster := schedule_run.content.duplicate(true)
+	late_roster.version = "late-roster"
+	late_roster.actors.append({"id": "runner", "room": "service", "x": 80.0, "y": 100.0})
+	var late_history := schedule_run.history.duplicate(true)
+	expect(schedule_run.continue_with_content(late_roster).restart and schedule_run.history == late_history, "active_roster_edit_requires_restart_without_history_loss")
+	var late_position := schedule_run.content.duplicate(true)
+	late_position.version = "late-position"
+	late_position.actors[-1].x = 110.0
+	expect(schedule_run.continue_with_content(late_position).restart and schedule_run.history == late_history, "active_actor_definition_edit_requires_restart")
+	var travelling_porter := Simulation.new(schedule_run.content)
+	for i in range(20): travelling_porter.tick()
+	var retargeted_porter := travelling_porter.content.duplicate(true)
+	retargeted_porter.version = "retargeted-porter"
+	retargeted_porter.commitments[-1].x = 260.0
+	var travelling_history := travelling_porter.history.duplicate(true)
+	expect(travelling_porter.continue_with_content(retargeted_porter).restart and travelling_porter.history == travelling_history and travelling_porter.state.actors.porter.destination == "porter_cross", "active_commitment_edit_requires_restart")
+	var conflicting_schedule := schedule_run.content.duplicate(true)
+	conflicting_schedule.commitments.append({"id": "porter_conflict", "actor": "porter", "at_tick": 10, "room": "corridor", "x": 300.0, "y": 100.0, "speed": 4.0})
+	expect("; ".join(Content.validate(conflicting_schedule)).contains("Actor porter has two commitments at tick"), "same_tick_schedule_conflict_explained")
+	var preempted_schedule := schedule_run.content.duplicate(true)
+	preempted_schedule.commitments.append({"id": "porter_followup", "actor": "porter", "at_tick": 11, "room": "service", "x": 100.0, "y": 100.0, "speed": 4.0})
+	expect(Content.validate(preempted_schedule).is_empty() and str(Content.schedule_warnings(preempted_schedule)).contains("porter_followup") and str(Content.schedule_warnings(preempted_schedule)).contains("preempt"), "nearby_schedule_preemption_explained")
+	var fractional_schedule := schedule_run.content.duplicate(true)
+	fractional_schedule.commitments[-1].at_tick = 10.5
+	expect("; ".join(Content.validate(fractional_schedule)).contains("invalid timing or speed"), "fractional_schedule_tick_rejected")
+	schedule_ui.free()
+	var story_scenario := scenario.duplicate(true)
+	story_scenario.actors.append({"id": "guard", "room": "service", "x": 330.0, "y": 160.0, "sprite": "ex_army"})
+	story_scenario.scenes.signal_scene = "~ start\nGuard: The signal is set.\ndo delay_guest(25)\nAmelia: Then we wait.\n=> END"
+	story_scenario.storylets.append({"id": "signal", "scene": "signal_scene", "label": "Signal the guest", "room": "service", "required_actors": ["guard"], "start_tick": 75, "end_tick": 150, "required_flags": {"close_valve": true}, "priority": 10})
+	expect(Content.validate(story_scenario).is_empty(), "conditioned_storylet_valid")
+	var story_run := Simulation.new(story_scenario)
+	var diagnostic_run := Simulation.new(story_scenario)
+	var blocked_record := diagnostic_run.inspect_at(0)
+	expect(blocked_record.diagnostics.storylets.signal.status == "blocked" and not blocked_record.diagnostics.storylets.signal.conditions[0].met and not blocked_record.diagnostics.storylets.signal.conditions[3].met, "recorded_storylet_conditions_explain_block")
+	expect(Inspector.describe(blocked_record, "service").contains("signal") and Inspector.describe(blocked_record, "service").contains("× time") and not Inspector.describe(blocked_record, "corridor").contains("Signal the guest"), "room_inspector_reads_recorded_conditions")
+	for i in range(48): story_run.tick({"x": 1.0})
+	expect(not str(story_run.available_storylets()).contains("signal_scene"), "storylet_blocked_before_time_and_world_condition")
+	story_run.tick({"start_interaction": "valve"})
+	for i in range(30): story_run.tick()
+	expect(story_run.state.flags.close_valve and story_run.available_storylets().size() == 1 and story_run.available_storylets()[0].id == "signal", "storylet_eligible_after_character_time_and_flag")
+	for i in range(48): diagnostic_run.tick({"x": 1.0})
+	diagnostic_run.tick({"start_interaction": "valve"})
+	for i in range(30): diagnostic_run.tick()
+	var eligible_record := diagnostic_run.inspect()
+	expect(eligible_record.diagnostics.storylets.signal.status == "eligible" and Inspector.describe(eligible_record, "service").contains("✓ flag:close_valve"), "recorded_storylet_conditions_explain_eligibility")
+	var diagnostic_session := AuthoringSession.new(diagnostic_run)
+	diagnostic_session.pause()
+	diagnostic_session.view_tick(0)
+	var recorded_text := Inspector.describe(diagnostic_session.inspect(), "service")
+	var revised_story := diagnostic_session.document.content.duplicate(true)
+	revised_story.version = "diagnostic-revision"
+	revised_story.storylets[0].start_tick = 0
+	revised_story.storylets[0].required_flags = {}
+	diagnostic_session.document.replace_content(revised_story, "Revise storylet conditions")
+	expect(Inspector.describe(diagnostic_session.inspect(), "service") == recorded_text and diagnostic_run.inspect_at(0) == blocked_record, "draft_change_cannot_rewrite_recorded_diagnostics")
+	diagnostic_session.return_live()
+	expect(diagnostic_session.step_next_event().ok and diagnostic_session.paused and diagnostic_run.state.tick > int(eligible_record.tick), "next_event_steps_without_resuming_play")
+	diagnostic_session.view_tick(int(eligible_record.tick))
+	var future_record := diagnostic_run.inspect()
+	expect(diagnostic_session.resume(true).ok and diagnostic_run.history.size() == int(eligible_record.tick) + 1 and diagnostic_run.inspect_at(0) == blocked_record and diagnostic_run.state.content_version != story_scenario.version, "valid_historical_resume_keeps_prior_diagnostics")
+	diagnostic_run.tick()
+	expect(diagnostic_run.state.diagnostics.content_version == diagnostic_run.state.content_version and diagnostic_run.inspect_at(0) == blocked_record and future_record.tick > diagnostic_run.state.tick, "new_diagnostics_use_new_content_version_after_branch")
+	var priority_story := story_scenario.duplicate(true)
+	priority_story.scenes.other_scene = "~ start\nGuard: Another lead.\n=> END"
+	var lower_priority: Dictionary = priority_story.storylets[0].duplicate(true)
+	lower_priority.id = "other"
+	lower_priority.scene = "other_scene"
+	lower_priority.priority = 5
+	priority_story.storylets.append(lower_priority)
+	var priority_compiled: Dictionary = Scenario.compile(priority_story)
+	expect(priority_compiled.ok and priority_compiled.scenario.available_storylets(story_run.inspect())[0].id == "signal", "eligible_storylet_order_deterministic")
+	story_run.tick({"start_dialogue": "signal"})
+	expect(story_run.state.dialogue.scene_id == "signal_scene" and str(story_run.state.dialogue.line).begins_with("Guard:"), "authored_scene_selected_deterministically")
+	var renamed_active_storylet := story_run.content.duplicate(true)
+	renamed_active_storylet.version = "renamed-active-storylet"
+	renamed_active_storylet.storylets[0].id = "signal_renamed"
+	var active_story_history := story_run.history.duplicate(true)
+	expect(story_run.continue_with_content(renamed_active_storylet).restart and story_run.history == active_story_history, "active_storylet_identity_change_rejected")
+	story_run.tick({"advance_dialogue": true})
+	for i in range(3): story_run.tick()
+	var story_path := "res://build/storylet-mid-scene-%d.jsonl" % OS.get_process_id()
+	story_run.attach_journal(story_path)
+	expect(story_run.persist().ok, "authored_scene_midline_saved")
+	var story_reopened := Simulation.new(story_scenario)
+	story_reopened.attach_journal(story_path)
+	expect(story_reopened.load_saved().ok and story_reopened.state.dialogue.scene_id == "signal_scene", "authored_scene_midline_reloaded")
+	for i in range(Simulation.DIALOGUE_TICKS - 3):
+		story_run.tick()
+		story_reopened.tick()
+	expect(story_reopened.inspect() == story_run.inspect(), "authored_scene_reload_keeps_deterministic_effect")
+	expect(story_run.state.flags.guest_delay_ticks == 25, "authored_scene_command_effect_runs")
+	story_run.tick({"advance_dialogue": true})
+	for i in range(Simulation.DIALOGUE_TICKS): story_run.tick()
+	expect(story_run.state.completed_storylets.has("signal") and not str(story_run.available_storylets()).contains("signal_scene"), "completed_storylet_not_reoffered")
+	var unrelated_scene := story_run.content.duplicate(true)
+	unrelated_scene.version = "unrelated-story-scene"
+	unrelated_scene.scenes.extra_scene = "~ start\nGuard: Another scene.\n=> END"
+	expect(story_run.continue_with_content(unrelated_scene).ok, "unrelated_scene_edit_applies_after_completion")
+	var effect_before: int = int(story_run.state.flags.guest_delay_ticks)
+	story_run.tick({"start_dialogue": "signal"})
+	expect(story_run.state.flags.guest_delay_ticks == effect_before and story_run.state.dialogue.is_empty(), "unrelated_scene_edit_does_not_replay_completed_effect")
+	var shared_scene_scenario := story_scenario.duplicate(true)
+	var second_shared: Dictionary = shared_scene_scenario.storylets[0].duplicate(true)
+	second_shared.id = "signal_again"
+	second_shared.priority = 5
+	shared_scene_scenario.storylets.append(second_shared)
+	var shared_scene_run := Simulation.new(shared_scene_scenario)
+	for i in range(48): shared_scene_run.tick({"x": 1.0})
+	shared_scene_run.tick({"start_interaction": "valve"})
+	for i in range(30): shared_scene_run.tick()
+	for storylet_id in ["signal", "signal_again"]:
+		shared_scene_run.tick({"start_dialogue": storylet_id})
+		shared_scene_run.tick({"advance_dialogue": true})
+		for i in range(Simulation.DIALOGUE_TICKS): shared_scene_run.tick()
+		shared_scene_run.tick({"advance_dialogue": true})
+		for i in range(Simulation.DIALOGUE_TICKS): shared_scene_run.tick()
+	expect(shared_scene_run.state.completed_storylets.has("signal") and shared_scene_run.state.completed_storylets.has("signal_again") and shared_scene_run.state.flags.guest_delay_ticks == 50, "shared_scene_effects_scoped_to_storylet_identity")
+	var missing_scene := story_scenario.duplicate(true)
+	missing_scene.storylets[0].scene = "missing"
+	expect("; ".join(Content.validate(missing_scene)).contains("references missing scene"), "missing_storylet_scene_rejected")
+	var missing_story_actor := story_scenario.duplicate(true)
+	missing_story_actor.storylets[0].required_actors = ["nobody"]
+	expect("; ".join(Content.validate(missing_story_actor)).contains("references missing actor"), "missing_storylet_actor_rejected")
+	var invalid_scene_command := story_scenario.duplicate(true)
+	invalid_scene_command.scenes.signal_scene = str(invalid_scene_command.scenes.signal_scene).replace("delay_guest(25)", "mutate_world(25)")
+	expect("; ".join(Content.validate(invalid_scene_command)).contains("Unknown world command"), "invalid_authored_command_rejected")
+	var intentionally_inaccessible := story_scenario.duplicate(true)
+	intentionally_inaccessible.storylets[0].start_tick = 0
+	intentionally_inaccessible.storylets[0].end_tick = 10
+	expect(Content.validate(intentionally_inaccessible).is_empty(), "intentional_inaccessible_storylet_does_not_fail_validation")
+	var story_ui := Harness.new()
+	var story_base := story_scenario.duplicate(true)
+	story_base.scenes.clear()
+	story_base.storylets.clear()
+	story_ui.simulation = Simulation.new(story_base)
+	story_ui.session = AuthoringSession.new(story_ui.simulation)
+	story_ui.document = story_ui.session.document
+	story_ui.session.pause()
+	story_ui.status_label = Label.new()
+	story_ui.storylet_id_edit = LineEdit.new()
+	story_ui.storylet_id_edit.text = "signal"
+	story_ui.scene_id_edit = LineEdit.new()
+	story_ui.scene_id_edit.text = "signal_scene"
+	story_ui.required_actor_edit = LineEdit.new()
+	story_ui.required_actor_edit.text = "guard"
+	story_ui.storylet_start_edit = SpinBox.new()
+	story_ui.storylet_start_edit.value = 75
+	story_ui.storylet_end_edit = SpinBox.new()
+	story_ui.storylet_end_edit.value = 150
+	story_ui.storylet_flag_edit = OptionButton.new()
+	for caption in ["Any valve state", "Valve closed", "Valve open"]:
+		story_ui.storylet_flag_edit.add_item(caption)
+	story_ui.storylet_flag_edit.select(1)
+	story_ui.storylet_scene_editor = CodeEdit.new()
+	story_ui.storylet_scene_editor.text = str(story_scenario.scenes.signal_scene)
+	story_ui._on_storylet_scene_changed()
+	story_ui.document.finish_scene_group()
+	story_ui._save_storylet()
+	expect(story_ui.document.content.storylets.size() == 1 and story_ui.document.content.storylets[0].required_flags.close_valve and story_ui.document.validate().is_empty(), "storylet_form_and_scene_share_document")
+	expect(story_ui.document.undo() == "Save storylet signal" and story_ui.document.content.storylets.is_empty(), "storylet_form_undo")
+	expect(story_ui.document.undo() == "Edit scene signal_scene" and story_ui.document.content.scenes.is_empty(), "storylet_scene_source_undo")
+	expect(story_ui.document.redo() == "Edit scene signal_scene" and story_ui.document.redo() == "Save storylet signal", "storylet_scene_and_form_redo")
+	story_ui.storylet_scene_editor.text = "~ start\nGuard: Broken.\ndo mutate_world(1)\n=> END"
+	story_ui._on_storylet_scene_changed()
+	var story_draft_run := Simulation.new(story_base)
+	var story_draft_history := story_draft_run.history.duplicate(true)
+	expect(not story_ui.document.apply_to(story_draft_run).ok and story_draft_run.history == story_draft_history and story_ui.document.content.scenes.signal_scene == story_scenario.scenes.signal_scene, "invalid_storylet_scene_preserves_valid_content")
+	var reopened_scene_draft := AuthoringDocument.new(story_base)
+	expect(reopened_scene_draft.restore(story_ui.document.serialize()) and reopened_scene_draft.scene_errors.has("signal_scene") and reopened_scene_draft.scene_drafts.signal_scene.contains("mutate_world"), "invalid_storylet_scene_draft_recovers")
+	story_ui.document.set_scenario_source(JSON.stringify(story_ui.document.content, "\t") + "\n")
+	expect(story_ui.document.scene_errors.is_empty() and story_ui.document.validate().is_empty() and story_ui.document.scene_drafts.signal_scene == story_scenario.scenes.signal_scene, "valid_scenario_source_repairs_invalid_scene_draft")
+	expect(story_ui.document.undo() == "Edit scenario source" and story_ui.document.scene_errors.has("signal_scene"), "scenario_source_repair_retains_invalid_scene_in_undo")
+	story_ui.free()
 	var broken := scenario.duplicate(true)
 	broken.connections[0].to = "missing"
 	expect(not Content.validate(broken).is_empty(), "broken_connection_rejected")
@@ -149,6 +847,28 @@ func run() -> void:
 	var branch_result := branch_run.continue_with_content(compatible, 10)
 	expect(branch_result.ok and branch_run.state.tick == 10 and branch_run.history.size() == 11, "historical_resume_truncates_future")
 	expect(branch_run.inspect_at(10) == old_past, "historical_record_unchanged")
+	var authoring_run := Simulation.new(scenario)
+	for i in range(35): authoring_run.tick()
+	var authoring := AuthoringSession.new(authoring_run)
+	authoring.pause()
+	authoring.view_tick(10)
+	var authoring_future := authoring_run.inspect_at(30)
+	authoring.set_draft("~ start\ndo missing_command()\n=> END")
+	expect(not authoring.resume(true).ok and authoring.paused and authoring_run.state.tick == 35 and authoring_run.inspect_at(30) == authoring_future, "session_rejects_edit_without_losing_future")
+	authoring.set_draft(str(scenario.dialogue).replace("delay_guest(40)", "delay_guest(80)"))
+	expect(authoring.resume(true).ok and not authoring.paused and authoring_run.state.tick == 10 and authoring_run.history.size() == 11, "session_branches_after_validation")
+	expect(authoring_run.inspect_at(10).diagnostics.content_version == scenario.version, "session_preserves_recorded_diagnostics")
+	authoring.pause()
+	authoring.set_draft("~ start\ndo missing_command()\n=> END")
+	expect(not authoring.step_tick().ok and authoring_run.state.tick == 10, "session_blocks_step_on_invalid_draft")
+	authoring.set_draft(str(authoring_run.content.dialogue))
+	expect(authoring.step_tick().ok and authoring.paused and authoring_run.state.tick == 11, "session_steps_valid_draft")
+	var authoring_save := "res://build/foundation-session-%d.jsonl" % OS.get_process_id()
+	authoring_run.attach_journal(authoring_save)
+	expect(authoring_run.persist().ok, "session_branch_persisted")
+	var authoring_reloaded := Simulation.new(scenario)
+	authoring_reloaded.attach_journal(authoring_save)
+	expect(authoring_reloaded.load_saved().ok and authoring_reloaded.inspect() == authoring_run.inspect() and authoring_reloaded.history == authoring_run.history, "session_branch_reloaded")
 	branch_run.tick()
 	expect(branch_run.state.content_version == "two-room-2" and branch_run.inspect_at(11).content_version == "two-room-2", "new_future_provenance")
 	var reused_version := compatible.duplicate(true)
@@ -159,6 +879,31 @@ func run() -> void:
 	active_dialogue.tick({"start_dialogue": true})
 	var incompatible_result := active_dialogue.continue_with_content(compatible)
 	expect(not incompatible_result.ok and incompatible_result.restart and active_dialogue.state.dialogue.cursor == 0, "active_dialogue_requires_restart")
+	var authored := AuthoringDocument.new(scenario)
+	var edited_source: String = scenario.dialogue.replace("delay_guest(40)", "delay_guest(80)")
+	authored.set_source(edited_source)
+	expect(authored.undo() == "Edit scene source" and authored.source_draft == scenario.dialogue, "authoring_undo_source")
+	expect(authored.redo() == "Edit scene source" and authored.source_draft == edited_source, "authoring_redo_source")
+	authored.undo()
+	authored.set_source(edited_source.replace("delay_guest(80)", "delay_guest(90)"))
+	expect(authored.redo().is_empty(), "new_edit_clears_stale_redo")
+	authored.undo()
+	authored.redo()
+	authored.undo()
+	authored.set_source(edited_source)
+	var authored_run := Simulation.new(scenario)
+	expect(authored.apply_to(authored_run).ok and authored_run.content.dialogue == edited_source, "authoring_resume_applies_valid_document")
+	for i in range(10): authored_run.tick({"x": 1.0})
+	authored_run.tick({"start_dialogue": true})
+	authored_run.tick({"advance_dialogue": true})
+	for i in range(Simulation.DIALOGUE_TICKS): authored_run.tick()
+	expect(authored_run.state.flags.guest_delay_ticks == 80, "authoring_changes_future_effect")
+	var unchanged_history := authored_run.history.duplicate(true)
+	authored.set_source("~ start\ndo missing_command()\n=> END")
+	expect(not authored.apply_to(authored_run, 5).ok and authored_run.history == unchanged_history and authored.content.dialogue == edited_source, "invalid_draft_preserves_applied_content_and_history")
+	authored.set_source(edited_source.replace("delay_guest(80)", "delay_guest(90)"))
+	var active_document_result := authored.apply_to(authored_run)
+	expect(not active_document_result.ok and active_document_result.restart and authored_run.state.flags.guest_delay_ticks == 80, "document_rejects_active_dialogue_edit_without_replay")
 	var active_action := Simulation.new(scenario)
 	for i in range(48): active_action.tick({"x": 1.0})
 	active_action.tick({"start_interaction": "valve"})
@@ -182,6 +927,31 @@ func run() -> void:
 	for i in range(Simulation.DIALOGUE_TICKS): active_dialogue.tick()
 	expect(active_dialogue.state.flags.guest_delay_ticks == 40, "mid_dialogue_resume_command_once")
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build"))
+	var authoring_path := "res://build/authoring-test-%d.json" % OS.get_process_id()
+	var store := AuthoringStore.new(authoring_path)
+	var persistent_document := AuthoringDocument.new(scenario)
+	persistent_document.set_source("~ start\ndo incomplete(")
+	expect(store.save(persistent_document).ok, "invalid_source_draft_autosave_allowed")
+	var loaded_authoring := AuthoringStore.load(authoring_path)
+	var restored_document := AuthoringDocument.new(scenario)
+	expect(loaded_authoring.ok and restored_document.restore(loaded_authoring.data) and restored_document.source_draft.contains("incomplete(") and restored_document.undo_stack.size() == 1, "invalid_source_draft_and_undo_reopen")
+	persistent_document.set_source("~ start\nAmelia: valid\n=> END")
+	persistent_document.finish_source_group()
+	expect(store.save(persistent_document).ok, "authoring_second_revision_saved")
+	var torn_authoring := FileAccess.open(authoring_path, FileAccess.WRITE)
+	torn_authoring.store_string("{bad")
+	torn_authoring.close()
+	var recovered_authoring := AuthoringStore.load(authoring_path)
+	expect(recovered_authoring.ok and str(recovered_authoring.source).ends_with(".bak"), "corrupt_primary_recovers_prior_authoring_backup")
+	var staged_authoring := FileAccess.open(authoring_path + ".next", FileAccess.WRITE)
+	staged_authoring.store_string(AuthoringStore._encode(persistent_document.serialize()))
+	staged_authoring.close()
+	var recovered_stage := AuthoringStore.load(authoring_path)
+	expect(recovered_stage.ok and str(recovered_stage.source).ends_with(".next") and recovered_stage.data.revision == persistent_document.revision, "interrupted_authoring_promotion_recovers_newer_stage")
+	var recovery_document := AuthoringDocument.new(scenario)
+	expect(recovery_document.restore(recovered_stage.data) and store.save(recovery_document).ok and FileAccess.file_exists(authoring_path + ".corrupt") and AuthoringStore.load(authoring_path).ok, "recovered_authoring_save_preserves_corrupt_original")
+	var unavailable_authoring := AuthoringStore.new("res://missing-authoring-parent-%d/draft.json" % OS.get_process_id())
+	expect(not unavailable_authoring.save(persistent_document).ok, "authoring_storage_failure_reported")
 	var save_path := "res://build/foundation-test-%d.jsonl" % OS.get_process_id()
 	var journal := Journal.new(save_path)
 	var branch_save := Journal.new(save_path + ".branch")
@@ -214,6 +984,15 @@ func run() -> void:
 		reloaded_action.tick()
 	expect(reloaded_action.inspect() == saved_action.inspect() and reloaded_action.state.flags.get("close_valve", false), "reloaded_action_completes_once")
 	expect(journal.save(saved_run).ok, "append_new_ticks")
+	var managed_path := save_path + ".managed"
+	var managed := Simulation.new(scenario)
+	managed.attach_journal(managed_path)
+	expect(managed.persist().ok, "run_persists_initial_state")
+	managed.tick({"x": 1.0})
+	expect(managed.persist().ok, "run_persists_completed_tick")
+	var reopened := Simulation.new(scenario)
+	reopened.attach_journal(managed_path)
+	expect(reopened.load_saved().ok and reopened.inspect() == managed.inspect() and reopened.history == managed.history, "run_reopens_history")
 	var torn := FileAccess.open(save_path, FileAccess.READ_WRITE)
 	torn.seek_end()
 	torn.store_string("{bad tail")
@@ -234,49 +1013,49 @@ func run() -> void:
 	expect(not Journal.load(unsupported_path).ok, "unsupported_save_rejected")
 	var malformed_path := save_path + ".malformed"
 	var malformed := FileAccess.open(malformed_path, FileAccess.WRITE)
-	malformed.store_line(Journal._encode({"schema": 1, "kind": "content", "content": {"schema": 1, "version": "bad", "rooms": "oops"}}))
+	malformed.store_line(Journal._encode({"schema": Journal.SCHEMA, "kind": "content", "content": {"schema": 1, "version": "bad", "rooms": "oops"}}))
 	malformed.close()
 	expect(not Journal.load(malformed_path).ok, "malformed_save_rejected")
 	var malformed_state_path := save_path + ".malformed-state"
 	var malformed_state := FileAccess.open(malformed_state_path, FileAccess.WRITE)
-	malformed_state.store_line(Journal._encode({"schema": 1, "kind": "content", "content": scenario}))
-	malformed_state.store_line(Journal._encode({"schema": 1, "tick": 0, "state": {"tick": 0, "actors": {}, "flags": {}, "action": {}, "dialogue": {}, "events": [], "diary_observations": [], "current_knowledge": [], "content_version": scenario.version}}))
+	malformed_state.store_line(Journal._encode({"schema": Journal.SCHEMA, "kind": "content", "content": scenario}))
+	malformed_state.store_line(Journal._encode({"schema": Journal.SCHEMA, "tick": 0, "state": {"tick": 0, "actors": {}, "flags": {}, "action": {}, "dialogue": {}, "events": [], "diary_observations": [], "current_knowledge": [], "content_version": scenario.version}}))
 	malformed_state.close()
 	expect(not Journal.load(malformed_state_path).ok, "malformed_state_rejected")
 	var malformed_nested_path := save_path + ".malformed-nested"
 	var malformed_nested := FileAccess.open(malformed_nested_path, FileAccess.WRITE)
-	malformed_nested.store_line(Journal._encode({"schema": 1, "kind": "content", "content": scenario}))
+	malformed_nested.store_line(Journal._encode({"schema": Journal.SCHEMA, "kind": "content", "content": scenario}))
 	var bad_snapshot := Simulation.new(scenario).inspect()
 	bad_snapshot.events = ["bad"]
-	malformed_nested.store_line(Journal._encode({"schema": 1, "tick": 0, "state": bad_snapshot}))
+	malformed_nested.store_line(Journal._encode({"schema": Journal.SCHEMA, "tick": 0, "state": bad_snapshot}))
 	malformed_nested.close()
 	expect(not Journal.load(malformed_nested_path).ok, "malformed_event_rejected")
 	var malformed_action_path := save_path + ".malformed-action"
 	var malformed_action := FileAccess.open(malformed_action_path, FileAccess.WRITE)
-	malformed_action.store_line(Journal._encode({"schema": 1, "kind": "content", "content": scenario}))
+	malformed_action.store_line(Journal._encode({"schema": Journal.SCHEMA, "kind": "content", "content": scenario}))
 	var bad_action := Simulation.new(scenario).inspect()
 	bad_action.action = {"id": "valve"}
-	malformed_action.store_line(Journal._encode({"schema": 1, "tick": 0, "state": bad_action}))
+	malformed_action.store_line(Journal._encode({"schema": Journal.SCHEMA, "tick": 0, "state": bad_action}))
 	malformed_action.close()
 	expect(not Journal.load(malformed_action_path).ok, "malformed_action_rejected")
 	var staged_only_path := save_path + ".staged-only"
 	var staged_only := FileAccess.open(staged_only_path + ".next", FileAccess.WRITE)
-	staged_only.store_line(Journal._encode({"schema": 1, "kind": "content", "content": scenario}))
-	staged_only.store_line(Journal._encode({"schema": 1, "tick": 0, "state": Simulation.new(scenario).inspect()}))
+	staged_only.store_line(Journal._encode({"schema": Journal.SCHEMA, "kind": "content", "content": scenario}))
+	staged_only.store_line(Journal._encode({"schema": Journal.SCHEMA, "tick": 0, "state": Simulation.new(scenario).inspect()}))
 	staged_only.close()
 	expect(Journal.load(staged_only_path).ok, "staged_save_recovered")
 	var promotion_path := save_path + ".promotion"
 	var old_backup := FileAccess.open(promotion_path + ".bak", FileAccess.WRITE)
-	old_backup.store_line(Journal._encode({"schema": 1, "kind": "content", "content": scenario}))
-	old_backup.store_line(Journal._encode({"schema": 1, "tick": 0, "state": Simulation.new(scenario).inspect()}))
-	old_backup.store_line(Journal._encode({"schema": 1, "kind": "head", "state": Simulation.new(scenario).inspect()}))
+	old_backup.store_line(Journal._encode({"schema": Journal.SCHEMA, "kind": "content", "content": scenario}))
+	old_backup.store_line(Journal._encode({"schema": Journal.SCHEMA, "tick": 0, "state": Simulation.new(scenario).inspect()}))
+	old_backup.store_line(Journal._encode({"schema": Journal.SCHEMA, "kind": "head", "state": Simulation.new(scenario).inspect()}))
 	old_backup.close()
 	var newer := Simulation.new(scenario)
 	newer.tick()
 	var staged_new := FileAccess.open(promotion_path + ".next", FileAccess.WRITE)
-	staged_new.store_line(Journal._encode({"schema": 1, "kind": "content", "content": scenario}))
-	for index in newer.history.size(): staged_new.store_line(Journal._encode({"schema": 1, "tick": index, "state": newer.history[index]}))
-	staged_new.store_line(Journal._encode({"schema": 1, "kind": "head", "state": newer.state}))
+	staged_new.store_line(Journal._encode({"schema": Journal.SCHEMA, "kind": "content", "content": scenario}))
+	for index in newer.history.size(): staged_new.store_line(Journal._encode({"schema": Journal.SCHEMA, "tick": index, "state": newer.history[index]}))
+	staged_new.store_line(Journal._encode({"schema": Journal.SCHEMA, "kind": "head", "state": newer.state}))
 	staged_new.close()
 	var promoted_recovery := Journal.load(promotion_path)
 	expect(promoted_recovery.ok and promoted_recovery.history.size() == 2 and promoted_recovery.source == promotion_path + ".next", "complete_staging_preferred_to_old_backup")

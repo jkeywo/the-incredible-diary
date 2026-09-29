@@ -1,13 +1,12 @@
 extends RefCounted
 class_name FoundationBenchmark
 
-const Simulation = preload("res://foundation/simulation.gd")
-const Journal = preload("res://foundation/journal.gd")
+const Simulation = preload("res://foundation/run.gd")
 
 static func run(save_path: String) -> Dictionary:
 	var simulation := Simulation.new()
-	var journal := Journal.new(save_path)
-	var saved := journal.save(simulation)
+	simulation.attach_journal(save_path)
+	var saved := simulation.persist()
 	if not saved.ok:
 		return {"passed": false, "reason": saved.reason}
 	var start_memory := Performance.get_monitor(Performance.MEMORY_STATIC)
@@ -26,7 +25,7 @@ static func run(save_path: String) -> Dictionary:
 		for event in simulation.events:
 			event_counts[event.category] = int(event_counts.get(event.category, 0)) + 1
 		var save_start := Time.get_ticks_usec()
-		saved = journal.save(simulation)
+		saved = simulation.persist()
 		var cost := Time.get_ticks_usec() - save_start
 		save_usec += cost
 		slowest_save_usec = maxi(slowest_save_usec, cost)
@@ -47,9 +46,10 @@ static func run(save_path: String) -> Dictionary:
 		if snapshot.is_empty() or snapshot.tick != sample:
 			sampled_correct = false
 	var restore_start := Time.get_ticks_usec()
-	var loaded := Journal.load(save_path)
 	var restored := Simulation.new()
-	var restored_ok: bool = loaded.ok and restored.restore_record(loaded)
+	restored.attach_journal(save_path)
+	var loaded := restored.load_saved()
+	var restored_ok: bool = loaded.ok
 	var restore_usec := Time.get_ticks_usec() - restore_start
 	var bytes := FileAccess.get_file_as_bytes(save_path).size()
 	var report := {

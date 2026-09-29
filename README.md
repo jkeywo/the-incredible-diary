@@ -21,7 +21,7 @@ python tools/setup-godot.py
 ./tools/dev.ps1 ExportWindows
 ```
 
-Python 3 is needed only for tool installation and a convenient local HTTP server. This checkout is already provisioned with local tools. Runtime binaries, templates, imported caches, saves and exports are ignored by Git. The first clean installation downloads the official export-template archive, which is large.
+Python 3 is needed for tool installation, web packaging and a convenient local HTTP server. `ExportWeb -Python <path-to-python>` supports a Python executable outside PATH. The test command also uses Node.js for browser cache and loading-handoff checks. This checkout is already provisioned with local tools. Runtime binaries, templates, imported caches, saves and exports are ignored by Git. The first clean installation downloads the official export-template archive, which is large.
 
 Open `project.godot` to edit. The Windows executable exports to `build/windows/Amelia.exe`. To preview the browser build, run `python -m http.server 8000 --directory build/web` and visit http://localhost:8000 . Use HTTP rather than opening the HTML file directly.
 
@@ -32,6 +32,8 @@ On Windows, double-click `build-and-run.bat` to export the native game and launc
 `.github/workflows/build.yml` imports the project, runs probe and foundation checks plus a full simulated-leg benchmark, and exports Windows and web on pull requests and pushes to `main`. Pushes to `main` then deploy the web build to https://jkeywo.github.io/the-incredible-diary/ . Windows exports are downloadable as the `amelia-windows` workflow artifact. Manual runs are also supported; only `main` deploys.
 
 The web export uses Compatibility rendering and no threads, so it does not depend on cross-origin isolation headers unavailable on ordinary GitHub Pages hosting. No repository credentials are embedded in the game. GitHub Pages serves the static game; the planned in-game GitHub authoring integration/authentication is separate and not yet implemented.
+
+Web releases must use `tools/dev.ps1 ExportWeb` (or `python tools/export_web.py <godot>` in CI) to split the export into the title/docks pack and reusable asset packs. A direct Godot web export remains a full download. The initial title/docks pack is about 7.4 MB, plus the 39.5 MB engine before server compression. See [resource loading](docs/resource-loading.md) for prefetch, caching and checks.
 
 ## Save/history requirement
 

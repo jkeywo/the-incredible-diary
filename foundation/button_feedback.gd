@@ -15,7 +15,10 @@ func _scan(node: Node) -> void:
  _added(node)
  for child in node.get_children(): _scan(child)
 func _added(node: Node) -> void:
- if node is BaseButton: call_deferred("_attach",node)
+ # Loading overlays may be created and removed within one frame.
+ if node is BaseButton: call_deferred("_attach_id",node.get_instance_id())
+func _attach_id(id: int) -> void:
+ if is_instance_id_valid(id): _attach(instance_from_id(id))
 func _attach(button: BaseButton) -> void:
  if not is_instance_valid(button) or button.has_meta("button_feedback"): return
  button.set_meta("button_feedback",true)

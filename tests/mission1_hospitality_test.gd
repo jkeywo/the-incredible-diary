@@ -184,7 +184,7 @@ func checks() -> void:
  game.enable_controls()
  await process_frame
  assert(game.movement_prompt.visible and game.help.text.contains("Report"))
- assert(game.actors.captain.visible and not game.actors.guest.visible)
+ assert(game.actors.captain.visible and not game.actors.has("guest"))
  for facing in ["down","left","up","right"]:
   for action in ["idle","walk","talk"]:
    assert(game.actors.captain.sprite_frames.has_animation(action+"_"+facing))

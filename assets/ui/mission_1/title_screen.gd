@@ -10,7 +10,9 @@ const Rooms = preload("res://mission1/rooms.gd")
 const OPENING_SECONDS := 1.74
 const Save = preload("res://mission1/save.gd")
 const PopupSkin = preload("res://assets/ui/popup/popup_skin.gd")
-const MissionOpening = preload("res://mission1/play.tscn")
+const Docks = preload("res://assets/rooms/mission_1/01_docks.tscn")
+const LevelLoader = preload("res://assets/ui/loading/level_loader.gd")
+const LevelWait = preload("res://assets/ui/loading/level_wait.gd")
 const TEST_LEVEL := "res://foundation/harness.tscn"
 
 @export var mission_save_path := Save.DEFAULT_PATH
@@ -35,13 +37,25 @@ var confirm_motion: Node
 var error_motion: Node
 var controller_menu: Node
 var settings_button: Button
+var level_loader: Node
+var loading_diary: Control
+var _waiting := false
+var _pending_new := false
+var _pending_saved: Dictionary = {}
+var _pending_scene := LevelLoader.MISSION
+var _preview_state: Dictionary = {}
+var _neighbour_ticket: Dictionary = {}
 
 
 func is_pause_editor_available() -> bool:
-	return is_instance_valid(_game_world) and _game_world.controls_enabled
+	return is_instance_valid(_game_world) and _game_world.is_pause_editor_available()
 
 
 func _ready() -> void:
+	level_loader = LevelLoader.new()
+	add_child(level_loader)
+	level_loader.prepared.connect(_level_prepared)
+	level_loader.failed.connect(_level_failed)
 	PopupSkin.decorate(new_confirm)
 	_error_message = PopupSkin.add_message(PopupSkin.decorate(error_dialog), "")
 	if OS.has_feature("web") and bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('github_integration_test') && new URLSearchParams(location.search).get('github_web_smoke') === 'read'")):
@@ -55,11 +69,13 @@ func _ready() -> void:
 	_menu_audio = RoomAudio.new()
 	add_child(_menu_audio)
 	_menu_audio.set_presentation_gain(0.5)
+	$WorldSlot.add_child(Docks.instantiate())
 	_reset_visuals()
 	_build_polish()
 	_refresh_continue()
 	_start_entrance()
 	_signal_web_ready()
+	_start_background_load.call_deferred()
 
 
 func _refresh_continue() -> void:
@@ -74,7 +90,8 @@ func _refresh_continue() -> void:
 			if state.get("finished",false): room_name = "Voyage complete" if state.get("dead",[]).is_empty() else "Voyage ended"
 			preview.text = "All Aboard · %s\n%s" % [detail,room_name]
 	if not _opening:
-		_preview_destination(loaded.data.current if loaded.ok else Simulation.new().s)
+		_preview_state = loaded.data.current if loaded.ok else Simulation.new().s
+		if level_loader.is_prepared or _preview_state.room == "docks": _preview_destination(_preview_state)
 	if continue_button.visible:
 		continue_button.call_deferred("grab_focus")
 	else:
@@ -91,13 +108,14 @@ func _preview_destination(state: Dictionary) -> void:
 
 
 func _process(delta: float) -> void:
+	if is_instance_valid(loading_diary): loading_diary.progress = level_loader.progress
 	if _menu_audio == null or (is_instance_valid(_game_world) and _game_world.controls_enabled): return
 	_preview_ms += delta*1000.0
 	_menu_audio.set_game_time(int(_preview_ms))
 
 
 func _on_continue() -> void:
-	if _opening or new_confirm.visible or error_dialog.visible: return
+	if _opening or _waiting or new_confirm.visible or error_dialog.visible: return
 	_finish_entrance()
 	var loaded: Dictionary = Save.load_saved(mission_save_path)
 	if not loaded.ok:
@@ -108,7 +126,7 @@ func _on_continue() -> void:
 
 
 func _on_new() -> void:
-	if _opening or new_confirm.visible or error_dialog.visible: return
+	if _opening or _waiting or new_confirm.visible or error_dialog.visible: return
 	_finish_entrance()
 	if Save.has_any(mission_save_path):
 		new_confirm.popup_centered()
@@ -117,37 +135,100 @@ func _on_new() -> void:
 
 
 func _start_new() -> void:
-	if _opening: return
+	if _opening or _waiting: return
 	if is_instance_valid(confirm_motion): confirm_motion.finish()
-	var cleared: Dictionary = Save.clear(mission_save_path)
-	if not cleared.ok:
-		_show_error(str(cleared.reason))
-		return
+	_pending_new = true
 	_launch_mission()
 
 
+func _start_background_load() -> void:
+	# Let the title draw before starting disk reads or the deferred web download.
+	await get_tree().process_frame
+	if _waiting or _opening: return
+	level_loader.start(LevelLoader.MISSION,_preview_state)
+
+
 func _launch_mission(saved: Dictionary = {}) -> void:
+	if _opening or _waiting: return
+	_pending_saved = saved
+	_pending_scene = LevelLoader.MISSION
+	_wait_for_level()
+
+
+func _wait_for_level() -> void:
+	_waiting = true
+	_finish_entrance()
+	var state: Dictionary = _pending_saved.get("current",Simulation.new().s)
+	level_loader.start(_pending_scene,state,true)
+	if level_loader.ticket.done and str(level_loader.ticket.error).is_empty():
+		_enter_prepared_level()
+		return
+	menu.hide()
+	loading_diary = LevelWait.new()
+	add_child(loading_diary)
+
+
+func _level_prepared() -> void:
 	if _opening: return
-	var game: Node2D = MissionOpening.instantiate()
+	if _waiting:
+		_enter_prepared_level()
+	else:
+		_preview_destination(_preview_state)
+		_neighbour_ticket = get_node("/root/ResourceStream").request_resources(LevelLoader.Plan.neighbours(str(_preview_state.room)))
+
+
+func _level_failed(message: String) -> void:
+	if not _waiting: return # A click retries a failed background download.
+	_waiting = false
+	_pending_new = false
+	if is_instance_valid(loading_diary):
+		loading_diary.queue_free()
+		loading_diary = null
+	menu.show()
+	_show_error(message)
+
+
+func _enter_prepared_level() -> void:
+	if not _neighbour_ticket.is_empty(): _neighbour_ticket.cancelled = true
+	# New only replaces the previous save once all required content is available.
+	if _pending_new:
+		var cleared: Dictionary = Save.clear(mission_save_path)
+		if not cleared.ok:
+			_level_failed(str(cleared.reason))
+			return
+	_pending_new = false
+	_waiting = false
+	if is_instance_valid(loading_diary):
+		loading_diary.queue_free()
+		loading_diary = null
+	if _pending_scene == TEST_LEVEL:
+		get_tree().change_scene_to_packed(level_loader.resources[TEST_LEVEL])
+		return
+	# Start preview before handing the same players into the opening transition.
+	if _menu_audio.get_child_count() == 0:
+		_preview_destination(_pending_saved.get("current",{"room":"docks","tick":0}))
+	var game: Node2D = level_loader.resources[LevelLoader.MISSION].instantiate()
+	game.stream_resources = true
 	game.save_path = mission_save_path
-	game.configure(saved, true)
+	game.configure(_pending_saved, true)
 	game.room_audio = _menu_audio
 	game.opening_audio_fade = OPENING_SECONDS
 	_menu_audio.fade_presentation_gain(1.0,OPENING_SECONDS)
-	_preview_ms = float(saved.get("current",{}).get("tick",0))*100.0
+	_preview_ms = float(_pending_saved.get("current",{}).get("tick",0))*100.0
 	set_game_world(game)
 	_game_world = game
 	begin()
 
 
 func _on_test_level() -> void:
-	if _opening or new_confirm.visible or error_dialog.visible: return
-	_finish_entrance()
-	get_tree().change_scene_to_file(TEST_LEVEL)
+	if _opening or _waiting or new_confirm.visible or error_dialog.visible: return
+	_pending_scene = TEST_LEVEL
+	_pending_new = false
+	_wait_for_level()
 
 
 func _on_quit() -> void:
-	if _opening or new_confirm.visible or error_dialog.visible: return
+	if _opening or _waiting or new_confirm.visible or error_dialog.visible: return
 	_finish_entrance()
 	get_tree().quit()
 
@@ -251,7 +332,7 @@ func _build_polish() -> void:
 	error_dialog.dialog_hide_on_ok = false
 	error_dialog.confirmed.connect(func(): error_motion.leave(func(): error_motion.restore_focus(continue_button if continue_button.visible else $Menu/NewButton)))
 	error_dialog.canceled.connect(func(): error_motion.leave(func(): error_motion.restore_focus($Menu/NewButton)))
-	controller_menu = _controller_for(self,func(): return menu.get_children(),func(): return menu.visible and not _opening and not get_tree().paused and not new_confirm.visible and not error_dialog.visible,func(): pass)
+	controller_menu = _controller_for(self,func(): return menu.get_children(),func(): return menu.visible and not _opening and not _waiting and not get_tree().paused and not new_confirm.visible and not error_dialog.visible,func(): pass)
 	_controller_for(new_confirm,func(): return [new_confirm.get_cancel_button(),new_confirm.get_ok_button()],func(): return new_confirm.visible and not confirm_motion.closing,func(): new_confirm.canceled.emit())
 	_controller_for(error_dialog,func(): return [error_dialog.get_ok_button()],func(): return error_dialog.visible and not error_motion.closing,func(): error_dialog.canceled.emit())
 	new_confirm.about_to_popup.connect(func(): new_confirm.get_cancel_button().call_deferred("grab_focus"))
@@ -281,7 +362,7 @@ func _signal_web_ready() -> void:
 
 
 func _on_settings() -> void:
-	if _opening or new_confirm.visible or error_dialog.visible: return
+	if _opening or _waiting or new_confirm.visible or error_dialog.visible: return
 	_finish_entrance()
 	get_node("/root/AudioSettings").open_settings()
 
@@ -296,3 +377,6 @@ func _controller_for(parent: Node, controls: Callable, active: Callable, on_back
 	navigator.back = on_back
 	parent.add_child(navigator)
 	return navigator
+
+func _exit_tree() -> void:
+	if not _neighbour_ticket.is_empty(): _neighbour_ticket.cancelled = true

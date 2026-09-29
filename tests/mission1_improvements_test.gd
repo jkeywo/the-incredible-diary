@@ -135,10 +135,11 @@ func checks() -> void:
  game._refresh()
  assert(game.props.cabin_middle.material.get_shader_parameter("interaction_outline"))
  assert(game.sim.options().filter(func(o): return o.target == "cabin_middle").size() == 2)
- var existing_shader = game.actors.guest.material.shader
+ # The player is present in every room; offscreen guests are now created on arrival.
+ var existing_shader = game.actors.amelia.material.shader
  game.sim.s.room = "foyer"
  game._refresh()
- assert(game.actors.guest.material.shader == existing_shader)
+ assert(game.actors.amelia.material.shader == existing_shader)
  assert(not game.props.has("cabin_middle"))
  game.sim.s.room = "cabins"
  game._refresh()
@@ -195,4 +196,3 @@ func check_record(run) -> void:
  var history_before: Array = restored.history.duplicate(true)
  restored.step()
  assert(restored.history.slice(0,history_before.size()) == history_before)
-

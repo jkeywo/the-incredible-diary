@@ -39,8 +39,10 @@ jobs:
           .tools/godot/godot --headless --path . --script res://tests/foundation_test.gd
       - name: Test Mission 1
         run: |
-          for suite in pocket_watch mission1_rooms mission1_chandelier mission1_steam mission1_route mission1_walking mission1_save mission1_play; do
-            .tools/godot/godot --headless --path . --script "res://tests/${suite}_test.gd" --quit-after 300 > "build/${suite}.log" 2>&1
+          node tests/content_cache_test.js
+          node tests/loading_handoff_test.js
+          for suite in level_loading title_audio native_loading settings_menu pocket_watch mission1_rooms mission1_chandelier mission1_steam mission1_route mission1_walking mission1_save mission1_play; do
+            .tools/godot/godot --headless --path . --script "res://tests/${suite}_test.gd" --quit-after 2400 > "build/${suite}.log" 2>&1
             cat "build/${suite}.log"
             python -c 'import pathlib,sys; t=pathlib.Path(sys.argv[1]).read_text(); assert "SCRIPT ERROR" not in t and "Assertion failed" not in t and ("PASS" in t or "\"passed\":true" in t)' "build/${suite}.log"
           done
@@ -50,7 +52,7 @@ jobs:
           python -c "import json; r=json.load(open('build/foundation-benchmark-result.json')); assert r['passed'] and r['ticks'] == 10800"
       - name: Export Web and Windows
         run: |
-          .tools/godot/godot --headless --path . --export-release Web build/web/index.html
+          python tools/export_web.py .tools/godot/godot
           .tools/godot/godot --headless --path . --export-release Windows build/windows/Amelia.exe
           test -s build/web/index.html
           test -s build/web/index.wasm

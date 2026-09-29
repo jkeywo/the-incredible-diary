@@ -31,7 +31,7 @@ func check_preview(title, id: String):
 func checks():
  Save.clear(PATH)
  var fresh = make_title()
- await process_frame
+ await fresh.level_loader.prepared
  assert(not fresh.continue_button.visible)
  check_preview(fresh,"docks")
  var dock_player = fresh._menu_audio._players.ambience
@@ -44,7 +44,7 @@ func checks():
  for id in ["foyer","controls","salon"]:
   saved_room(id)
   var title = make_title()
-  await process_frame
+  await title.level_loader.prepared
   assert(title.continue_button.visible)
   check_preview(title,id)
   var audio = title._menu_audio
@@ -62,7 +62,7 @@ func checks():
   await process_frame
  saved_room("salon")
  var title = make_title()
- await process_frame
+ await title.level_loader.prepared
  var audio = title._menu_audio
  var outgoing = audio._players.music
  title._on_new()

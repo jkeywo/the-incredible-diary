@@ -11,6 +11,7 @@ config/use_custom_user_dir=true
 config/custom_user_dir_name="AmeliaAuthoringProbe"
 
 [autoload]
+ResourceStream="*res://assets/ui/loading/resource_stream.gd"
 DialogueManager="*res://addons/dialogue_manager/dialogue_manager.gd"
 BrowserFullscreen="*res://foundation/browser_fullscreen.gd"
 PauseEditor="*res://foundation/pause_editor.gd"

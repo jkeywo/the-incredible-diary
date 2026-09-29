@@ -1,5 +1,7 @@
 extends Node2D
 ## Mission 1 presentation; all consequential state lives in the deterministic simulation.
+const ContentPlan = preload("res://mission1/content_plan.gd")
+const LoadingDiary = preload("res://assets/ui/loading/level_wait.gd")
 const TouchControls = preload("res://assets/ui/mission_1/touch_controls.gd")
 const Simulation = preload("res://mission1/simulation.gd")
 const Rooms = preload("res://mission1/rooms.gd")
@@ -8,6 +10,15 @@ const Character = preload("res://assets/characters/character_sprite.tscn")
 const RoomAudio = preload("res://mission1/room_audio.gd")
 const EventAudio = preload("res://mission1/event_audio.gd")
 const Save = preload("res://mission1/save.gd")
+var stream_resources := false
+var _content_key := ""
+var _content_ticket: Dictionary = {}
+var _content_overlay: CanvasLayer
+var _content_diary: Control
+var _content_error: Label
+var _prefetched_room := ""
+var _neighbour_ticket: Dictionary = {}
+var _content_failure_shown := false
 var journal := Save.new()
 var sim := Simulation.new()
 var controls_enabled := false
@@ -95,21 +106,6 @@ func _ready() -> void:
   room_audio.reparent(self)
  sounds = EventAudio.new()
  add_child(sounds)
- for id in ["amelia", "guest", "chandelier_guest", "chatterbox", "crew", "porter", "dock_sailor"]:
-  var actor := preload("res://assets/characters/mission_1/sailor.tscn").instantiate() if id in ["crew", "dock_sailor"] else Character.instantiate()
-  actor.character_id = {"amelia":"player", "guest":"rake", "chandelier_guest":"glamorous", "chatterbox":"matron", "crew":"sailor", "porter":"ex_army", "dock_sailor":"sailor"}[id]
-  entity_layer.add_child(actor)
-  actors[id] = actor
- for id in Simulation.Routines.INCIDENTAL_SKINS:
-  var skin: String = Simulation.Routines.INCIDENTAL_SKINS[id]
-  var actor := preload("res://assets/characters/generic/generic_animated_character.tscn").instantiate()
-  actor.character_id = skin
-  entity_layer.add_child(actor)
-  actors[id] = actor
- var captain := AnimatedSprite2D.new()
- captain.set_script(preload("res://assets/characters/captain.gd"))
- entity_layer.add_child(captain)
- actors.captain = captain
  world_overlay = Node2D.new()
  world_overlay.z_index = 10
  add_child(world_overlay)
@@ -123,6 +119,9 @@ func _ready() -> void:
 
 func enable_controls() -> void:
  controls_enabled = true
+
+func is_pause_editor_available() -> bool:
+ return controls_enabled and (_content_ticket.is_empty() or (_content_ticket.done and str(_content_ticket.error).is_empty()))
 
 func _build_hud() -> void:
  var layer := CanvasLayer.new()
@@ -274,6 +273,7 @@ func _build_hud() -> void:
  touch_controls.action_pressed.connect(_touch_action)
 
 func _touch_action(action: String) -> void:
+ if stream_resources and not _prepare_visible(_display_state()): return
  get_node("/root/ButtonFeedback").activate()
  idle_seconds = 0.0
  if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0: return
@@ -310,6 +310,7 @@ func _label(p: Vector2, dimensions: Vector2, font_size: int) -> Label:
 
 func _process(delta: float) -> void:
  if not is_instance_valid(time_presentation): return
+ if stream_resources and not _prepare_visible(_display_state()): return
  time_presentation.suppressed = diary_open or sim.s.finished or not application_focused
  time_presentation.waiting = waiting_active and not diary_open and application_focused and controls_enabled
  time_presentation.rewinding = rewind_index >= 0
@@ -325,6 +326,9 @@ func _process(delta: float) -> void:
    watch.elapsed_seconds = minf(Simulation.END,float(sim.s.tick)+float(sim.s.get("clock_fraction",0.0))+minf(0.99,(accumulator+visual_elapsed)/0.1)*Simulation.CLOCK_RATE)/10.0
 
 func _physics_process(delta: float) -> void:
+ if stream_resources and not _prepare_visible(_display_state()):
+  accumulator = 0.0
+  return
  visual_elapsed = 0.0
  waiting_active = false
  _update_idle_hint(delta)
@@ -344,6 +348,9 @@ func _physics_process(delta: float) -> void:
   var old_hour := int(sim.s.tick/Simulation.HOUR)
   sim.step(direction)
   _events()
+  if stream_resources and not _prepare_visible(sim.s):
+   accumulator = 0.0
+   break
   _save_counter += 1
   if waiting and int(sim.s.tick/Simulation.HOUR) > old_hour:
    wait_latched = true
@@ -362,6 +369,7 @@ func _physics_process(delta: float) -> void:
   _persist()
 
 func _unhandled_input(event: InputEvent) -> void:
+ if stream_resources and not _prepare_visible(_display_state()): return
  if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0: return
  if event is InputEventJoypadButton or event is InputEventJoypadMotion: using_controller = true
  elif event is InputEventKey or event is InputEventMouseButton: using_controller = false
@@ -399,6 +407,7 @@ func _unhandled_input(event: InputEvent) -> void:
  _refresh()
 
 func _choose(index: int) -> void:
+ if stream_resources and not _prepare_visible(_display_state()): return
  if diary_open or rewind_index >= 0 or time_presentation.finish_remaining > 0.0: return
  idle_seconds = 0.0
  if sim.s.code_open:
@@ -417,6 +426,8 @@ func _refresh(direction := Vector2.INF) -> void:
   direction = _movement_input() if rewind_index < 0 else Vector2.ZERO
  touch_controls.set_context(controls_enabled,diary_open or rewind_index>=0 or sim.s.finished)
  var state: Dictionary = sim.history[rewind_index] if rewind_index >= 0 else sim.s
+ if stream_resources and not _prepare_visible(state): return
+ _ensure_actor("amelia")
  if shown_room != state.room: _show_room(state.room)
  watch.elapsed_seconds = float(state.tick)/10.0
  heading.text = "All Aboard  ·  " + str(Rooms.ROOMS[state.room].title)
@@ -435,7 +446,9 @@ func _refresh(direction := Vector2.INF) -> void:
   if id != "amelia": actors[id].hide()
  for id in positions:
   var info: Dictionary = positions[id]
-  actors[id].visible = info.room == state.room
+  if info.room != state.room: continue
+  _ensure_actor(id)
+  actors[id].visible = true
   actors[id].position = _display_position(state, id, Rooms.point(info.pos))
   actors[id].play_action(info.action, info.get("facing",_actor_facing(id, info)))
  choices = sim.options()
@@ -594,6 +607,86 @@ func _draw_world_markers() -> void:
    if not _highlight_entity(option.get("target","")):
     world_overlay.draw_circle(Rooms.point(option.pos),12,Color("f8d87390"))
 
+func _display_state() -> Dictionary:
+ return sim.history[rewind_index] if rewind_index >= 0 else sim.s
+
+func _ensure_actor(id: String) -> void:
+ if actors.has(id): return
+ var actor: AnimatedSprite2D
+ var skin: String = ContentPlan.SKINS.get(id,Simulation.Routines.INCIDENTAL_SKINS.get(id,""))
+ if skin == "captain":
+  actor = AnimatedSprite2D.new()
+  actor.set_script(preload("res://assets/characters/captain.gd"))
+ elif skin in ["player","rake","glamorous","matron","ex_army"]:
+  actor = Character.instantiate()
+  actor.character_id = skin
+ else:
+  actor = preload("res://assets/characters/generic/generic_animated_character.tscn").instantiate()
+  actor.character_id = skin
+ entity_layer.add_child(actor)
+ actors[id] = actor
+
+func _prepare_visible(state: Dictionary) -> bool:
+ var ids: Array = []
+ for id in state.get("actors",{}):
+  if state.actors[id].room == state.room: ids.append(id)
+ ids.sort()
+ var key := str(state.room)+":"+str(ids)
+ var stream := get_node("/root/ResourceStream")
+ if key != _content_key:
+  _content_key = key
+  if not _content_ticket.is_empty(): _content_ticket.cancelled = true
+  _content_ticket = stream.request_resources(ContentPlan.for_state(state),true)
+ if not _content_ticket.done or not str(_content_ticket.error).is_empty():
+  if not is_instance_valid(_content_overlay):
+   _content_overlay = CanvasLayer.new()
+   _content_overlay.layer = 100
+   add_child(_content_overlay)
+   _content_diary = LoadingDiary.new()
+   _content_overlay.add_child(_content_diary)
+   _content_error = Label.new()
+   _content_error.position = Vector2(200,555)
+   _content_error.size = Vector2(760,65)
+   _content_error.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+   _content_error.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+   _content_diary.add_child(_content_error)
+   var retry := Button.new()
+   retry.text = "Retry"
+   retry.position = Vector2(470,700)
+   retry.pressed.connect(func(): _content_key = "")
+   _content_diary.add_child(retry)
+   var back := Button.new()
+   back.text = "Main menu"
+   back.position = Vector2(585,700)
+   back.pressed.connect(_return_to_menu)
+   _content_diary.add_child(back)
+   var navigator := preload("res://foundation/controller_menu.gd").new()
+   navigator.available = func(): return [retry,back]
+   navigator.enabled = func(): return not str(_content_ticket.error).is_empty() and not get_tree().paused
+   navigator.back = _return_to_menu
+   _content_diary.add_child(navigator)
+   _content_failure_shown = false
+  _content_diary.progress = _content_ticket.progress
+  _content_error.text = _content_ticket.error
+  for button in _content_diary.get_children():
+   if button is Button:
+    button.visible = not str(_content_ticket.error).is_empty()
+    if button.visible and not _content_failure_shown:
+     button.grab_focus()
+     _content_failure_shown = true
+  touch_controls.release_all()
+  return false
+ if is_instance_valid(_content_overlay):
+  _content_overlay.queue_free()
+  _content_overlay = null
+  # Refresh immediately after the wait, even with the diary open or rewinding.
+  _refresh.call_deferred()
+ if _prefetched_room != str(state.room):
+  _prefetched_room = str(state.room)
+  if not _neighbour_ticket.is_empty(): _neighbour_ticket.cancelled = true
+  _neighbour_ticket = stream.request_resources(ContentPlan.neighbours(_prefetched_room))
+ return true
+
 func _show_room(id: String) -> void:
  for child in room_slot.get_children():
   room_slot.remove_child(child)
@@ -666,7 +759,7 @@ func _sync_props(state: Dictionary) -> void:
   props.drink.visible = state.flags.get("party_arrived",false)
   props.drink.show_at(state,effect_fraction)
  var stained: bool = state.flags.get("spilled", false)
- if actors.guest.stained_outfit != stained: actors.guest.set_outfit_stained(stained)
+ if actors.has("guest") and actors.guest.stained_outfit != stained: actors.guest.set_outfit_stained(stained)
  if props.has("code_panel"):
   props.code_panel.get_node("Digits").text = " ".join(str(state.entry).rpad(3,"_").split("")) if state.code_open else ""
  if props.has("steam_vent"):
@@ -813,6 +906,8 @@ func _restore_initial() -> void:
  journal.restore_run(sim, initial)
 
 func _exit_tree() -> void:
+ if not _content_ticket.is_empty(): _content_ticket.cancelled = true
+ if not _neighbour_ticket.is_empty(): _neighbour_ticket.cancelled = true
  _persist()
 
 func _notification(what: int) -> void:
@@ -825,6 +920,7 @@ func _notification(what: int) -> void:
   idle_seconds = 0.0
 
 func _input(event: InputEvent) -> void:
+ if stream_resources and not _content_ticket.is_empty() and (not _content_ticket.done or not str(_content_ticket.error).is_empty()): return
  # Handle Tab before focused controls consume it as focus navigation.
  if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_TAB:
   if controls_enabled and not get_tree().paused and application_focused and time_presentation.finish_remaining <= 0.0:

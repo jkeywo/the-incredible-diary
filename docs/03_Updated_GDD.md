@@ -45,6 +45,12 @@ Touch play uses one virtual movement joystick. Interactions are activated by tap
 
 The main menu plays the saved destination room's music and ambience when Continue is available; otherwise it uses the new game's starting room. Playback starts at half the normal in-game amplitude, after respecting the player's volume preferences. Continue preserves the active tracks and raises their volume smoothly to normal during the book-opening transition. New leaves the preview unchanged until confirmation, then crossfades to the starting room's audio over that same transition. Cancelling New does not affect playback. The existing players transfer into gameplay so tracks shared by the menu and destination do not restart.
 
+### Resource loading — clarified 29 September 2026
+
+PC and web use the same staged loading flow. Initial loading prepares the title, Settings and docks, including docks audio. The title prepares the Continue or New destination in the background. A room prefetches adjacent rooms; character art is prepared as characters arrive. Shared resources are reused across rooms and future missions. Web downloads are cached separately from personal saves; PC prepares the same resources from its installed files.
+
+If Continue or New is selected before its destination is ready, a full-size diary flicks pages above a loading bar, then the existing swipe transition opens into play. If travel or a character arrival outruns preparation, simulation time waits until the required resources are ready. Recorded history is unchanged. Failed loading offers recovery, and New does not erase an existing voyage until its destination is ready. A saved room's title audio starts when that room is ready.
+
 ### Chandelier staging — clarified 29 September 2026
 
 The chandelier hangs above the compass rose at the centre of the Grand Foyer. The guest's danger position, shove interaction and wreckage inspection share that floor position. The fixture visibly drops from overhead with accelerating downward motion, then changes to wreckage and dust at impact. The fall is sampled from recorded simulation time, including during rewind.

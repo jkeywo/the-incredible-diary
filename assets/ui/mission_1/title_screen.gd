@@ -24,6 +24,10 @@ var _game_world: Node2D
 var _error_message: Label
 
 
+func is_pause_editor_available() -> bool:
+	return is_instance_valid(_game_world) and _game_world.controls_enabled
+
+
 func _ready() -> void:
 	PopupSkin.decorate(new_confirm)
 	_error_message = PopupSkin.add_message(PopupSkin.decorate(error_dialog), "")

@@ -328,11 +328,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			_reset_pressed()
 		return
 	if rewinding: return
-	if event.is_action_pressed("pause_game"):
-		if session.paused: _resume(false)
-		else: _pause()
-		_refresh()
-		return
 	if session.paused and editor_overlay.visible and event.is_action_pressed("step_tick"):
 		_step_tick()
 		return
@@ -944,6 +939,12 @@ func _sync_github_handoff() -> void:
 func _toggle_pause() -> void:
 	if session.paused: _resume(false)
 	else: _pause()
+
+func toggle_pause_editor() -> void:
+	if rewinding:
+		return
+	_toggle_pause()
+	_refresh()
 	_refresh()
 
 func _step_tick() -> void:

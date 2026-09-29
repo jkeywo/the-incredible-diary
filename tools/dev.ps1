@@ -34,6 +34,8 @@ try {
 				$output | Write-Output
 				if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -match 'SCRIPT ERROR|Assertion failed' -or ($output -join "`n") -notmatch 'PASS|"passed":true') { throw "Mission suite failed: $suite" }
 			}
+			& $godot --headless --path $root --script res://tests/pause_editor_test.gd
+			if ($LASTEXITCODE -ne 0) { throw 'Shared pause editor checks failed.' }
         }
         'ExportWeb' {
             New-Item -ItemType Directory -Force build/web | Out-Null

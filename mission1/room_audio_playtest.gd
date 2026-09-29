@@ -51,9 +51,9 @@ func _process(delta: float) -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
-	if event.is_action_pressed("pause_game"):
-		get_tree().paused = not get_tree().paused
-	elif event.keycode >= KEY_1 and event.keycode <= KEY_5:
+	if get_tree().paused:
+		return
+	if event.keycode >= KEY_1 and event.keycode <= KEY_5:
 		_show_room(event.keycode - KEY_1)
 	elif event.keycode == KEY_G:
 		use_george_street = not use_george_street

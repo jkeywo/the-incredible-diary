@@ -6,10 +6,10 @@ const Save = preload("res://mission1/opening_save.gd")
 const RoomAudio = preload("res://mission1/room_audio.gd")
 const DOCKS = preload("res://assets/rooms/mission_1/01_docks.tscn")
 const FOYER = preload("res://assets/rooms/mission_1/02_foyer.tscn")
-const WALK_SPEED := 140.0
 const OPENING_ROOM_FADE_SECONDS := 1.74
 
 @export var save_path := Save.DEFAULT_PATH
+@export_range(20.0, 400.0, 1.0) var walk_speed := 140.0
 
 @onready var room_slot: Node2D = $RoomSlot
 @onready var amelia: AnimatedSprite2D = $Amelia
@@ -57,12 +57,6 @@ func enable_controls() -> void:
 	set_physics_process(true)
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if controls_enabled and event.is_action_pressed("pause_game"):
-		get_tree().paused = not get_tree().paused
-		get_viewport().set_input_as_handled()
-
-
 func _physics_process(delta: float) -> void:
 	if not controls_enabled or get_tree().paused:
 		return
@@ -73,7 +67,7 @@ func _physics_process(delta: float) -> void:
 	room_audio.set_game_time(elapsed_ms)
 	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if direction.length_squared() > 0.01:
-		var step := direction * WALK_SPEED * delta
+		var step := direction * walk_speed * delta
 		var candidate := player_position + step
 		if _can_stand(candidate):
 			player_position = candidate

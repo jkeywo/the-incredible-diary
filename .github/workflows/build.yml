@@ -39,7 +39,7 @@ jobs:
           .tools/godot/godot --headless --path . --script res://tests/foundation_test.gd
       - name: Record and reload a full simulated leg
         run: |
-          .tools/godot/godot --headless --path . -- --foundation-benchmark --benchmark-save-path="$PWD/build/foundation-benchmark.jsonl" --benchmark-report="$PWD/build/foundation-benchmark-result.json"
+          .tools/godot/godot --headless --path . res://foundation/harness.tscn -- --foundation-benchmark --benchmark-save-path="$PWD/build/foundation-benchmark.jsonl" --benchmark-report="$PWD/build/foundation-benchmark-result.json"
           python -c "import json; r=json.load(open('build/foundation-benchmark-result.json')); assert r['passed'] and r['ticks'] == 10800"
       - name: Export Web and Windows
         run: |

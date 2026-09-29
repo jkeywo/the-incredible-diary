@@ -519,6 +519,17 @@ static func observation_time(tick: int) -> String:
  var minutes := int(tick * 60 / HOUR)
  return "%02d:%02d" % [1 + int(minutes / 60), minutes % 60]
 
+## Restore only recorded data; never sample current schedules for old frames.
+func restore_record(record: Dictionary) -> void:
+ s = record.current.duplicate(true)
+ memory = record.memory.duplicate(true)
+ history = record.history.duplicate(true)
+ events.clear()
+ restore_notebook()
+
+func record_current_frame() -> void:
+ history[-1] = s.duplicate(true)
+
 func restore_notebook() -> void:
  # Old saves mixed previous loops and unwitnessed death notices into memory.
  # Keep only current-run text with a matching recorded observation timestamp.

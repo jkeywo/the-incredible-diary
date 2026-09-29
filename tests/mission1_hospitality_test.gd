@@ -23,9 +23,7 @@ func round_trip(run) -> void:
  assert(loaded.ok)
  assert(loaded.data.current == JSON.parse_string(JSON.stringify(run.s)))
  var restored := Sim.new()
- restored.s = loaded.data.current
- restored.memory = loaded.data.memory
- restored.history = loaded.data.history
+ Save.new().restore_run(restored,loaded.data)
  for i in 5:
   run.step()
   restored.step()

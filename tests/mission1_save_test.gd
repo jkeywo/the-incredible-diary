@@ -22,18 +22,28 @@ func _initialize() -> void:
  loaded = Save.load_saved(PATH)
  assert(loaded.ok and loaded.data.current.tick==75)
  var resumed := Sim.new(false)
- resumed.s = loaded.data.current
- resumed.history = loaded.data.history
- resumed.memory = loaded.data.memory
+ var repair := Save.new()
+ resumed.events.append({"kind":"stale"})
+ repair.restore_run(resumed,loaded.data)
+ assert(resumed.events.is_empty())
+ var original_record: Dictionary = loaded.data.duplicate(true)
+ resumed.s.entry = "456"
+ assert(loaded.data == original_record)
+ resumed.memory.notes.append("Copy isolation")
+ resumed.history[0].entry = "456"
+ assert(loaded.data == original_record)
+ repair.restore_run(resumed,loaded.data)
+ resumed.s.entry = run.s.entry
  for i in 15:
   run.step(Vector2.RIGHT)
   resumed.step(Vector2.RIGHT)
  assert(JSON.parse_string(JSON.stringify(run.s)) == JSON.parse_string(JSON.stringify(resumed.s)))
- var repair := Save.new()
- repair.sequence = int(loaded.data.sequence)
+ assert(repair.sequence == int(loaded.data.sequence))
  resumed.step()
  assert(repair.save_run(resumed,PATH).ok)
  assert(Save.load_saved(PATH).data.current.tick == 91)
+ assert(Save.load_saved(PATH).data.sequence > loaded.data.sequence)
+ assert(Save.load_saved(PATH).data.history[20] == loaded.data.history[20])
  resumed.memory.reset = true
  resumed.reset()
  assert(repair.save_run(resumed,PATH).ok)

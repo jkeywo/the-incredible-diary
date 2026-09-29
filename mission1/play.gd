@@ -517,11 +517,7 @@ func _persist() -> void:
   push_warning(result.reason)
 func _restore_initial() -> void:
  if initial.is_empty(): return
- sim.s = initial.current.duplicate(true)
- sim.memory = initial.memory.duplicate(true)
- sim.history = initial.history.duplicate(true)
- sim.restore_notebook()
- journal.sequence = int(initial.get("sequence",0))
+ journal.restore_run(sim, initial)
 
 func _exit_tree() -> void:
  _persist()

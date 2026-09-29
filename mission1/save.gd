@@ -20,9 +20,15 @@ static func clear(path: String = DEFAULT_PATH) -> Dictionary:
    if err != OK: return {"ok":false, "reason":"Could not clear Mission 1 save (%d)" % err}
  return {"ok":true}
 
+func restore_run(run: RefCounted, record: Dictionary) -> void:
+ run.restore_record(record)
+ sequence = int(record.get("sequence",0))
+ saved_count = 0
+ generation = -1
+
 func save_run(run: RefCounted, path: String = DEFAULT_PATH) -> Dictionary:
  # Input such as code digits can change the current tick without advancing time.
- run.history[-1] = run.s.duplicate(true)
+ run.record_current_frame()
  var rewrite := saved_count == 0 or generation != int(run.s.loop) or not FileAccess.file_exists(path)
  if rewrite: saved_count = 0
  sequence += 1

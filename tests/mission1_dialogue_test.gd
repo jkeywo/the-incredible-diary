@@ -14,9 +14,7 @@ func checks() -> void:
  assert(str(run.memory.notes).contains("Where are my bags"))
  assert(run.history[1].dialogue == original)
  var restored := Sim.new(false)
- restored.s = run.s.duplicate(true)
- restored.memory = run.memory.duplicate(true)
- restored.history = run.history.duplicate(true)
+ restored.restore_record({"current":run.s,"memory":run.memory,"history":run.history})
  for i in 30:
   run.step()
   restored.step()

@@ -65,7 +65,7 @@ func checks() -> void:
  run.note("legacy", "I saw the suitcase.")
  run.history.append(run.s.duplicate(true))
  run.memory.notes = ["Loop %d · Hour 1 — I saw the suitcase." % (int(run.s.loop)+1), "Loop 1 · Hour 1 — An earlier voyage.", "Hour 3 — The diary records an unseen death."]
- run.restore_notebook()
+ run.restore_record({"current":run.s,"memory":run.memory,"history":run.history})
  assert(run.memory.notes == ["01:01 — I saw the suitcase."])
  var game := Play.instantiate()
  game.sim = preload("res://mission1/simulation.gd").new(false)

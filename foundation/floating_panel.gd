@@ -94,8 +94,8 @@ func _input(event: InputEvent) -> void:
 			size = (_size_start + get_global_mouse_position() - _pointer_start).max(MINIMUM_PANEL_SIZE).min(available.max(MINIMUM_PANEL_SIZE))
 
 func _clamp_position(candidate: Vector2) -> Vector2:
-	var available: Vector2 = get_parent().size - Vector2(90, 28)
-	return Vector2(clampf(candidate.x, -size.x + 90.0, available.x), clampf(candidate.y, 0.0, available.y))
+	var available: Vector2 = (get_parent().size - size - Vector2(8, 8)).max(Vector2.ZERO)
+	return Vector2(clampf(candidate.x, 0.0, available.x), clampf(candidate.y, 0.0, available.y))
 
 func fit_to_parent() -> void:
 	if not is_inside_tree() or get_parent() == null:

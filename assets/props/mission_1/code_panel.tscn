@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://assets/props/mission_1/stateful_prop.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/props/mission_1/code_panel_states.png" id="2"]
+
+[node name="CodePanel" type="Sprite2D"]
+texture = ExtResource("2")
+script = ExtResource("1")
+cell_size = Vector2i(80, 72)
+state_names = PackedStringArray("standby", "entry", "accepted", "rejected")
+current_state = "standby"

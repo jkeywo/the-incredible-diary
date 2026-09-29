@@ -1,5 +1,8 @@
 # Two-room test-bed valve
 
+Mission 1's stateful prop sheets and loadable Godot scenes are documented in
+`mission_1/README.md`. They include this valve as a reusable two-state scene.
+
 `valve_states.png` is a transparent 64 × 48 sprite sheet with two 32 × 48
 cells: open/steaming, then closed. The valve wheel faces the camera on top of
 a floor-standing machine. Its cabinet has a visible top and right side for the

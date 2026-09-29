@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://assets/props/mission_1/stateful_prop.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/props/mission_1/service_door_states.png" id="2"]
+
+[node name="ServiceDoor" type="Sprite2D"]
+texture = ExtResource("2")
+script = ExtResource("1")
+cell_size = Vector2i(80, 128)
+state_names = PackedStringArray("closed", "open")
+current_state = "closed"

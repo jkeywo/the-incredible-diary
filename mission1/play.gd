@@ -367,7 +367,7 @@ func _unhandled_input(event: InputEvent) -> void:
  elif event is InputEventKey or event is InputEventMouseButton: using_controller = false
  var key: int = event.physical_keycode if event is InputEventKey and event.pressed and not event.echo else 0
  var button: int = event.button_index if event is InputEventJoypadButton and event.pressed else -1
- if key == KEY_TAB or button == JOY_BUTTON_Y:
+ if button == JOY_BUTTON_Y:
   _toggle_diary()
  elif key == KEY_R:
   _begin_reset()
@@ -825,6 +825,13 @@ func _notification(what: int) -> void:
   idle_seconds = 0.0
 
 func _input(event: InputEvent) -> void:
+ # Handle Tab before focused controls consume it as focus navigation.
+ if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_TAB:
+  if controls_enabled and not get_tree().paused and application_focused and time_presentation.finish_remaining <= 0.0:
+   using_controller = false
+   _toggle_diary()
+   get_viewport().set_input_as_handled()
+   return
  if diary_open and not get_tree().paused and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode in [KEY_LEFT,KEY_PAGEUP,KEY_RIGHT,KEY_PAGEDOWN]:
   _turn_diary(-1 if event.physical_keycode in [KEY_LEFT,KEY_PAGEUP] else 1)
   get_viewport().set_input_as_handled()

@@ -74,6 +74,17 @@ func checks() -> void:
 	assert(not game.diary_text.scroll_active and not game.diary_right_text.scroll_active)
 	await capture("last")
 	game.diary_close.grab_focus()
+	var tab := InputEventKey.new()
+	tab.physical_keycode = KEY_TAB
+	tab.pressed = true
+	root.push_input(tab,true)
+	assert(not game.diary_presentation.wanted and game.diary_open)
+	game.diary_presentation.advance(0.2)
+	assert(not game.diary_open)
+	root.push_input(tab,true)
+	assert(game.diary_presentation.wanted and game.diary_open)
+	game.diary_presentation.advance(0.2)
+	game.diary_close.grab_focus()
 	var previous := InputEventKey.new()
 	previous.physical_keycode = KEY_LEFT
 	previous.pressed = true

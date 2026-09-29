@@ -41,7 +41,7 @@ func _initialize() -> void:
  run.s.entry = run.s.code
  assert(run.submit_code())
  advance(run, Sim.TRAP+330)
- assert(run.flag("chat_delay") and run.party_arrival() == 4*Sim.HOUR)
+ assert(run.flag("chat_delay") and run.party_arrival() == Sim.POISON)
  run.s.room = "salon"
  run.s.pos = [Sim.Rooms.BAR_GUEST.x,Sim.Rooms.BAR_GUEST.y]
  advance(run, Sim.POISON+5)

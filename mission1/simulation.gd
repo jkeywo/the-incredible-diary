@@ -561,7 +561,7 @@ func _escape_path() -> Array:
  return points
 
 func _chat_departure() -> int:
- return 4*HOUR-Routines.duration(Routines.path(str(s.flags.get("chat_room","cabins")),Rooms.point(s.flags.get("chat_guest_pos",[745,530])),"salon",Rooms.BAR_GUEST))-60
+ return party_arrival()-Routines.duration(Routines.path(str(s.flags.get("chat_room","cabins")),Rooms.point(s.flags.get("chat_guest_pos",[745,530])),"salon",Rooms.BAR_GUEST))-60
 
 func _open_passenger_doors(planned: Dictionary) -> void:
  for actor in planned.values():
@@ -581,7 +581,7 @@ func _travel(from: Vector2, to: Vector2, time: int, start_tick: int, end_tick: i
 
 func party_arrival() -> int:
  if not luggage_delayed(): return timing("creak", CREAK)-30+int(s.flags.get("guest_delay_ticks",0))
- return (4*HOUR if flag("chat_delay") else 3*HOUR+450)+int(s.flags.get("guest_delay_ticks",0))
+ return (timing("poison", POISON) if flag("chat_delay") else 3*HOUR+450)+int(s.flags.get("guest_delay_ticks",0))
 
 func _party_schedule() -> void:
  if s.safe.has("chatterbox") and luggage_delayed() and not flag("chat_delay") and not flag("party_arrived"):
@@ -595,16 +595,18 @@ func _party_schedule() -> void:
  if s.tick >= arrival and not flag("party_arrived"):
   s.flags.party_arrived = true
   if s.room == "salon": note("party_arrival", "The luggage owner is waiting at the bar.")
- var spike := timing("poison", POISON)
- var drink := spike + (80 if luggage_delayed() else 40)
- if s.tick == spike:
+ # Poison follows attendance; 5:15 is earned by preserving Mabel's routine.
+ var interval := 80 if luggage_delayed() else 40
+ if s.tick >= arrival and not flag("spiked") and not s.safe.has("guest") and not s.dead.has("guest"):
   s.flags.spiked = true
   s.flags.spike_tick = s.tick
   s.flags.spike_frame = s.frame
+  s.flags.drink_tick = s.tick+interval
   if s.room == "salon":
    note("spike", "An obscured hand tips something into the guest's glass.")
    events.append({"kind":"spike", "text":""})
- if s.tick == drink and not s.safe.has("guest"):
+ var drink := int(s.flags.get("drink_tick",int(s.flags.get("spike_tick",arrival))+interval))
+ if flag("spiked") and s.tick >= drink and not s.safe.has("guest") and not s.dead.has("guest"):
   _death("guest", "The guest drank, then collapsed beside the poisoned glass.", "salon")
 
 func summary() -> String:

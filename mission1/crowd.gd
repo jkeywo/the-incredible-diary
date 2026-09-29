@@ -89,7 +89,7 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
    p = origin
    var step := (goal-origin).limit_length(Routines.SPEED)
    var best := INF
-   if step.length_squared() > 0.001:
+   if step.length_squared() > 0.000001:
     for angle in [0,30,-30,60,-60,90,-90,120,-120]:
      var candidate := origin+step.rotated(deg_to_rad(float(angle)))
      if not Rooms.can_step(room,origin,candidate,actor_flags): continue
@@ -102,7 +102,7 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
     actor.action = "walk"
     var delta := p-origin
     actor.facing = ("right" if delta.x>0 else "left") if absf(delta.x)>absf(delta.y) else ("down" if delta.y>0 else "up")
-   elif step.length_squared()>0.001: actor.action = "idle"
+   elif step.length_squared()>0.000001: actor.action = "idle"
   else:
    p = free_near(actor.room,p,flags,occupied,id)
    if not clear(actor.room,p,occupied,id): continue

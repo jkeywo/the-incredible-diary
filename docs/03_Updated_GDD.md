@@ -315,7 +315,7 @@ Character 1, Character 2 and Character 3 are functional placeholders; no names a
 | 3 | Be near Character 2 and select “Shove” during the chandelier warning. | Push them clear before the chandelier falls. |
 | 4 | Enter the current code and turn off steam after Character 3 becomes trapped. | They escape, meet Character 1 outside, and chatter long enough to delay the party until Hour 5. |
 | 5 | Bump Character 1 after their drink is spiked. | The drink spills; their outfit is ruined, and they leave almost immediately to change. They do not return before the party ends. |
-| 6 | Reach the successful mission conclusion. | Everyone survives; show victory. |
+| 5:30 | Reach the successful mission conclusion. | Everyone survives; show victory. |
 
 Without the bag delay, the drink intervention conflicts with the Hour 3 chandelier rescue. Without Character 3's rescue, the later chatterbox delay does not occur. This is the designed route, not yet evidence of a tested or exclusive solution.
 
@@ -696,7 +696,14 @@ living passenger is there. Trained crew can cross the steam obstruction. A
 sailor finding her body comments and stays. This is separate from the machine
 operator’s half-hour checks. Entered digits appear on the machine itself.
 
-Poisoning happens at 5:15. After spilling the drink, Boy can visit the passenger’s
+Felix’s poisoned drink follows his arrival: about 3:15 without the luggage delay
+(overlapping the chandelier warning), 4:15 with delayed luggage but no rescue
+conversation (during the steam emergency), or 5:15 after rescued Mabel meets
+him and delays him with her conversation. Rescuing Evelyn does not cause that
+last delay. The hand spikes the glass on this appointment; the existing brief
+interval before drinking remains. The drink deadline is recorded with the
+spiking event, including through save/load and rewind. The mission ends at 5:30.
+After spilling the drink, Boy can visit the passenger’s
 cabin to apologise; the passenger refuses the apology. The mission ends at 5:30.
 
 The interaction menu belongs to the nearest target and never combines different

@@ -201,7 +201,14 @@ living passenger is there. Trained crew can cross the steam obstruction. A
 sailor finding her body comments and stays. This is separate from the machine
 operator’s half-hour checks. Entered digits appear on the machine itself.
 
-Poisoning happens at 5:15. After spilling the drink, Boy can visit the passenger’s
+Felix’s poisoned drink follows his arrival: about 3:15 without the luggage delay
+(overlapping the chandelier warning), 4:15 with delayed luggage but no rescue
+conversation (during the steam emergency), or 5:15 after rescued Mabel meets
+him and delays him with her conversation. Rescuing Evelyn does not cause that
+last delay. The hand spikes the glass on this appointment; the existing brief
+interval before drinking remains. The drink deadline is recorded with the
+spiking event, including through save/load and rewind. The mission ends at 5:30.
+After spilling the drink, Boy can visit the passenger’s
 cabin to apologise; the passenger refuses the apology. The mission ends at 5:30.
 
 The interaction menu belongs to the nearest target and never combines different

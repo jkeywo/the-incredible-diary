@@ -33,7 +33,7 @@ try {
             if (-not $result.passed) { throw 'Probe checks failed.' }
 			& $godot --headless --path $root --script res://tests/foundation_test.gd
 			if ($LASTEXITCODE -ne 0) { throw 'Foundation checks failed.' }
-			$missionSuites = @('audio_settings', 'settings_menu', 'title_audio', 'native_loading', 'level_loading', 'mission1_audio', 'mission1_polish', 'controller_menu', 'diary_pages', 'pocket_watch', 'mission1_rooms', 'mission1_chandelier', 'mission1_steam', 'mission1_route', 'mission1_walking', 'mission1_save', 'mission1_authoring', 'mission1_authoring_ui', 'mission1_authoring_playthrough', 'mission1_play', 'mission1_revision', 'mission1_life', 'mission1_dialogue', 'mission1_hospitality', 'mission1_playtest', 'mission1_improvements', 'mission1_round3', 'mission1_round4', 'action_menu', 'touch_controls')
+			$missionSuites = @('audio_settings', 'settings_menu', 'title_audio', 'native_loading', 'level_loading', 'mission1_audio', 'mission1_polish', 'controller_menu', 'diary_pages', 'pocket_watch', 'mission1_rooms', 'mission1_chandelier', 'mission1_steam', 'mission1_route', 'mission1_poison_schedule', 'mission1_walking', 'mission1_save', 'mission1_authoring', 'mission1_authoring_ui', 'mission1_authoring_playthrough', 'mission1_play', 'mission1_revision', 'mission1_life', 'mission1_dialogue', 'mission1_hospitality', 'mission1_playtest', 'mission1_improvements', 'mission1_round3', 'mission1_round4', 'action_menu', 'touch_controls')
 			foreach ($suite in $missionSuites) {
 				$frameLimit = if ($suite -in @("title_audio", "mission1_polish", "controller_menu", "diary_pages", "level_loading")) { 2400 } else { 300 }
 				$output = & $godot --headless --path $root --script "res://tests/$($suite)_test.gd" --quit-after $frameLimit 2>&1

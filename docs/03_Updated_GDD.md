@@ -24,6 +24,10 @@ These later user decisions supersede conflicting layout and diary details below.
 - The in-game diary conceals Amelia's name and omits loop numbers. It records only witnessed observations in the current run, with hour and minute timestamps. Reset clears the written entries while retaining learned interaction knowledge.
 - Editor menus begin to the right of the settings cog.
 
+### Opening audio — clarified 29 September 2026
+
+The main menu plays the saved destination room's music and ambience when Continue is available; otherwise it uses the new game's starting room. Playback starts at half the normal in-game amplitude, after respecting the player's volume preferences. Continue preserves the active tracks and raises their volume smoothly to normal during the book-opening transition. New leaves the preview unchanged until confirmation, then crossfades to the starting room's audio over that same transition. Cancelling New does not affect playback. The existing players transfer into gameplay so tracks shared by the menu and destination do not restart.
+
 ### Chandelier staging — clarified 29 September 2026
 
 The chandelier hangs above the compass rose at the centre of the Grand Foyer. The guest's danger position, shove interaction and wreckage inspection share that floor position. The fixture visibly drops from overhead with accelerating downward motion, then changes to wreckage and dust at impact. The fall is sampled from recorded simulation time, including during rewind.

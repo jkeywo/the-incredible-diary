@@ -17,6 +17,7 @@ var entity_layer: Node2D
 var world_overlay: Node2D
 var actors := {}
 var props := {}
+var opening_audio_fade := 1.0
 var room_audio: Node
 var sounds: Node
 var watch: Control
@@ -57,8 +58,11 @@ func _ready() -> void:
  entity_layer = Node2D.new()
  entity_layer.y_sort_enabled = true
  add_child(entity_layer)
- room_audio = RoomAudio.new()
- add_child(room_audio)
+ if room_audio == null:
+  room_audio = RoomAudio.new()
+  add_child(room_audio)
+ elif room_audio.get_parent() != self:
+  room_audio.reparent(self)
  sounds = EventAudio.new()
  add_child(sounds)
  for id in ["amelia", "guest", "chandelier_guest", "chatterbox", "crew", "porter", "dock_sailor"]:
@@ -417,7 +421,8 @@ func _show_room(id: String) -> void:
  var room := load("res://assets/rooms/mission_1/%s.tscn" % Rooms.ROOMS[id].scene).instantiate() as Node2D
  room_slot.add_child(room)
  if room.has_method("set_motion_time"): room.animate_bobbing = false
- room_audio.set_room(room.get_node("RoomAudioSettings"), int(sim.s.tick)*100, 1.0)
+ room_audio.set_room(room.get_node("RoomAudioSettings"), int(sim.s.tick)*100, opening_audio_fade)
+ opening_audio_fade = 1.0
  shown_room = id
  match id:
   "docks":

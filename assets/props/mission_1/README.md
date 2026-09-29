@@ -26,8 +26,11 @@ steam room exit. The code panel has blank display windows so the current
 three-digit code can be drawn by UI instead of baked into art.
 
 The `steam_vent.tscn` scene now loops a separate steam plume when its state is
-`active`; switching to `off` hides it. `chandelier.tscn` exposes `play_fall()`
-for a brief warning/fall motion and dust burst before holding `fallen`.
+`active`; switching to `off` hides it. `chandelier.tscn` exposes
+`show_at(warning, progress, impact_seconds, time)` to sample its accelerating
+150-pixel drop and impact dust from recorded simulation time. Its origin is
+the shared floor position at the centre of the foyer. Negative progress means
+hanging; negative impact time means it has not landed.
 `drink.tscn` exposes `play_spiking()` for the identity-hidden hand and vial;
 the visual becomes `spiked` only when that clip finishes. `play_spill()` switches
 to `spilled` and plays the short splash. Direct `set_state()` remains available

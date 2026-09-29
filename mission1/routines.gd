@@ -113,7 +113,7 @@ static func passenger(id: String, tick: int, boarding: int, arrival: int, flags:
    [850,"foyer",[495,365],"talk","left"],
    [1450,"salon",[735,345],"talk","right"],
    [2600,"cabins",[225,315],"idle"],
-   [3500,"foyer",[680,440],"idle"]],"talk","right")
+   [3500,"foyer",[Rooms.CHANDELIER_FLOOR.x,Rooms.CHANDELIER_FLOOR.y],"idle"]],"talk","right")
  if id == "chatterbox":
   var to_steam := path("cabins",Vector2(935,315),"controls",Vector2(840,360))
   return track(tick,"docks",Vector2(765,440),[

@@ -42,7 +42,7 @@ func run_checks() -> void:
  paused = false
  var scenarios := [
   ["docks",[350,430],60],
-  ["foyer",[680,440],Sim.CREAK],
+  ["foyer",[580,380],Sim.CREAK],
   ["controls",[350,300],Sim.TRAP+10],
   ["cabins",[580,480],Sim.TRAP+110],
   ["passage",[580,480],Sim.TRAP+110],

@@ -1,31 +1,24 @@
 @tool
 extends "res://assets/props/mission_1/stateful_prop.gd"
+## The origin stays on the floor; the intact fixture falls from overhead.
+const HANG_HEIGHT := 150.0
 
-var _fall_tween: Tween
+func _ready() -> void:
+ super._ready()
+ show_at(false,-1.0,-1.0,0.0)
 
-
-func set_state(next_state: String) -> bool:
-	if _fall_tween != null and _fall_tween.is_running():
-		_fall_tween.kill()
-	rotation_degrees = 0.0
-	scale = Vector2.ONE
-	var result: bool = super.set_state(next_state)
-	if is_node_ready():
-		$Dust.call("stop_effect")
-	return result
-
-
-func play_fall() -> void:
-	if current_state == "fallen":
-		return
-	set_state("warning")
-	_fall_tween = create_tween()
-	_fall_tween.tween_property(self, "rotation_degrees", -3.0, 0.08)
-	_fall_tween.tween_property(self, "rotation_degrees", 3.0, 0.08)
-	_fall_tween.tween_property(self, "scale", Vector2(1.05, 0.25), 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	_fall_tween.finished.connect(_finish_fall)
-
-
-func _finish_fall() -> void:
-	set_state("fallen")
-	$Dust.call("play_effect")
+func show_at(warning: bool, progress: float, impact_seconds: float, time: float) -> void:
+ var landed := impact_seconds >= 0.0
+ var next := "fallen" if landed else "warning" if warning else "intact"
+ if current_state != next: super.set_state(next)
+ # Gravity accelerates the whole fixture downwards. Do not squash its sprite.
+ var fraction := clampf(progress,0.0,1.0)
+ offset = Vector2(-cell_size.x*0.5,-cell_size.y-HANG_HEIGHT*(1.0-fraction*fraction))
+ if landed: offset.y = -cell_size.y
+ scale = Vector2.ONE
+ rotation = sin(time*16.0)*0.018 if warning and progress<0.0 else 0.0
+ z_index = 0 if landed else 2
+ var dust: AnimatedSprite2D = $Dust
+ dust.pause()
+ dust.visible = landed and impact_seconds < float(dust.frame_count)/dust.frames_per_second
+ if dust.visible: dust.frame = mini(dust.frame_count-1,int(impact_seconds*dust.frames_per_second))

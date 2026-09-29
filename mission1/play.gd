@@ -341,7 +341,7 @@ func _show_room(id: String) -> void:
   "docks":
    _prop("suitcase", Rooms.LUGGAGE)
    _prop("bag_hiding", Vector2(210,335))
-  "foyer": _prop("chandelier", Vector2(680,375))
+  "foyer": _prop("chandelier", Rooms.CHANDELIER_FLOOR)
   "controls":
    _prop("code_panel", Vector2(350,280))
    _prop("steam_vent", Vector2(915,420))
@@ -368,7 +368,11 @@ func _sync_props(state: Dictionary) -> void:
   props.steam_vent.set_state("off" if state.flags.get("steam_off",false) or int(state.tick) < Simulation.TRAP else "active")
   props.code_panel.set_state("rejected" if state.flags.get("panel_rejected",false) else "entry" if state.code_open else "accepted" if state.flags.get("steam_off",false) else "standby")
  if props.has("chandelier"):
-  props.chandelier.set_state("fallen" if state.flags.get("chandelier_fallen", false) else "warning" if state.flags.get("chandelier_warning", false) else "intact")
+  var fraction := accumulator/0.1 if controls_enabled and rewind_index<0 and not diary_open else 0.0
+  var tick := float(state.tick)+fraction
+  var drop := (tick-float(state.flags.chandelier_drop_tick))/Simulation.DROP_TICKS if state.flags.has("chandelier_drop_tick") else -1.0
+  var impact := (tick-Simulation.FALL)/10.0 if state.flags.get("chandelier_fallen",false) else -1.0
+  props.chandelier.show_at(state.flags.get("chandelier_warning",false),drop,impact,tick/10.0)
  if props.has("suitcase"):
   props.suitcase.visible = not state.flags.get("bag_found",false)
   props.suitcase.set_state("hidden" if state.flags.get("bag_hidden",false) else "present")

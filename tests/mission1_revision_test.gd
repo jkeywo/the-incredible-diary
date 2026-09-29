@@ -53,7 +53,7 @@ func checks() -> void:
  run.step()
  assert(not str(run.memory.notes).contains("death") and not str(run.memory.notes).contains("fell"))
  run.s.room = "foyer"
- run.s.pos = [680,440]
+ run.s.pos = [580,380]
  run.step()
  assert(run.start("wreckage"))
  advance(run,int(run.s.tick)+10)

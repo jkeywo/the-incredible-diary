@@ -54,7 +54,7 @@ func _initialize() -> void:
      var a := Rooms.point(previous[id].pos).lerp(Rooms.point(actors[id].pos),alpha)
      var b := Rooms.point(previous[other].pos).lerp(Rooms.point(actors[other].pos),alpha)
      check(a.distance_to(b) >= 24.0,"render overlap "+id+" "+other+" at "+str(run.s.tick))
-  if run.s.tick == Sim.CREAK: check(Rooms.point(actors.chandelier_guest.pos).distance_to(Vector2(680,440)) < 1,"chandelier anchor")
+  if run.s.tick == Sim.CREAK: check(Rooms.point(actors.chandelier_guest.pos).distance_to(Vector2(580,380)) < 1,"chandelier anchor")
   if run.s.tick == Sim.TRAP: check(Rooms.point(actors.chatterbox.pos).distance_to(Vector2(840,360)) < 1,"steam anchor")
   if run.s.tick == Sim.CREAK+20: check(Rooms.point(actors.guest.pos).distance_to(Vector2(800,330)) < 1,"drink anchor")
   previous = actors

@@ -24,6 +24,10 @@ These later user decisions supersede conflicting layout and diary details below.
 - The in-game diary conceals Amelia's name and omits loop numbers. It records only witnessed observations in the current run, with hour and minute timestamps. Reset clears the written entries while retaining learned interaction knowledge.
 - Editor menus begin to the right of the settings cog.
 
+### Chandelier staging — clarified 29 September 2026
+
+The chandelier hangs above the compass rose at the centre of the Grand Foyer. The guest's danger position, shove interaction and wreckage inspection share that floor position. The fixture visibly drops from overhead with accelerating downward motion, then changes to wreckage and dust at impact. The fall is sampled from recorded simulation time, including during rewind.
+
 ### Passenger movement and staging — clarified 29 September 2026
 
 Passengers appear on the docks during Hour 1, board after their prerequisites, visit cabins and hold conversations before taking their places for significant events. They walk through connected rooms at a constant speed. Characters have solid foot-level collision with each other and Amelia; recorded history includes their resolved positions. Closed cabin doors block movement and passengers open doors on their routes. The missing suitcase starts in the clear aisle left of the luggage stacks. Stationary animations keep the feet planted while the upper body moves, with the visible soles aligned to the floor and a contact shadow.

@@ -13,7 +13,7 @@ func _initialize() -> void:
  advance(run, Sim.HOUR+150)
  assert(run.memory.procedure)
  run.s.room = "foyer"
- run.s.pos = [680,440]
+ run.s.pos = [580,380]
  advance(run, Sim.CREAK)
  assert(run.start("shove"))
  advance(run, Sim.FALL+1)

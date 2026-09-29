@@ -1,5 +1,7 @@
 extends RefCounted
 ## Authored screen geometry. Coordinates are at characters' feet.
+const CHANDELIER_FLOOR := Vector2(580,380)
+const CHANDELIER_SAFE := Vector2(730,430)
 const LUGGAGE := Vector2(145,390)
 const ROOMS := {
  "docks": {"title": "The docks", "scene": "01_docks", "floor": [[170,235,820,440],[125,325,90,140],[525,90,110,160]]},

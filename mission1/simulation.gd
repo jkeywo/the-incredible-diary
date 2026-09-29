@@ -7,6 +7,7 @@ const HOUR := 1800
 const END := 6 * HOUR
 const CREAK := 2 * HOUR + 480
 const FALL := CREAK + 80
+const DROP_TICKS := 8
 const TRAP := 3 * HOUR + 100
 const STEAM_FATAL := 3 * HOUR + 600
 const DEMO_START := HOUR + 50
@@ -191,6 +192,8 @@ func _schedule() -> void:
   if s.room == "foyer":
    note("creak", "The chandelier creaks and trembles above the guest.")
    events.append({"kind":"sound", "text":"chandelier_creak"})
+ if s.tick == FALL-DROP_TICKS:
+  s.flags.chandelier_drop_tick = s.tick
  if s.tick == FALL:
   s.flags.chandelier_fallen = true
   s.flags.chandelier_warning = false
@@ -233,8 +236,8 @@ func _rescue_options(_result: Array[Dictionary], _local: bool) -> void:
  _option(_result, "bump", "Bump into guest", "salon", Vector2(800,330), _local, flag("spiked") and not s.safe.has("guest") and not s.dead.has("guest"))
  _option(_result, "glass", "Inspect glass", "salon", Vector2(815,310), _local, s.dead.has("guest"))
  _option(_result, "panel", "Use controls", "controls", Vector2(350,300), _local, memory.procedure)
- _option(_result, "shove", "Shove", "foyer", Vector2(680,440), _local, flag("chandelier_warning") and not s.safe.has("chandelier_guest"))
- _option(_result, "wreckage", "Inspect wreckage", "foyer", Vector2(680,440), _local, flag("chandelier_fallen"))
+ _option(_result, "shove", "Shove", "foyer", Rooms.CHANDELIER_FLOOR, _local, flag("chandelier_warning") and not s.safe.has("chandelier_guest"))
+ _option(_result, "wreckage", "Inspect wreckage", "foyer", Rooms.CHANDELIER_FLOOR, _local, flag("chandelier_fallen"))
 func _complete_rescue(_id: String) -> void:
  match _id:
   "bump":
@@ -280,7 +283,7 @@ func _planned_actors() -> Dictionary:
  if flag("chandelier_warning"): result.chandelier_guest.action = "chandelier_warn"
  if s.dead.has("chandelier_guest"): result.chandelier_guest.action = "chandelier_casualty"
  if s.safe.has("chandelier_guest"):
-  result.chandelier_guest.pos = [780,470]
+  result.chandelier_guest.pos = [Rooms.CHANDELIER_SAFE.x,Rooms.CHANDELIER_SAFE.y]
  if s.dead.has("guest"): result.guest.action = "poison_collapse"
  if s.safe.has("guest"):
   var elapsed := t-int(s.flags.spill_tick)

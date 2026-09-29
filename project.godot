@@ -10,6 +10,7 @@ config/custom_user_dir_name="AmeliaAuthoringProbe"
 [autoload]
 DialogueManager="*res://addons/dialogue_manager/dialogue_manager.gd"
 BrowserFullscreen="*res://foundation/browser_fullscreen.gd"
+AudioSettings="*res://foundation/audio_settings.gd"
 
 [display]
 window/size/viewport_width=1160

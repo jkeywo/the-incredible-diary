@@ -57,6 +57,7 @@ func _set_intermittent(settings: Node, elapsed_ms: int, fade: float) -> void:
 	_intermittent_interval = settings.intermittent_interval_seconds
 	_hiss_player = AudioStreamPlayer.new()
 	_hiss_player.name = "IntermittentAmbience"
+	_hiss_player.bus = &"SFX"
 	_hiss_player.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_hiss_player.volume_db = -80.0 if fade > 0.0 else settings.intermittent_volume_db
 	add_child(_hiss_player)
@@ -92,6 +93,7 @@ func _set_bed(slot: String, source: AudioStream, target_db: float, fade: float, 
 		return
 	var player := AudioStreamPlayer.new()
 	player.name = slot.capitalize() + "Bed"
+	player.bus = &"Music" if slot == "music" else &"SFX"
 	player.process_mode = Node.PROCESS_MODE_PAUSABLE
 	player.stream = _looping_copy(source)
 	player.volume_db = -80.0 if fade > 0.0 else target_db

@@ -35,11 +35,7 @@ func confirm_selected() -> void:
 
 
 func _draw() -> void:
-	var panel := StyleBoxFlat.new()
-	panel.bg_color = Color("102138")
-	panel.border_color = Color("bd914d")
-	panel.set_border_width_all(4)
-	panel.set_corner_radius_all(14)
+	var panel := preload("res://assets/ui/popup/nine_piece_style.gd").new()
 	draw_style_box(panel, Rect2(Vector2.ZERO, size))
 	var font := ThemeDB.fallback_font
 	draw_string(font, Vector2(26, 37), "STEAM CONTROL", HORIZONTAL_ALIGNMENT_LEFT,

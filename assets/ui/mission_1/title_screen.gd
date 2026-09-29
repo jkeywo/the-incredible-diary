@@ -5,6 +5,7 @@ extends Control
 signal opened_to_game
 
 const Save = preload("res://mission1/save.gd")
+const PopupSkin = preload("res://assets/ui/popup/popup_skin.gd")
 const MissionOpening = preload("res://mission1/play.tscn")
 const TEST_LEVEL := "res://foundation/harness.tscn"
 
@@ -20,9 +21,12 @@ const TEST_LEVEL := "res://foundation/harness.tscn"
 
 var _opening := false
 var _game_world: Node2D
+var _error_message: Label
 
 
 func _ready() -> void:
+	PopupSkin.decorate(new_confirm)
+	_error_message = PopupSkin.add_message(PopupSkin.decorate(error_dialog), "")
 	if OS.has_feature("web") and bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('github_integration_test') && new URLSearchParams(location.search).get('github_web_smoke') === 'read'")):
 		call_deferred("_on_test_level")
 		return
@@ -85,7 +89,7 @@ func _on_quit() -> void:
 
 
 func _show_error(message: String) -> void:
-	error_dialog.dialog_text = message
+	_error_message.text = message
 	error_dialog.popup_centered()
 
 

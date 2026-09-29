@@ -49,6 +49,7 @@ func play_cue(cue: StringName) -> AudioStreamPlayer:
 	_next_variant[cue] = (index + 1) % variants.size()
 	var player := AudioStreamPlayer.new()
 	player.name = "Cue_%s" % cue
+	player.bus = &"SFX"
 	player.process_mode = Node.PROCESS_MODE_PAUSABLE
 	player.stream = variants[index]
 	player.volume_db = CUE_VOLUME_DB.get(cue, -4.0)

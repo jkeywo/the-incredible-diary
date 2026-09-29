@@ -37,11 +37,7 @@ func _refresh() -> void:
 
 func _draw() -> void:
 	var border := Color("c69b59") if success else Color("aa715e")
-	var panel := StyleBoxFlat.new()
-	panel.bg_color = Color("102138")
-	panel.border_color = border
-	panel.set_border_width_all(5)
-	panel.set_corner_radius_all(13)
+	var panel := preload("res://assets/ui/popup/nine_piece_style.gd").new()
 	draw_style_box(panel, Rect2(Vector2.ZERO, size))
 	draw_line(Vector2(34, 92), Vector2(size.x - 34, 92), border, 2.0)
 	draw_line(Vector2(34, size.y - 88), Vector2(size.x - 34, size.y - 88), border, 2.0)

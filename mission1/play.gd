@@ -34,7 +34,7 @@ var accumulator := 0.0
 var highlight := false
 var wait_latched := false
 var initial: Dictionary = {}
-var diary: PanelContainer
+var diary: Control
 var diary_text: RichTextLabel
 var diary_open := false
 var _save_counter := 0
@@ -82,7 +82,7 @@ func _build_hud() -> void:
  watch = Watch.new()
  watch.position = Vector2(1010, 36)
  hud.add_child(watch)
- heading = _label(Vector2(25,18), Vector2(800,35), 23)
+ heading = _label(Vector2(64,18), Vector2(760,35), 23)
  notice = _label(Vector2(25,62), Vector2(870,85), 17)
  message = _label(Vector2(25,620), Vector2(900,65), 18)
  help = _label(Vector2(25,696), Vector2(1110,36), 15)
@@ -96,18 +96,16 @@ func _build_hud() -> void:
  wheel.mouse_filter = Control.MOUSE_FILTER_IGNORE
  hud.add_child(wheel)
  wheel.draw.connect(_draw_wheel)
- diary = PanelContainer.new()
- diary.position = Vector2(135,70)
- diary.size = Vector2(850,600)
+ diary = preload("res://assets/ui/mission_1/open_diary.tscn").instantiate()
  hud.add_child(diary)
- var style := StyleBoxFlat.new()
- style.bg_color = Color("e3d4ac")
- style.set_content_margin_all(24)
- diary.add_theme_stylebox_override("panel", style)
  var column := VBoxContainer.new()
- diary.add_child(column)
+ diary.get_node("LeftPageContent").add_child(column)
+ column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+ column.offset_left = 35
+ column.offset_right = -15
+ column.add_theme_constant_override("separation", 18)
  var title := Label.new()
- title.text = "THE DIARY OF AMELIA ASHCOMBE"
+ title.text = "AMELIA ASHCOMBE\nVoyage notebook"
  title.add_theme_color_override("font_color", Color("342f29"))
  title.add_theme_font_size_override("font_size", 24)
  column.add_child(title)
@@ -116,14 +114,35 @@ func _build_hud() -> void:
  diary_text.add_theme_color_override("default_color", Color("342f29"))
  diary_text.add_theme_font_size_override("normal_font_size", 18)
  column.add_child(diary_text)
+ var right_page := VBoxContainer.new()
+ diary.get_node("RightPageContent").add_child(right_page)
+ right_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+ right_page.offset_left = 20
+ right_page.offset_right = -10
+ right_page.add_theme_constant_override("separation", 18)
+ var page_title := Label.new()
+ page_title.text = "THE VOYAGE"
+ page_title.add_theme_color_override("font_color", Color("342f29"))
+ page_title.add_theme_font_size_override("font_size", 24)
+ right_page.add_child(page_title)
+ var instructions := Label.new()
+ instructions.text = "Your observations remain in these pages when the voyage begins again."
+ instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ instructions.add_theme_color_override("font_color", Color("342f29"))
+ instructions.add_theme_font_size_override("font_size", 18)
+ right_page.add_child(instructions)
+ var space := Control.new()
+ space.size_flags_vertical = Control.SIZE_EXPAND_FILL
+ right_page.add_child(space)
+ right_page.theme = preload("res://assets/ui/popup/popup_skin.gd").make_theme()
  var close := Button.new()
  close.text = "Close diary (Tab / Y)"
  close.pressed.connect(_toggle_diary)
- column.add_child(close)
+ right_page.add_child(close)
  var reset := Button.new()
  reset.text = "Turn back the pages (R / Back)"
  reset.pressed.connect(_begin_reset)
- column.add_child(reset)
+ right_page.add_child(reset)
  diary.hide()
 
 func _label(p: Vector2, dimensions: Vector2, font_size: int) -> Label:

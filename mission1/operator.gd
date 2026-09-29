@@ -13,6 +13,8 @@ static func update(run) -> void:
   if int(run.s.flags.get("demo_cursor",0)) < 3 and run.s.tick < run.DEMO_END: return
   state.phase = "away"
   state.next_check = (int(run.s.tick/INTERVAL)+1)*INTERVAL
+ if not state.has("until_frame"):
+  state.until_frame = int(run.s.frame)+maxi(0,ceili((float(state.get("until",run.s.tick))-run.s.tick)/run.CLOCK_RATE))
  var actor: Dictionary = run.s.actors.get("crew",{})
  if actor.is_empty(): return
  if state.phase == "away":
@@ -23,12 +25,12 @@ static func update(run) -> void:
    finish_visit(run)
   elif run.s.dialogue.is_empty() and run.s.get("conversation",{}).is_empty():
    state.phase = "speak"
-   state.until = int(run.s.tick)+40
+   state.until_frame = int(run.s.frame)+40
    Speech.say(run,"crew","Why has this been switched off?","speech","operator_%d" % state.next_check,40)
- if state.phase == "speak" and run.s.tick >= state.until:
+ if state.phase == "speak" and run.s.frame >= state.until_frame:
   state.phase = "operate"
-  state.until = int(run.s.tick)+15
- if state.phase == "operate" and run.s.tick >= state.until:
+  state.until_frame = int(run.s.frame)+15
+ if state.phase == "operate" and run.s.frame >= state.until_frame:
   run.s.flags.steam_off = false
   if run.s.room == "controls": run.events.append({"kind":"sound","text":"steam_valve"})
   finish_visit(run)

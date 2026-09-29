@@ -49,7 +49,7 @@ func checks() -> void:
  var frozen_frames: int = run.s.frame
  round_trip(run)
  for i in 100: run.step()
- assert(run.s.tick == 105 and run.s.frame == frozen_frames+105)
+ assert(run.s.tick == 157 and run.s.frame == frozen_frames+105)
  assert(not run.s.actors.has("captain") and run.s.actors.has("chatterbox"))
  assert(run.s.actors.guest.pos[0] < 500)
  run.reset()
@@ -164,6 +164,8 @@ func checks() -> void:
  for i in 8: old.step()
  var legacy_history := old.history.duplicate(true)
  for frame in legacy_history:
+  frame.tick = frame.frame
+  frame.erase("clock_fraction")
   for key in ["frame","tutorial","arrivals","hospitality"]: frame.erase(key)
  var batch := {"schema":2,"sequence":1,"loop":0,"start":0,"history":legacy_history,"current":legacy_history[-1],"memory":old.memory}
  var body := JSON.stringify(batch)

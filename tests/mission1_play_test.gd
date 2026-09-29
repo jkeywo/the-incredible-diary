@@ -29,7 +29,7 @@ func run_checks() -> void:
  game._physics_process(1)
  check(game.sim.s.tick == Sim.HOUR and game.wait_latched, "accelerated wait stops at Hour boundary")
  game._physics_process(0.1)
- check(game.sim.s.tick == Sim.HOUR+1, "holding wait does not accelerate through next Hour")
+ check(game.sim.s.tick in [Sim.HOUR+1,Sim.HOUR+2], "holding wait does not accelerate through next Hour")
  wait_key = wait_key.duplicate()
  wait_key.pressed = false
  Input.parse_input_event(wait_key)

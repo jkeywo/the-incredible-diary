@@ -2,6 +2,7 @@ extends RefCounted
 ## Timetabled journeys use the same exits and walkable floor as the player.
 ## Each route is sampled at constant speed and is recorded in the run history.
 const Rooms = preload("res://mission1/rooms.gd")
+const CLOCK_RATE := 1.5
 const SPEED := 10.0 # pixels per 0.1-second simulation tick
 static var paths: Dictionary = {}
 
@@ -77,7 +78,7 @@ static func duration(points: Array) -> int:
  var total := 0
  for i in range(1,points.size()):
   if points[i-1].room == points[i].room:
-   total += ceili(Rooms.point(points[i-1].pos).distance_to(Rooms.point(points[i].pos))/SPEED)
+   total += ceili(Rooms.point(points[i-1].pos).distance_to(Rooms.point(points[i].pos))/(SPEED/CLOCK_RATE))
  return total
 
 static func travel(points: Array, elapsed: int, action := "idle", facing := "down") -> Dictionary:
@@ -88,9 +89,9 @@ static func travel(points: Array, elapsed: int, action := "idle", facing := "dow
   if a.room != b.room: continue
   var origin := Rooms.point(a.pos)
   var target := Rooms.point(b.pos)
-  var ticks := ceili(origin.distance_to(target)/SPEED)
+  var ticks := ceili(origin.distance_to(target)/(SPEED/CLOCK_RATE))
   if left < ticks:
-   var p := origin.move_toward(target,left*SPEED)
+   var p := origin.move_toward(target,left*SPEED/CLOCK_RATE)
    var delta := target-origin
    var direction := ("right" if delta.x > 0 else "left") if absf(delta.x)>absf(delta.y) else ("down" if delta.y>0 else "up")
    return {"room":a.room,"pos":[p.x,p.y],"action":"walk","facing":direction}
@@ -175,8 +176,9 @@ static func incidentals(tick: int, _flags: Dictionary) -> Dictionary:
    var place := Rooms.group_slot(visit[1],group,slot)
    stages.append([visit[0],place.room,place.pos,"talk",place.facing])
   stages.append([1550,"cabins",[-25,530],"idle"])
-  if index < 2 and tick >= 1550 and tick <= 2380:
-   stages = [[1550,"controls",[240+index*170,365],"idle","up"],[2310,"cabins",[-25,530],"idle"]]
+  var demo_start := 1850-duration(path("cabins",Vector2(-25,530),"controls",Vector2(240+index*170,365)))-90 if index < 2 else 1550
+  if index < 2 and tick >= demo_start and tick <= 2380:
+   stages = [[demo_start,"controls",[240+index*170,365],"idle","up"],[2310,"cabins",[-25,530],"idle"]]
    result[id] = track(tick,"cabins",Vector2(-25,530),stages)
   elif phase < 2050:
    result[id] = track(phase,"cabins",Vector2(-25,530),stages)
@@ -192,7 +194,7 @@ static func with_foyer_stop(id: String, stages: Array, origin: Vector2) -> Array
  var outward := duration(path("docks",origin,"foyer",Rooms.point(stop.pos)))
  var onward := duration(path("foyer",Rooms.point(stop.pos),first[1],Rooms.point(first[2])))
  var deadline := int(result[1][0]) if result.size()>1 else 10800
- var departure := mini(int(first[0])+outward+200,deadline-onward-30)
+ var departure := mini(int(first[0])+outward+300,deadline-onward-30)
  result[0] = [first[0],"foyer",stop.pos,"idle",stop.facing]
  result.insert(1,[maxi(int(first[0])+outward,departure),first[1],first[2],first[3]])
  return result

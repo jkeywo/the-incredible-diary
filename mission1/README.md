@@ -157,3 +157,27 @@ Speech placement avoids Boy and controls where possible. When overlap with Boy
 is unavoidable, the frame, background and tail use 50% opacity while text stays
 opaque. Operator progress, gathering assignments, casualty positions and hint
 queues are recorded for Continue and rewind.
+
+
+### Further playtest decisions — voyage pace and conclusion
+
+The voyage clock advances 1.5 times faster: each watch hour takes two real
+minutes. Movement, action progress, speech and visual effects retain their real
+speed. The voyage begins at 1:00 and ends at 6:00, after ten active real minutes.
+The luggage-delayed bar arrival is now 4:15 so the rescued passenger can still
+intercept the luggage owner at the unchanged walking speed.
+
+A successful Shove starts the chandelier dropping immediately. Steam pressure
+shows green while on and red while off. Each reset randomly selects a different
+three-digit code; Continue retains the recorded code. Spilled glasses remain on
+the floor beside the spill, and the bar flowers render in front of the hidden
+hand.
+
+Speech boxes choose a position once for each line, then follow the speaker at
+that fixed offset. Tails can point from any side. Overlap still fades the panel
+without fading the text.
+
+At 6:00 the open diary becomes the mission-over screen: the outcome summary is
+on the left page, with buttons on the right. Failure offers the usual rewind;
+victory offers **Turn the Page**. Both offer **Return to main menu**. Until the
+next mission exists, Turn the Page also returns to the main menu.

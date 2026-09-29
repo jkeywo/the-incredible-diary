@@ -25,7 +25,7 @@ func _initialize() -> void:
  run.step()
  assert(run.s.dead.has("chatterbox"))
  var late := Sim.new(false)
- late.s.tick = Sim.DEMO_END-95
+ late.s.tick = Sim.DEMO_END-140
  for i in 66: late.step()
  late.s.room = "controls"
  late.s.pos = [350,300]

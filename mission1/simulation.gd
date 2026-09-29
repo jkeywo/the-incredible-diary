@@ -11,10 +11,12 @@ const CAPTAIN := Vector2(650,280)
 const BRIEFING := [["captain","Boy! Report for duty."],["amelia","Yes, Captain."],["captain","Explore the ship and make sure our guests are comfortable. Help with their luggage, bring refreshments, and show them to their cabins."],["amelia","Very good, Captain."],["captain","Passengers are coming aboard. Get to it."]]
 var opening_enabled := true
 const HOUR := 1800
-const END := 6 * HOUR
+const CLOCK_RATE := 1.5
+const END := 5 * HOUR
 const CREAK := 2 * HOUR + 480
 const FALL := CREAK + 80
-const DROP_TICKS := 8
+const DROP_TICKS := 12
+const DROP_FRAMES := 8
 const TRAP := 3 * HOUR + 100
 const STEAM_FATAL := 3 * HOUR + 600
 const DEMO_START := HOUR + 50
@@ -31,7 +33,12 @@ func _init(with_opening := true) -> void:
 func reset() -> void:
  memory.notes = []
  var loop := int(s.get("loop", -1)) + 1
- var value := (loop * 71 + 83) % 216
+ var previous_code: String = s.get("code","")
+ var value := randi_range(0,215)
+ if not previous_code.is_empty():
+  var previous_value := 0
+  for digit in range(3): previous_value += (int(previous_code[digit])-1)*int(pow(6,digit))
+  value = (previous_value+randi_range(1,215))%216
  var code := ""
  for i in 3:
   code += str(value % 6 + 1)
@@ -65,7 +72,7 @@ func note(key: String, text: String, permanent := true, show_message := true) ->
  var line := "%s — %s" % [observation_time(int(s.tick)), text]
  if permanent: memory.notes.append(line)
  if show_message: s.message = text
- if key in ["bag_inspect","bag_reminder","poison_evidence","wreckage","stair_reminder"]:
+ if key in ["bag_inspect","bag_reminder","poison_evidence","stair_reminder"]:
   s.message = ""
   Conversations.say(self,"amelia",text,"thought")
  events.append({"kind":"observation", "text":text})
@@ -133,8 +140,7 @@ func step(direction := Vector2.ZERO, cancel := false) -> void:
   history.append(s.duplicate(true))
   return
  var player_before := {"room":s.room,"pos":s.pos.duplicate()}
- s.tick = int(s.tick)+1
- if s.tick % HOUR == 0: events.append({"kind":"sound","text":"hour_chime"})
+ var previous_tick := int(s.tick)
  s.door_cooldown = maxi(0, int(s.door_cooldown)-1)
  if direction.length_squared() > 0.01:
   var p := Crowd.move_player(s.room, Rooms.point(s.pos), direction.limit_length() * 14.0, s.flags, s.actors)
@@ -160,7 +166,18 @@ func step(direction := Vector2.ZERO, cancel := false) -> void:
     s.action = {}
     _complete(action.id)
  if s.code_open and not nearby("controls", Vector2(350,300)): s.code_open = false
- _schedule()
+ var clock_progress := float(s.get("clock_fraction",0.0))+CLOCK_RATE
+ var ticks := int(clock_progress)
+ s.clock_fraction = clock_progress-ticks
+ for elapsed in ticks:
+  s.tick = mini(previous_tick+elapsed+1,END)
+  if s.tick % HOUR == 0: events.append({"kind":"sound","text":"hour_chime"})
+  _schedule()
+  if s.tick % HOUR == 0:
+   s.clock_fraction += ticks-elapsed-1
+   break
+ _demonstration()
+ Operator.update(self)
  Hospitality.update(self)
  _open_passenger_doors(_planned_actors())
  _open_passenger_doors(s.actors)
@@ -243,8 +260,6 @@ func _complete(id: String) -> void:
 func _schedule() -> void:
  _luggage_schedule()
  _party_schedule()
- _demonstration()
- Operator.update(self)
  if s.tick == TRAP:
   s.flags.trapped = true
   if flag("steam_off"):
@@ -264,9 +279,12 @@ func _schedule() -> void:
   if s.room == "foyer":
    note("creak", "The chandelier creaks and trembles above the guest.")
    events.append({"kind":"sound", "text":"chandelier_creak"})
- if s.tick == FALL-DROP_TICKS:
+ if s.tick == FALL-DROP_TICKS and not s.flags.has("chandelier_drop_tick"):
   s.flags.chandelier_drop_tick = s.tick
- if s.tick == FALL:
+  s.flags.chandelier_drop_frame = s.frame
+ if not flag("chandelier_fallen") and s.tick >= int(s.flags.get("chandelier_impact_tick",FALL)):
+  s.flags.chandelier_impact_tick = s.tick
+  s.flags.chandelier_impact_frame = s.frame
   s.flags.chandelier_fallen = true
   s.flags.chandelier_warning = false
   if not s.safe.has("chandelier_guest"): _death("chandelier_guest", "The chandelier fell on the guest.", "foyer")
@@ -326,6 +344,9 @@ func _complete_rescue(_id: String) -> void:
    s.safe.append("guest")
    s.flags.spilled = true
    s.flags.spill_tick = s.tick
+   s.flags.spill_frame = s.frame
+   var spill_position := Rooms.point(s.actors.guest.pos)+Vector2(28,8)
+   s.flags.glass_drop = [spill_position.x,spill_position.y]
    note("spill", "My elbow caught the glass. His drink soaked his suit.")
    Conversations.start(self,"spill_reply",[["guest","My suit! Do watch where you are going!"]],["guest"])
    events.append({"kind":"sound", "text":"drink_spill"})
@@ -333,10 +354,20 @@ func _complete_rescue(_id: String) -> void:
   "shove":
    s.safe.append("chandelier_guest")
    s.flags.shove_tick = s.tick
+   s.flags.chandelier_drop_tick = s.tick
+   s.flags.chandelier_drop_frame = s.frame
+   s.flags.chandelier_impact_tick = s.tick+DROP_TICKS
    note("shove", "I shoved the guest out from beneath the chandelier.")
    Conversations.start(self,"shove_reply",[["chandelier_guest","How dare you! What do you think you are doing?"]],["chandelier_guest"])
    events.append({"kind":"sound", "text":"shove"})
-  "wreckage": note("wreckage", "Broken glass and a snapped suspension pin.")
+  "wreckage":
+   var text := "She is dead, beneath the chandelier. Broken glass everywhere, and a snapped suspension pin."
+   if not s.dead.has("chandelier_guest"):
+    text = "Broken glass and a snapped suspension pin. Thank goodness I got her out of the way."
+   # Inspection always responds, even when this evidence is already in the diary.
+   note("wreckage",text,true,false)
+   s.message = ""
+   Conversations.say(self,"amelia",text,"thought")
 func _observe_rescues() -> void:
  if s.room == "salon":
   if flag("party_arrived") and not s.dead.has("guest") and not s.safe.has("guest"):
@@ -348,7 +379,7 @@ func _observe_rescues() -> void:
   if s.dead.has("chatterbox"): note("steam_body", "The passenger lies motionless beyond the steam leak.")
  if s.room == "foyer":
   if flag("chandelier_warning"): note("creak", "The chandelier creaks and trembles above the guest.")
-  if flag("chandelier_fallen"): note("fallen_seen", "The fallen chandelier leaves enough space to cross the foyer.")
+  if flag("chandelier_fallen"): note("fallen_seen", "The guest lies dead beneath the fallen chandelier." if s.dead.has("chandelier_guest") else "The fallen chandelier lies in pieces. The guest is safe.")
 
 func actor_positions() -> Dictionary:
  return Crowd.separate(_planned_actors(),s.flags)
@@ -385,7 +416,7 @@ func _planned_actors() -> Dictionary:
   result.chandelier_guest.fixed = true
  if s.safe.has("chandelier_guest"):
   result.chandelier_guest.pos = [Rooms.CHANDELIER_SAFE.x,Rooms.CHANDELIER_SAFE.y]
- if flag("party_arrived") and (not flag("spiked") or t-int(s.flags.get("spike_tick",-100)) < 7): result.guest.action = "idle"
+ if flag("party_arrived") and (not flag("spiked") or int(s.frame)-int(s.flags.get("spike_frame",-100)) < 7): result.guest.action = "idle"
  if s.dead.has("guest"):
   result.guest = s.flags.get("guest_collapse",result.guest).duplicate(true)
   result.guest.action = "poison_collapse"
@@ -452,7 +483,7 @@ func _travel(from: Vector2, to: Vector2, time: int, start_tick: int, end_tick: i
 
 func party_arrival() -> int:
  if not luggage_delayed(): return CREAK-30
- return 4*HOUR if flag("chat_delay") else 3*HOUR+300
+ return 4*HOUR if flag("chat_delay") else 3*HOUR+450
 
 func _party_schedule() -> void:
  if s.safe.has("chatterbox") and luggage_delayed() and not flag("chat_delay") and not flag("party_arrived"):
@@ -471,6 +502,7 @@ func _party_schedule() -> void:
  if s.tick == spike:
   s.flags.spiked = true
   s.flags.spike_tick = s.tick
+  s.flags.spike_frame = s.frame
   if s.room == "salon":
    note("spike", "An obscured hand tips something into the guest's glass.")
    events.append({"kind":"spike", "text":""})
@@ -498,7 +530,7 @@ func _demonstration() -> void:
  var close := nearby("controls", Vector2(310,305), 110)
  var remaining := (3-cursor)*30 - int(s.flags.demo_progress)
  # Waiting and pausing use only spare time inside the authored window.
- if not close and DEMO_END-int(s.tick) > remaining:
+ if not close and DEMO_END-int(s.tick) > remaining*CLOCK_RATE:
 
   return
  s.flags.demo_progress += 1

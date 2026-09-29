@@ -45,6 +45,16 @@ var hint_prompt: Label
 var wait_latched := false
 var initial: Dictionary = {}
 var diary: Control
+var diary_title: Label
+var diary_page_title: Label
+var diary_instructions: Label
+var diary_close: Button
+var diary_reset: Button
+var diary_next: Button
+var diary_menu: Button
+var end_presented := false
+var bubble_identity := ""
+var bubble_offset := Vector2.ZERO
 var diary_text: RichTextLabel
 var diary_open := false
 var _save_counter := 0
@@ -144,6 +154,7 @@ func _build_hud() -> void:
  column.offset_right = -15
  column.add_theme_constant_override("separation", 18)
  var title := Label.new()
+ diary_title = title
  title.text = "VOYAGE NOTEBOOK"
  title.add_theme_color_override("font_color", Color("342f29"))
  title.add_theme_font_size_override("font_size", 24)
@@ -160,11 +171,13 @@ func _build_hud() -> void:
  right_page.offset_right = -10
  right_page.add_theme_constant_override("separation", 18)
  var page_title := Label.new()
+ diary_page_title = page_title
  page_title.text = "THE VOYAGE"
  page_title.add_theme_color_override("font_color", Color("342f29"))
  page_title.add_theme_font_size_override("font_size", 24)
  right_page.add_child(page_title)
  var instructions := Label.new()
+ diary_instructions = instructions
  instructions.text = "Observations from the current voyage, recorded as they happen."
  instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
  instructions.add_theme_color_override("font_color", Color("342f29"))
@@ -175,13 +188,23 @@ func _build_hud() -> void:
  right_page.add_child(space)
  right_page.theme = preload("res://assets/ui/popup/popup_skin.gd").make_theme()
  var close := Button.new()
+ diary_close = close
  close.text = "Close diary (Tab / Y)"
  close.pressed.connect(_toggle_diary)
  right_page.add_child(close)
  var reset := Button.new()
+ diary_reset = reset
  reset.text = "Turn back the pages (R / Back)"
  reset.pressed.connect(_begin_reset)
  right_page.add_child(reset)
+ diary_next = Button.new()
+ diary_next.text = "Turn the Page"
+ diary_next.pressed.connect(_return_to_menu)
+ right_page.add_child(diary_next)
+ diary_menu = Button.new()
+ diary_menu.text = "Return to main menu"
+ diary_menu.pressed.connect(_return_to_menu)
+ right_page.add_child(diary_menu)
  diary.hide()
  touch_controls = TouchControls.new()
  hud.add_child(touch_controls)
@@ -235,10 +258,11 @@ func _physics_process(delta: float) -> void:
  var direction := _movement_input() if not waiting else Vector2.ZERO
  while accumulator >= 0.1:
   accumulator -= 0.1
+  var old_hour := int(sim.s.tick/Simulation.HOUR)
   sim.step(direction)
   _events()
   _save_counter += 1
-  if waiting and sim.s.tick % Simulation.HOUR == 0:
+  if waiting and int(sim.s.tick/Simulation.HOUR) > old_hour:
    wait_latched = true
    accumulator = 0.0
    break
@@ -264,7 +288,8 @@ func _unhandled_input(event: InputEvent) -> void:
  elif key == KEY_R or button == JOY_BUTTON_BACK:
   _begin_reset()
  elif sim.s.finished and (key == KEY_ENTER or button == JOY_BUTTON_A):
-  _begin_reset()
+  if sim.s.dead.is_empty(): _return_to_menu()
+  else: _begin_reset()
  elif diary_open or rewind_index >= 0: return
  elif key == KEY_H or button == JOY_BUTTON_X:
   highlight = not highlight
@@ -350,9 +375,14 @@ func _refresh(direction := Vector2.INF) -> void:
  world_overlay.queue_redraw()
  if room_slot.get_child_count() > 0 and room_slot.get_child(0).has_method("set_motion_time"):
   room_slot.get_child(0).set_motion_time(float(state.get("frame",state.tick))/10.0)
- if state.finished:
-  message.text = _summary()
-  help.text = "Enter / A: turn back the pages and play again    Tab / Y: read diary"
+ if state.finished and rewind_index < 0:
+  diary_open = true
+  diary.show()
+  message.text = ""
+  help.hide()
+  if not end_presented:
+   end_presented = true
+   (diary_next if sim.s.dead.is_empty() else diary_reset).call_deferred("grab_focus")
  elif rewind_index >= 0:
   message.text = "The pages turn backwards…  R / Back to skip"
  _refresh_bubble(state)
@@ -364,29 +394,33 @@ func _refresh_bubble(state: Dictionary) -> void:
  if not bubble.visible:
   hint_prompt.hide()
   touch_controls.tutorial_action = ""
+  bubble_identity = ""
   return
  var actor: Node2D = actors.get(line.speaker,actors.amelia)
  if not actor.visible:
   bubble.hide()
   hint_prompt.hide()
   touch_controls.tutorial_action = ""
+  bubble_identity = ""
   return
  var font: Font = bubble.message_label.get_theme_font("font")
  var font_size: int = bubble.message_label.get_theme_font_size("font_size")
  var text_height := font.get_multiline_string_size(str(line.text),HORIZONTAL_ALIGNMENT_LEFT,298,font_size).y
  bubble.bubble_size = Vector2(350,maxf(154,text_height+94))
  var anchor := actor.position-Vector2(0,52)
- bubble.position = Vector2(clampf(anchor.x-bubble.size.x/2,12,1150-bubble.size.x),clampf(anchor.y-bubble.size.y,12,590-bubble.size.y))
- bubble.tail_position = clampf((anchor.x-bubble.position.x)/bubble.size.x,0.15,0.85)
+ var identity := "%s:%s:%s:%s" % [line.room,line.speaker,line.started,line.text]
+ if identity != bubble_identity:
+  bubble.position = Vector2(clampf(anchor.x-bubble.size.x/2,12,1150-bubble.size.x),clampf(anchor.y-bubble.size.y,12,590-bubble.size.y))
+  _place_bubble(anchor)
+  bubble_offset = bubble.position-actor.position
+  bubble_identity = identity
+ else:
+  bubble.position = actor.position+bubble_offset
+ var player_rect := Rect2(actors.amelia.position-Vector2(20,55),Vector2(40,60)).grow(6)
+ bubble.background_opacity = 0.5 if Rect2(bubble.position,bubble.size).intersects(player_rect) else 1.0
+ bubble.point_tail_at(anchor-bubble.position)
  var fraction := accumulator if controls_enabled and rewind_index < 0 and not diary_open else 0.0
  bubble.present(line,maxf(0,(float(state.get("frame",state.tick))-float(line.started))/10.0+fraction))
- if wheel.visible and Rect2(wheel.position,wheel.size).intersects(Rect2(bubble.position,bubble.size)):
-  wheel.position.y = minf(650-wheel.size.y,bubble.position.y+bubble.size.y+8)
- if touch_controls.active and wheel.visible:
-  wheel.position.y = minf(wheel.position.y,touch_controls.top_edge-20-wheel.size.y)
-  if Rect2(wheel.position,wheel.size).intersects(Rect2(bubble.position,bubble.size)):
-   bubble.position.y = maxf(12,wheel.position.y-bubble.size.y-8)
- _place_bubble(anchor)
  var hint: String = line.get("hint","")
  touch_controls.tutorial_action = hint
  hint_prompt.visible = not hint.is_empty()
@@ -501,8 +535,8 @@ func _show_room(id: String) -> void:
    pillar.texture = load("res://assets/rooms/mission_1/05_party_salon.png")
    pillar.centered = false
    pillar.region_enabled = true
-   pillar.region_rect = Rect2(944,0,41,100)
-   pillar.position = Vector2(944,0)
+   pillar.region_rect = Rect2(935,0,50,133)
+   pillar.position = Vector2(935,0)
    pillar.z_index = 3
    entity_layer.add_child(pillar)
    props.bar_pillar = pillar
@@ -529,15 +563,18 @@ func _sync_props(state: Dictionary) -> void:
   props.steam_vent.set_state("active" if active else "off")
   var plume: AnimatedSprite2D = props.steam_vent.get_node("SteamPlume")
   plume.pause()
-  plume.frame = int(state.tick/2) % 4
-  props.room_steam.show_at(float(state.tick)/10.0,active)
-  props.code_panel.set_state("rejected" if state.flags.get("panel_rejected",false) else "entry" if state.code_open else "accepted" if state.flags.get("steam_off",false) else "standby")
+  plume.frame = int(state.get("frame",state.tick)/2) % 4
+  props.room_steam.show_at(float(state.get("frame",state.tick))/10.0,active)
+  props.code_panel.set_state("rejected" if state.flags.get("panel_rejected",false) else "entry" if state.code_open else "rejected" if state.flags.get("steam_off",false) else "accepted")
  if props.has("chandelier"):
   var fraction := accumulator/0.1 if controls_enabled and rewind_index<0 and not diary_open else 0.0
   var tick := float(state.tick)+fraction
-  var drop := (tick-float(state.flags.chandelier_drop_tick))/Simulation.DROP_TICKS if state.flags.has("chandelier_drop_tick") else -1.0
-  var impact := (tick-Simulation.FALL)/10.0 if state.flags.get("chandelier_fallen",false) else -1.0
-  props.chandelier.show_at(state.flags.get("chandelier_warning",false),drop,impact,tick/10.0)
+  var frame := float(state.get("frame",state.tick))+fraction
+  var drop := (tick-float(state.flags.chandelier_drop_tick))/8.0 if state.flags.has("chandelier_drop_tick") else -1.0
+  if state.flags.has("chandelier_drop_frame"): drop = (frame-float(state.flags.chandelier_drop_frame))/Simulation.DROP_FRAMES
+  var impact := (tick-float(state.flags.get("chandelier_impact_tick",Simulation.FALL)))/10.0 if state.flags.get("chandelier_fallen",false) else -1.0
+  if state.flags.has("chandelier_impact_frame"): impact = (frame-float(state.flags.chandelier_impact_frame))/10.0
+  props.chandelier.show_at(state.flags.get("chandelier_warning",false),drop,impact,frame/10.0)
  if props.has("suitcase"):
   props.suitcase.visible = not state.flags.get("bag_found",false)
   props.suitcase.set_state("hidden" if state.flags.get("bag_hidden",false) else "present")
@@ -549,6 +586,7 @@ func _events() -> void:
 
 
 func _toggle_diary() -> void:
+ if sim.s.finished: return
  idle_seconds = 0.0
  diary_open = not diary_open
  diary.visible = diary_open
@@ -556,7 +594,22 @@ func _toggle_diary() -> void:
  _refresh()
  _persist()
 
+func _return_to_menu() -> void:
+ get_node("/root/AudioSettings").return_to_main_menu()
+
 func _refresh_diary() -> void:
+ var ended: bool = sim.s.finished
+ var victory: bool = ended and sim.s.dead.is_empty()
+ diary_title.text = "VOYAGE COMPLETE" if victory else "VOYAGE ENDED" if ended else "VOYAGE NOTEBOOK"
+ diary_page_title.text = "THE NEXT PAGE" if victory else "TRY AGAIN" if ended else "THE VOYAGE"
+ diary_instructions.text = "Everyone survived. Turn the page when you are ready." if victory else "Turn back the pages and try to save everyone." if ended else "Observations from the current voyage, recorded as they happen."
+ diary_close.visible = not ended
+ diary_reset.visible = not victory
+ diary_next.visible = victory
+ diary_menu.visible = ended
+ if ended:
+  diary_text.text = "6:00 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n")
+  return
  diary_text.text = "Boy · Voyage notebook\n\n" + "\n\n".join(sim.memory.notes)
  if sim.memory.reset:
   diary_text.text += "\n\nThe pages can turn back time. R returns the whole leg to the docks. These pages record the current voyage."
@@ -584,6 +637,7 @@ func _rewind(delta: float) -> void:
 func _finish_reset() -> void:
  rewind_index = -1
  sim.reset()
+ end_presented = false
  accumulator = 0.0
  help.text = ""
  _refresh()

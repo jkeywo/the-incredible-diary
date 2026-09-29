@@ -26,7 +26,29 @@ extends Control
 
 const PAPER = preload("res://assets/ui/popup/body.png")
 const FRAME = preload("res://assets/ui/popup/nine_piece_style.gd")
+var tail_side := "bottom"
 var kind := "speech"
+
+func point_tail_at(target: Vector2) -> void:
+ var center := Vector2(size.x/2,(size.y-20)/2)
+ var delta := target-center
+ if absf(delta.x)/(size.x/2) > absf(delta.y)/maxf(1,center.y):
+  tail_side = "right" if delta.x>0 else "left"
+  tail_position = clampf(target.y/(size.y-20),0.15,0.85)
+ else:
+  tail_side = "bottom" if delta.y>0 else "top"
+  tail_position = clampf(target.x/size.x,0.15,0.85)
+ queue_redraw()
+
+func tail_geometry() -> Array[Vector2]:
+ var edge := Vector2(size.x*tail_position,size.y-20)
+ var direction := Vector2.DOWN
+ match tail_side:
+  "top": edge = Vector2(size.x*tail_position,0); direction = Vector2.UP
+  "left": edge = Vector2(0,(size.y-20)*tail_position); direction = Vector2.LEFT
+  "right": edge = Vector2(size.x,(size.y-20)*tail_position); direction = Vector2.RIGHT
+ return [edge,direction]
+
 var background_opacity := 1.0:
  set(value):
   background_opacity = value
@@ -84,7 +106,10 @@ func _thought_dot(center: Vector2, radius: float) -> void:
  _textured_shape(points)
 
 func _draw() -> void:
- var tail_x := clampf(size.x * tail_position,26.0,size.x-26.0)
+ var tail := tail_geometry()
+ var edge: Vector2 = tail[0]
+ var direction: Vector2 = tail[1]
+ var tangent := direction.orthogonal()*13
  if kind == "thought":
   # A cloud silhouette and trailing beads distinguish unspoken thoughts.
   var cloud := PackedVector2Array()
@@ -96,8 +121,8 @@ func _draw() -> void:
    var y := signf(sin(angle))*pow(absf(sin(angle)),0.65)
    cloud.append(center+Vector2(x*(size.x/2-7),y*(size.y-34)/2)*radius)
   _textured_shape(cloud)
-  _thought_dot(Vector2(tail_x,size.y-20),6)
-  _thought_dot(Vector2(tail_x+5,size.y-5),3)
+  _thought_dot(edge+direction*5,6)
+  _thought_dot(edge+direction*20,3)
  else:
-  _textured_shape(PackedVector2Array([Vector2(tail_x-13,size.y-25),Vector2(tail_x,size.y-1),Vector2(tail_x+13,size.y-25)]))
+  _textured_shape(PackedVector2Array([edge-tangent-direction*3,edge+direction*20,edge+tangent-direction*3]))
   draw_style_box(FRAME.new(),Rect2(0,0,size.x,size.y-20))

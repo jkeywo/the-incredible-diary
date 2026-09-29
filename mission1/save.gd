@@ -137,7 +137,7 @@ static func _migrate_state(state: Dictionary) -> void:
 
 static func _valid_extension(state: Dictionary) -> bool:
  if not state.get("frame") is float and not state.get("frame") is int: return false
- if int(state.frame)<int(state.tick) or state.get("tutorial") not in ["approach","briefing","done"]: return false
+ if int(state.frame)<0 or state.get("tutorial") not in ["approach","briefing","done"]: return false
  if state.tutorial != "done" and int(state.tick)!=0: return false
  var duties: Variant = state.get("hospitality")
  if not duties is Dictionary: return false

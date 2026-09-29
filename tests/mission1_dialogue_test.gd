@@ -8,7 +8,7 @@ func checks() -> void:
  assert(not str(run.memory.notes).contains("Where are my bags"))
  var original: Dictionary = run.s.dialogue.duplicate(true)
  var boundary: int = run.s.dialogue.until
- while run.s.tick < boundary: run.step()
+ while run.s.frame < boundary: run.step()
  assert(run.s.dialogue.speaker == "dock_sailor")
  assert(run.s.dialogue.text.contains("search"))
  assert(str(run.memory.notes).contains("Where are my bags"))

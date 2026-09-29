@@ -20,7 +20,7 @@ func _initialize() -> void:
  file.store_string("interrupted transaction")
  file.close()
  loaded = Save.load_saved(PATH)
- assert(loaded.ok and loaded.data.current.tick==75)
+ assert(loaded.ok and loaded.data.current.tick==112)
  var resumed := Sim.new(false)
  var repair := Save.new()
  resumed.events.append({"kind":"stale"})
@@ -41,7 +41,7 @@ func _initialize() -> void:
  assert(repair.sequence == int(loaded.data.sequence))
  resumed.step()
  assert(repair.save_run(resumed,PATH).ok)
- assert(Save.load_saved(PATH).data.current.tick == 91)
+ assert(Save.load_saved(PATH).data.current.tick == 136)
  assert(Save.load_saved(PATH).data.sequence > loaded.data.sequence)
  assert(Save.load_saved(PATH).data.history[20] == loaded.data.history[20])
  resumed.memory.reset = true

@@ -27,7 +27,7 @@ func _initialize() -> void:
  advance(run, 90)
  run.s.room = "controls"
  run.s.pos = [350,300]
- advance(run, Sim.HOUR+150)
+ advance(run, Sim.HOUR+200)
  assert(run.memory.procedure)
  run.s.room = "foyer"
  run.s.pos = [580,380]
@@ -40,20 +40,20 @@ func _initialize() -> void:
  assert(run.start("panel"))
  run.s.entry = run.s.code
  assert(run.submit_code())
- advance(run, Sim.TRAP+240)
+ advance(run, Sim.TRAP+330)
  assert(run.flag("chat_delay") and run.party_arrival() == 4*Sim.HOUR)
  run.s.room = "salon"
  run.s.pos = [Sim.Rooms.BAR_GUEST.x,Sim.Rooms.BAR_GUEST.y]
  advance(run, 4*Sim.HOUR+35)
  assert(run.start("bump"))
- advance(run, Sim.END-1)
+ advance(run, Sim.END-2)
  assert(not run.s.finished)
- run.step()
+ advance(run, Sim.END)
  assert(run.s.finished and run.s.dead.is_empty() and run.s.safe.size() == 3 and run.memory.completed)
  assert(run.summary().contains("EVERYONE SURVIVED"))
  var fail := Sim.new(false)
  fail.s.flags.bag_hidden = true
- assert(fail.party_arrival() == 3*Sim.HOUR+300)
+ assert(fail.party_arrival() == 3*Sim.HOUR+450)
  advance(fail, Sim.END)
  assert(fail.s.dead.size() == 3 and not fail.memory.completed)
  assert(not fail.summary().contains("poison"))

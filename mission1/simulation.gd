@@ -297,7 +297,9 @@ func _schedule() -> void:
   s.flags.chandelier_warning = false
   if not s.safe.has("chandelier_guest"): _death("chandelier_guest", "The chandelier fell on the guest.", "foyer")
   elif s.room == "foyer": note("fall_safe", "The chandelier crashed onto the place where the guest had been standing.")
-  if s.room == "foyer": events.append({"kind":"sound", "text":"chandelier_impact"})
+  if s.room == "foyer":
+   events.append({"kind":"sound", "text":"chandelier_impact"})
+   events.append({"kind":"sound", "text":"chandelier_glass"})
 
 func _death(id: String, witnessed: String, room: String) -> void:
  if s.dead.has(id): return
@@ -580,6 +582,8 @@ func submit_code() -> bool:
   s.flags.panel_rejected = true
   return false
  s.flags.panel_rejected = false
+ s.flags.steam_shutdown_frame = s.frame
+ s.flags.steam_shutdown_visible = Rooms.steam_blocked(s.flags)
  s.flags.steam_off = true
  s.code_open = false
  note("shutoff_%d" % s.tick, "I stopped the steam.")

@@ -1,6 +1,12 @@
 @tool
 extends "res://assets/props/mission_1/stateful_prop.gd"
 
+var accents: Node2D
+
+func _ready() -> void:
+ super._ready()
+ accents = preload("res://assets/effects/mission_1/physical_accents.gd").new()
+ add_child(accents)
 
 func play_spiking() -> void:
  if current_state == "full":
@@ -18,7 +24,7 @@ func _on_spiking_finished() -> void:
   set_state("spiked")
 
 
-func show_at(state: Dictionary) -> void:
+func show_at(state: Dictionary, fraction := 0.0) -> void:
  var Rooms = preload("res://mission1/rooms.gd")
  position = Rooms.point(state.flags.get("glass_drop",[Rooms.BAR_GUEST.x+28,Rooms.BAR_GUEST.y+8])) if state.dead.has("guest") or state.flags.get("spilled",false) else Rooms.BAR_GLASS
  z_index = 0 if state.dead.has("guest") or state.flags.get("spilled",false) else 2
@@ -32,6 +38,12 @@ func show_at(state: Dictionary) -> void:
  $SpikingHand.frame = mini(3,int(elapsed*0.6)) if spiking else 0
  $SpikingHand.visible = spiking
  var spill_age := int(state.frame)-int(state.flags.spill_frame) if state.flags.has("spill_frame") else int(state.tick)-int(state.flags.get("spill_tick",-100))
+ var seconds := (float(spill_age)+fraction)/10.0
+ var inverse := Vector2(1.0/maxf(absf(scale.x),0.01),1.0/maxf(absf(scale.y),0.01))
+ $Splash.scale = inverse * 0.65
+ if is_instance_valid(accents):
+  accents.scale = inverse
+  accents.show_at("spill",seconds if state.flags.has("spill_tick") else -1.0)
  $Splash.pause()
  $Splash.animation = "effect"
  $Splash.frame = mini(3,int(spill_age*0.8)) if spill_age >= 0 else 0

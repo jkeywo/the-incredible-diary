@@ -16,6 +16,8 @@ var menu_status: Label
 var dialog: AcceptDialog
 var _was_paused := false
 var _opened := false
+var motion: Node
+var _closing := false
 var stick_on_right := false
 var touch_available := false
 var tabs: TabContainer
@@ -29,7 +31,7 @@ func _ready() -> void:
 	load_settings()
 	touch_available = TouchControls.supported()
 	_build_ui()
-	get_tree().scene_changed.connect(close_settings)
+	get_tree().scene_changed.connect(_finish_close)
 
 
 func load_settings() -> void:
@@ -79,7 +81,7 @@ func save_settings() -> void:
 
 
 func open_settings() -> void:
-	if _opened:
+	if _opened or _closing:
 		return
 	_was_paused = get_tree().paused
 	_opened = true
@@ -98,11 +100,19 @@ func open_settings() -> void:
 func close_settings() -> void:
 	if not _opened:
 		return
+	if _closing: return
+	_closing = true
+	motion.leave(_finish_close)
+
+
+func _finish_close() -> void:
+	if not _opened and not _closing: return
 	_opened = false
-	dialog.hide()
+	_closing = false
+	motion.finish()
 	get_tree().paused = _was_paused
 	save_settings()
-	toggle.grab_focus()
+	motion.restore_focus(toggle)
 
 
 func _save_before_leaving(node: Node) -> bool:
@@ -127,7 +137,7 @@ func return_to_main_menu() -> void:
 		return
 	# Returning from Settings or the paused editor must leave the menu running.
 	_was_paused = false
-	close_settings()
+	_finish_close()
 	get_tree().paused = false
 
 
@@ -147,10 +157,13 @@ func _build_ui() -> void:
 	dialog.title = "Settings"
 	dialog.ok_button_text = "Close"
 	dialog.exclusive = true
+	dialog.dialog_hide_on_ok = false
 	dialog.confirmed.connect(close_settings)
 	dialog.canceled.connect(close_settings)
 	add_child(dialog)
 	var content := PopupSkin.decorate(dialog)
+	motion = preload("res://assets/ui/popup/popup_motion.gd").new()
+	motion.setup(dialog,overlay)
 	tabs = TabContainer.new()
 	tabs.custom_minimum_size = Vector2(400, 240)
 	content.add_child(tabs)

@@ -53,6 +53,7 @@ func checks():
  assert(game.diary_open and controls.movement == Vector2.ZERO)
  touch(3,diary_point,true)
  touch(3,diary_point,false)
+ game.diary_presentation.advance(0.2)
  assert(not game.diary_open)
  var highlight_point: Vector2 = controls.buttons.highlight.get_center()
  touch(4,highlight_point,true)

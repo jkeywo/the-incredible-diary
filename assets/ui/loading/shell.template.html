@@ -45,6 +45,17 @@ const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
 	const statusNotice = document.getElementById('status-notice');
 
 	let initializing = true;
+	let engineReady = false;
+	let fading = false;
+	function finishLoading() {
+		if (!initializing || fading || !engineReady || !window.diaryTitleReady) return;
+		fading = true;
+		const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		statusOverlay.style.transition = reduced ? 'none' : 'opacity 0.2s ease-out';
+		statusOverlay.style.opacity = '0';
+		window.setTimeout(() => setStatusMode('hidden'), reduced ? 0 : 200);
+	}
+	window.addEventListener('diary-title-ready', finishLoading);
 	let statusMode = '';
 
 	function setStatusMode(mode) {
@@ -142,7 +153,8 @@ const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
 				}
 			},
 		}).then(() => {
-			setStatusMode('hidden');
+			engineReady = true;
+			finishLoading();
 		}, displayFailureNotice);
 	}
 }());

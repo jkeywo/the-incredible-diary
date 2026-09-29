@@ -207,3 +207,32 @@ foreground props fade to 50% when their opaque pixels cover a character.
 PC startup now uses an animated diary while title resources load in the
 background. The engine’s brief pre-runtime splash remains static; the existing
 web loading animation remains in place.
+
+
+## Presentation polish
+
+Chandelier dust, fragments and the small world jolt, drink droplets, and residual
+steam are sampled from recorded frame time. Steam shutdown records whether a
+cloud existed; older saves without that timestamp show their steady state.
+Collision and rescue deadlines do not wait for effects to finish.
+
+The diary pauses immediately and closes before gameplay resumes. Opening,
+closing and reversal use a separate presentation controller. Its pages have
+increased left padding and no duplicate speaker/notebook heading.
+
+The watch interpolates the fractional voyage clock, shows active waiting and
+briefly accents each forward hour chime. Rewind uses recorded history, with
+parchment margins and a short finishing fade. Loading and historical display
+never announce fresh hour changes.
+
+The title adds an entrance, masked brass glint and saved-room/time preview.
+Settings and title dialogs fade while retaining modal input and pause ownership.
+The existing book opening and continuous destination audio remain in place.
+The in-flight native loader remains the startup scene; the web loader waits for
+both engine startup and a rendered title frame before fading away.
+
+`mission1_polish_test.gd` covers transitions, deterministic effect sampling,
+steam save/history restoration, watch interpolation, rewind skip and dialogs.
+Run it with `-- --screenshots` on a rendering-capable Godot process for captures
+in ignored `build/`. `node tests/loading_handoff_test.js` checks both loader
+readiness orders, reduced motion, actual progress and persistent startup errors.

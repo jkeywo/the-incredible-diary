@@ -24,3 +24,13 @@ Godot credit. Godot's pre-runtime splash cannot animate; the native loading scen
 It loads the title resources on a background thread, using the same diary art
 and page motion as the Web loader. The Web page supplies its animation during
 download/startup.
+
+
+The web overlay now waits for engine startup and the title scene's first rendered
+frame. It then fades out over 0.2 seconds; reduced motion removes that fade.
+Either readiness signal may arrive first, including a cached startup. Startup
+failures remain visible. The title signals readiness through a web-only bridge;
+Windows keeps its current native loading flow.
+
+Run `node tests/loading_handoff_test.js` to check the handoff without downloading
+or starting the engine.

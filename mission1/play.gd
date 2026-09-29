@@ -62,6 +62,11 @@ var _save_counter := 0
 var rewind_index := -1
 var rewind_accumulator := 0.0
 var _footstep := 0.0
+var diary_presentation: Node
+var time_presentation: Control
+var waiting_active := false
+var rewind_start := 0
+var visual_elapsed := 0.0
 
 func configure(saved: Dictionary = {}, enable_save := true) -> void:
  initial = saved.duplicate(true)
@@ -151,7 +156,7 @@ func _build_hud() -> void:
  var column := VBoxContainer.new()
  diary.get_node("LeftPageContent").add_child(column)
  column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
- column.offset_left = 35
+ column.offset_left = 55
  column.offset_right = -15
  column.add_theme_constant_override("separation", 18)
  var title := Label.new()
@@ -168,7 +173,7 @@ func _build_hud() -> void:
  var right_page := VBoxContainer.new()
  diary.get_node("RightPageContent").add_child(right_page)
  right_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
- right_page.offset_left = 20
+ right_page.offset_left = 40
  right_page.offset_right = -10
  right_page.add_theme_constant_override("separation", 18)
  var page_title := Label.new()
@@ -207,6 +212,12 @@ func _build_hud() -> void:
  diary_menu.pressed.connect(_return_to_menu)
  right_page.add_child(diary_menu)
  diary.hide()
+ diary_presentation = preload("res://assets/ui/mission_1/diary_presentation.gd").new()
+ add_child(diary_presentation)
+ diary_presentation.setup(diary)
+ diary_presentation.closed.connect(func(): diary_open = false; accumulator = 0.0)
+ time_presentation = preload("res://assets/ui/mission_1/time_presentation.gd").new()
+ hud.add_child(time_presentation)
  touch_controls = TouchControls.new()
  hud.add_child(touch_controls)
  touch_controls.action_pressed.connect(_touch_action)
@@ -214,7 +225,7 @@ func _build_hud() -> void:
 func _touch_action(action: String) -> void:
  get_node("/root/ButtonFeedback").activate()
  idle_seconds = 0.0
- if not controls_enabled or get_tree().paused: return
+ if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0: return
  match action:
   "diary": _toggle_diary()
   "cancel":
@@ -246,9 +257,27 @@ func _label(p: Vector2, dimensions: Vector2, font_size: int) -> Label:
  hud.add_child(label)
  return label
 
+func _process(delta: float) -> void:
+ if not is_instance_valid(time_presentation): return
+ time_presentation.suppressed = diary_open or sim.s.finished or not application_focused
+ time_presentation.waiting = waiting_active and not diary_open and application_focused and controls_enabled
+ time_presentation.rewinding = rewind_index >= 0
+ time_presentation.rewind_progress = 1.0-float(rewind_index)/maxf(1.0,rewind_start) if rewind_index >= 0 else 0.0
+ if not application_focused: return
+ diary_presentation.advance(delta)
+ time_presentation.advance(delta)
+ if time_presentation.finish_remaining > 0.0: return
+ if controls_enabled and not diary_open and rewind_index < 0 and not sim.s.finished:
+  visual_elapsed = minf(0.099,visual_elapsed+delta)
+  _sync_props(sim.s)
+  if not sim.tutorial_active():
+   watch.elapsed_seconds = minf(Simulation.END,float(sim.s.tick)+float(sim.s.get("clock_fraction",0.0))+minf(0.99,(accumulator+visual_elapsed)/0.1)*Simulation.CLOCK_RATE)/10.0
+
 func _physics_process(delta: float) -> void:
+ visual_elapsed = 0.0
+ waiting_active = false
  _update_idle_hint(delta)
- if not controls_enabled or get_tree().paused: return
+ if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0: return
  if rewind_index >= 0:
   _rewind(delta)
   return
@@ -256,6 +285,7 @@ func _physics_process(delta: float) -> void:
  var held: bool = Input.is_physical_key_pressed(KEY_F) or Input.is_joy_button_pressed(0,JOY_BUTTON_B) or touch_controls.wait_held
  if not held: wait_latched = false
  var waiting: bool = held and not wait_latched and not sim.tutorial_active() and not sim.s.code_open and sim.s.hospitality.menu == "" and sim.s.action.is_empty()
+ waiting_active = waiting
  accumulator += delta * (20.0 if waiting else 1.0)
  var direction := _movement_input() if not waiting else Vector2.ZERO
  while accumulator >= 0.1:
@@ -266,6 +296,7 @@ func _physics_process(delta: float) -> void:
   _save_counter += 1
   if waiting and int(sim.s.tick/Simulation.HOUR) > old_hour:
    wait_latched = true
+   waiting_active = false
    accumulator = 0.0
    break
   if sim.s.finished: break
@@ -280,7 +311,7 @@ func _physics_process(delta: float) -> void:
   _persist()
 
 func _unhandled_input(event: InputEvent) -> void:
- if not controls_enabled or get_tree().paused: return
+ if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0: return
  if event is InputEventJoypadButton or event is InputEventJoypadMotion: using_controller = true
  elif event is InputEventKey or event is InputEventMouseButton: using_controller = false
  var key: int = event.physical_keycode if event is InputEventKey and event.pressed and not event.echo else 0
@@ -317,6 +348,7 @@ func _unhandled_input(event: InputEvent) -> void:
  _refresh()
 
 func _choose(index: int) -> void:
+ if diary_open or rewind_index >= 0 or time_presentation.finish_remaining > 0.0: return
  idle_seconds = 0.0
  if sim.s.code_open:
   if index < 6 and sim.s.entry.length() < 3: sim.s.entry += str(index+1)
@@ -386,7 +418,7 @@ func _refresh(direction := Vector2.INF) -> void:
   room_slot.get_child(0).set_motion_time(float(state.get("frame",state.tick))/10.0)
  if state.finished and rewind_index < 0:
   diary_open = true
-  diary.show()
+  if not end_presented: diary_presentation.set_open(true)
   message.text = ""
   help.hide()
   if not end_presented:
@@ -569,12 +601,17 @@ func _prop(id: String, p: Vector2, key := "") -> void:
  entity_layer.add_child(prop)
  props[id if key.is_empty() else key] = prop
 
+func _effect_fraction() -> float:
+ return clampf((accumulator+visual_elapsed)/0.1,0.0,0.99) if controls_enabled and rewind_index < 0 and not diary_open and not get_tree().paused and application_focused else 0.0
+
 func _sync_props(state: Dictionary) -> void:
+ var effect_fraction := _effect_fraction()
+ var world_offset := Vector2.ZERO
  for door_id in Rooms.CABIN_DOORS:
   if props.has(door_id): props[door_id].set_state("open" if state.flags.get(door_id,false) else "closed")
  if props.has("drink"):
   props.drink.visible = state.flags.get("party_arrived",false)
-  props.drink.show_at(state)
+  props.drink.show_at(state,effect_fraction)
  var stained: bool = state.flags.get("spilled", false)
  if actors.guest.stained_outfit != stained: actors.guest.set_outfit_stained(stained)
  if props.has("code_panel"):
@@ -585,10 +622,13 @@ func _sync_props(state: Dictionary) -> void:
   var plume: AnimatedSprite2D = props.steam_vent.get_node("SteamPlume")
   plume.pause()
   plume.frame = int(state.get("frame",state.tick)/2) % 4
-  props.room_steam.show_at(float(state.get("frame",state.tick))/10.0,active)
+  var shutdown_age := -1.0
+  if state.flags.get("steam_off",false) and state.flags.get("steam_shutdown_visible",false) and state.flags.has("steam_shutdown_frame"):
+   shutdown_age = (float(state.get("frame",state.tick))+effect_fraction-float(state.flags.steam_shutdown_frame))/10.0
+  props.room_steam.show_at((float(state.get("frame",state.tick))+effect_fraction)/10.0,active,shutdown_age)
   props.code_panel.set_state("rejected" if state.flags.get("panel_rejected",false) else "entry" if state.code_open else "rejected" if state.flags.get("steam_off",false) else "accepted")
  if props.has("chandelier"):
-  var fraction := accumulator/0.1 if controls_enabled and rewind_index<0 and not diary_open else 0.0
+  var fraction := effect_fraction
   var tick := float(state.tick)+fraction
   var frame := float(state.get("frame",state.tick))+fraction
   var drop := (tick-float(state.flags.chandelier_drop_tick))/8.0 if state.flags.has("chandelier_drop_tick") else -1.0
@@ -596,21 +636,30 @@ func _sync_props(state: Dictionary) -> void:
   var impact := (tick-float(state.flags.get("chandelier_impact_tick",Simulation.FALL)))/10.0 if state.flags.get("chandelier_fallen",false) else -1.0
   if state.flags.has("chandelier_impact_frame"): impact = (frame-float(state.flags.chandelier_impact_frame))/10.0
   props.chandelier.show_at(state.flags.get("chandelier_warning",false),drop,impact,frame/10.0)
+  world_offset = preload("res://assets/effects/mission_1/physical_accents.gd").impact_offset(impact)
  if props.has("suitcase"):
   props.suitcase.visible = not state.flags.get("bag_found",false)
   props.suitcase.set_state("hidden" if state.flags.get("bag_hidden",false) else "present")
   props.bag_hiding.set_state("occupied" if state.flags.get("bag_hidden",false) else "empty")
 
+ room_slot.position = world_offset
+ entity_layer.position = world_offset
+ world_overlay.position = world_offset
+
 func _events() -> void:
  for event in sim.events:
-  if event.kind == "sound": sounds.play_cue(StringName(event.text))
+  if event.kind == "sound":
+   sounds.play_cue(StringName(event.text))
+   if event.text == "hour_chime" and rewind_index < 0:
+    time_presentation.announce_hour(1+int(sim.s.tick/Simulation.HOUR))
 
 
 func _toggle_diary() -> void:
- if sim.s.finished: return
+ if sim.s.finished or rewind_index >= 0 or time_presentation.finish_remaining > 0.0: return
  idle_seconds = 0.0
- diary_open = not diary_open
- diary.visible = diary_open
+ diary_open = true
+ waiting_active = false
+ diary_presentation.set_open(not diary_presentation.wanted)
  accumulator = 0.0
  _refresh()
  _persist()
@@ -631,15 +680,16 @@ func _refresh_diary() -> void:
  if ended:
   diary_text.text = "5:30 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n")
   return
- diary_text.text = "Boy · Voyage notebook\n\n" + "\n\n".join(sim.memory.notes)
+ diary_text.text = "\n\n".join(sim.memory.notes)
  if sim.memory.reset:
   diary_text.text += "\n\nThe pages can turn back time. R returns the whole leg to the docks. These pages record the current voyage."
  else:
-  diary_text.text += "\n\nObservations are recorded here as you explore."
+  diary_text.text += ("\n\n" if not diary_text.text.is_empty() else "") + "Observations are recorded here as you explore."
 
 func _summary() -> String:
  return sim.summary()
 func _begin_reset() -> void:
+ if time_presentation.finish_remaining > 0.0: return
  if not sim.memory.reset and not sim.s.finished:
   sim.s.message = "The diary has no earlier pages to turn to yet."
   return
@@ -647,16 +697,23 @@ func _begin_reset() -> void:
   _finish_reset()
   return
  diary_open = false
- diary.hide()
- rewind_index = sim.history.size()-1
+ diary_presentation.clear()
+ time_presentation.clear_announcements()
+ rewind_accumulator = 0.0
+ rewind_start = sim.history.size()-1
+ rewind_index = rewind_start
  _refresh()
 func _rewind(delta: float) -> void:
  rewind_accumulator += delta
- rewind_index = maxi(0, rewind_index - maxi(1, int(sim.history.size()*delta/2.5)))
+ rewind_index = maxi(0,rewind_start-int(float(rewind_start)*rewind_accumulator/2.5))
  _refresh()
  if rewind_index == 0: _finish_reset()
 func _finish_reset() -> void:
  rewind_index = -1
+ time_presentation.rewinding = false
+ time_presentation.clear_announcements()
+ time_presentation.finish_remaining = 0.15
+ waiting_active = false
  sim.reset()
  end_presented = false
  accumulator = 0.0

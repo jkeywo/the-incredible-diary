@@ -20,6 +20,7 @@ func run_checks() -> void:
  game._physics_process(1)
  check(game.sim.s.tick == tick, "diary pauses game clock")
  game._toggle_diary()
+ game.diary_presentation.advance(0.2)
  var wait_key := InputEventKey.new()
  wait_key.physical_keycode = KEY_F
  wait_key.pressed = true
@@ -77,10 +78,12 @@ func run_checks() -> void:
   game.sim.s.code_open = false
  if "--screenshots" in OS.get_cmdline_user_args():
   game._toggle_diary()
+  game.diary_presentation.advance(0.2)
   await process_frame
   await RenderingServer.frame_post_draw
   root.get_texture().get_image().save_png("res://build/mission1-diary.png")
   game._toggle_diary()
+  game.diary_presentation.advance(0.2)
   var editor := root.get_node("PauseEditor")
   editor.pause(game)
   await process_frame

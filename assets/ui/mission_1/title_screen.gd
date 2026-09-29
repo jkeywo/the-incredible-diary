@@ -28,6 +28,11 @@ var _preview_ms := 0.0
 var _opening := false
 var _game_world: Node2D
 var _error_message: Label
+var preview: Label
+var entrance: Tween
+var glint: TextureRect
+var confirm_motion: Node
+var error_motion: Node
 
 
 func is_pause_editor_available() -> bool:
@@ -49,12 +54,23 @@ func _ready() -> void:
 	add_child(_menu_audio)
 	_menu_audio.set_presentation_gain(0.5)
 	_reset_visuals()
+	_build_polish()
 	_refresh_continue()
+	_start_entrance()
+	_signal_web_ready()
 
 
 func _refresh_continue() -> void:
 	var loaded := Save.load_saved(mission_save_path)
 	continue_button.visible = bool(loaded.ok)
+	if is_instance_valid(preview):
+		preview.visible = bool(loaded.ok)
+		if loaded.ok:
+			var state: Dictionary = loaded.data.current
+			var room_name: String = Rooms.ROOMS.get(str(state.get("room","docks")),Rooms.ROOMS.docks).title
+			var detail := Simulation.observation_time(int(state.get("tick",0)))
+			if state.get("finished",false): detail = "Voyage complete" if state.get("dead",[]).is_empty() else "Voyage ended"
+			preview.text = "All Aboard\n%s\n%s" % [room_name,detail]
 	if not _opening:
 		_preview_destination(loaded.data.current if loaded.ok else Simulation.new().s)
 	if continue_button.visible:
@@ -79,6 +95,8 @@ func _process(delta: float) -> void:
 
 
 func _on_continue() -> void:
+	if _opening or new_confirm.visible or error_dialog.visible: return
+	_finish_entrance()
 	var loaded: Dictionary = Save.load_saved(mission_save_path)
 	if not loaded.ok:
 		_refresh_continue()
@@ -88,7 +106,8 @@ func _on_continue() -> void:
 
 
 func _on_new() -> void:
-	if _opening: return
+	if _opening or new_confirm.visible or error_dialog.visible: return
+	_finish_entrance()
 	if Save.has_any(mission_save_path):
 		new_confirm.popup_centered()
 	else:
@@ -97,6 +116,7 @@ func _on_new() -> void:
 
 func _start_new() -> void:
 	if _opening: return
+	if is_instance_valid(confirm_motion): confirm_motion.finish()
 	var cleared: Dictionary = Save.clear(mission_save_path)
 	if not cleared.ok:
 		_show_error(str(cleared.reason))
@@ -119,10 +139,14 @@ func _launch_mission(saved: Dictionary = {}) -> void:
 
 
 func _on_test_level() -> void:
+	if _opening or new_confirm.visible or error_dialog.visible: return
+	_finish_entrance()
 	get_tree().change_scene_to_file(TEST_LEVEL)
 
 
 func _on_quit() -> void:
+	if _opening or new_confirm.visible or error_dialog.visible: return
+	_finish_entrance()
 	get_tree().quit()
 
 
@@ -135,6 +159,8 @@ func begin() -> void:
 	if _opening:
 		return
 	_opening = true
+	_finish_entrance()
+	if is_instance_valid(preview): preview.hide()
 	menu.hide()
 	var tween := create_tween()
 	tween.tween_method(_set_open_progress, 0.0, 1.0, 0.82).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
@@ -182,3 +208,57 @@ func _set_portal(value: float) -> void:
 
 func _set_frame_alpha(value: float) -> void:
 	(open_book.material as ShaderMaterial).set_shader_parameter("frame_alpha", value)
+
+
+func _build_polish() -> void:
+	preview = Label.new()
+	preview.position = Vector2(468,340)
+	preview.size = Vector2(145,120)
+	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview.add_theme_color_override("font_color",Color("f4dfb4"))
+	preview.add_theme_color_override("font_outline_color",Color("17243a"))
+	preview.add_theme_constant_override("outline_size",4)
+	preview.add_theme_font_size_override("font_size",16)
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(preview)
+	glint = TextureRect.new()
+	glint.texture = lettering.texture
+	glint.size = lettering.size
+	glint.position = lettering.position
+	glint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glint.material = ShaderMaterial.new()
+	glint.material.shader = preload("res://assets/ui/mission_1/title_glint.gdshader")
+	add_child(glint)
+	confirm_motion = preload("res://assets/ui/popup/popup_motion.gd").new()
+	confirm_motion.setup(new_confirm,self)
+	error_motion = preload("res://assets/ui/popup/popup_motion.gd").new()
+	error_motion.setup(error_dialog,self)
+	new_confirm.exclusive = true
+	error_dialog.exclusive = true
+	new_confirm.canceled.connect(func(): confirm_motion.leave(func(): confirm_motion.restore_focus($Menu/NewButton)))
+	error_dialog.dialog_hide_on_ok = false
+	error_dialog.confirmed.connect(func(): error_motion.leave(func(): error_motion.restore_focus(continue_button if continue_button.visible else $Menu/NewButton)))
+	error_dialog.canceled.connect(func(): error_motion.leave(func(): error_motion.restore_focus($Menu/NewButton)))
+
+func _start_entrance() -> void:
+	menu.modulate.a = 0.0
+	lettering.modulate.a = 0.0
+	preview.modulate.a = 0.0
+	entrance = create_tween()
+	entrance.tween_property(menu,"modulate:a",1.0,0.25)
+	entrance.parallel().tween_property(lettering,"modulate:a",1.0,0.25)
+	entrance.parallel().tween_property(preview,"modulate:a",1.0,0.25)
+	entrance.tween_method(func(value: float): glint.material.set_shader_parameter("sweep",value),-0.1,1.2,0.7)
+	entrance.tween_callback(glint.hide)
+
+func _finish_entrance() -> void:
+	if entrance: entrance.kill()
+	menu.modulate.a = 1.0
+	lettering.modulate.a = 1.0
+	if is_instance_valid(preview): preview.modulate.a = 1.0
+	if is_instance_valid(glint): glint.hide()
+
+func _signal_web_ready() -> void:
+	if not OS.has_feature("web"): return
+	await RenderingServer.frame_post_draw
+	JavaScriptBridge.eval("window.diaryTitleReady = true; window.dispatchEvent(new Event('diary-title-ready'));",true)

@@ -33,10 +33,12 @@ func run_checks() -> void:
 	settings.sliders.Music.value = 37
 	check(is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music"))), 0.37), "Slider controls its bus")
 	settings.close_settings()
+	await create_timer(0.2).timeout
 	check(not paused, "Settings restores running state")
 	paused = true
 	settings.open_settings()
 	settings.close_settings()
+	await create_timer(0.2).timeout
 	check(paused, "Settings preserves existing pause")
 	paused = false
 	var room := preload("res://assets/rooms/mission_1/04_controls_and_steam.tscn").instantiate()

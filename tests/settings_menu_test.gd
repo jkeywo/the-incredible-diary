@@ -16,6 +16,7 @@ func checks():
  settings.open_settings()
  assert(settings.main_menu_button.disabled)
  settings.close_settings()
+ await create_timer(0.2).timeout
  var game = Play.instantiate()
  game.save_path = PATH
  game.configure({},true)
@@ -33,6 +34,7 @@ func checks():
  game.save_path = PATH
  # Starting in an editor pause must not leave the new menu paused.
  settings.close_settings()
+ await create_timer(0.2).timeout
  root.get_node("PauseEditor").pause(title)
  settings.open_settings()
  settings.main_menu_button.pressed.emit()
@@ -51,6 +53,7 @@ func checks():
  settings.open_settings()
  assert(settings.main_menu_button.disabled)
  settings.close_settings()
+ await create_timer(0.2).timeout
  Save.clear(PATH)
  print("SETTINGS MENU PASS: nested gameplay save, failure preservation, return, Continue and pause cleanup")
  quit()

@@ -2,9 +2,12 @@
 extends "res://assets/props/mission_1/stateful_prop.gd"
 ## The origin stays on the floor; the intact fixture falls from overhead.
 const HANG_HEIGHT := 150.0
+var accents: Node2D
 
 func _ready() -> void:
  super._ready()
+ accents = preload("res://assets/effects/mission_1/physical_accents.gd").new()
+ add_child(accents)
  show_at(false,-1.0,-1.0,0.0)
 
 func show_at(warning: bool, progress: float, impact_seconds: float, time: float) -> void:
@@ -20,5 +23,8 @@ func show_at(warning: bool, progress: float, impact_seconds: float, time: float)
  z_index = 0 if landed else 2
  var dust: AnimatedSprite2D = $Dust
  dust.pause()
- dust.visible = landed and impact_seconds < float(dust.frame_count)/dust.frames_per_second
- if dust.visible: dust.frame = mini(dust.frame_count-1,int(impact_seconds*dust.frames_per_second))
+ dust.visible = landed and impact_seconds < 0.8
+ dust.scale = Vector2(1.0+maxf(impact_seconds,0.0)*0.7,1.0)
+ dust.modulate.a = clampf(1.0-impact_seconds/0.8,0.0,1.0)
+ if dust.visible: dust.frame = mini(dust.frame_count-1,int(impact_seconds/0.8*dust.frame_count))
+ if is_instance_valid(accents): accents.show_at("impact",impact_seconds)

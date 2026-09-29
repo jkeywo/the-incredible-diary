@@ -2,11 +2,17 @@ extends Node2D
 ## Layered steam sampled from voyage time, including recorded rewind frames.
 var phase := 0.0
 var active := false
+var density := 1.0
+var lift := 0.0
 
-func show_at(time: float, enabled: bool) -> void:
+func show_at(time: float, enabled: bool, shutdown_age := -1.0) -> void:
  phase = time
- active = enabled
- visible = enabled
+ density = 1.0 if enabled else clampf(1.0-shutdown_age/0.7,0.0,1.0) if shutdown_age >= 0.0 else 0.0
+ lift = 0.0 if enabled else maxf(shutdown_age,0.0)*24.0
+ active = density > 0.0
+ visible = active
+ modulate.a = density
+ position.y = -lift
  queue_redraw()
 
 func _draw() -> void:

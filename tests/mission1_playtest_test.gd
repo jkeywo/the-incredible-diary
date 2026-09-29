@@ -48,7 +48,7 @@ func checks() -> void:
  panel.s.room = "controls"
  panel.s.pos = [350,300]
  assert(not panel.memory.procedure and panel.start("panel"))
- panel.s.entry = "111"
+ panel.s.entry = "111" if panel.s.code != "111" else "222"
  assert(not panel.submit_code())
  panel.s.entry = panel.s.code
  assert(panel.submit_code())

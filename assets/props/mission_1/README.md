@@ -25,10 +25,18 @@ in the cabin screen. The upright service door can be used for the controls and
 steam room exit. The code panel has blank display windows so the current
 three-digit code can be drawn by UI instead of baked into art.
 
-The state sheets are asset states, not completed interactions or collisions.
-Steam and chandelier timing, the falling motion, path blocking, bag movement,
-and inspection logic belong to room and simulation authoring. Prop placement
-in the five rooms remains to be finalized.
+The `steam_vent.tscn` scene now loops a separate steam plume when its state is
+`active`; switching to `off` hides it. `chandelier.tscn` exposes `play_fall()`
+for a brief warning/fall motion and dust burst before holding `fallen`.
+`drink.tscn` exposes `play_spiking()` for the identity-hidden hand and vial;
+the visual becomes `spiked` only when that clip finishes. `play_spill()` switches
+to `spilled` and plays the short splash. Direct `set_state()` remains available
+when showing recorded history without replaying the effects.
+
+The scenes supply visual state changes and brief effects, not completed
+interactions or collisions. Steam and chandelier event timing, path blocking,
+bag movement and inspection logic belong to room and simulation authoring.
+Prop placement in the five rooms remains to be finalized.
 
 `prop_preview.png` shows the game-scale states at 2×. The larger generated
 source images are retained in `source/`. Use

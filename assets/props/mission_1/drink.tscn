@@ -1,7 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://assets/props/mission_1/stateful_prop.gd" id="1"]
+[ext_resource type="Script" path="res://assets/props/mission_1/drink.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/props/mission_1/drink_states.png" id="2"]
+[ext_resource type="PackedScene" path="res://assets/effects/mission_1/drink_splash.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://assets/effects/mission_1/obscured_spiking.tscn" id="4"]
 
 [node name="Drink" type="Sprite2D"]
 texture = ExtResource("2")
@@ -9,3 +11,10 @@ script = ExtResource("1")
 cell_size = Vector2i(56, 48)
 state_names = PackedStringArray("full", "spiked", "spilled", "empty")
 current_state = "full"
+
+[node name="Splash" parent="." instance=ExtResource("3")]
+
+[node name="SpikingHand" parent="." instance=ExtResource("4")]
+position = Vector2(0, -26)
+
+[connection signal="animation_finished" from="SpikingHand" to="." method="_on_spiking_finished"]

@@ -46,26 +46,34 @@ const CHARACTERS := ["player", "rake", "glamorous", "ex_army", "matron"]
 		initial_direction = value
 		if is_node_ready():
 			play_action("idle", value)
+@export var stained_outfit := false:
+	set(value):
+		stained_outfit = value
+		if is_node_ready() and character_id == "rake":
+			_refresh()
 var _resume_direction := "down"
+var _facing := "down"
 
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	offset = Vector2(0, -24)
 	animation_finished.connect(_on_animation_finished)
+	_facing = initial_direction
 	_refresh()
 
 
 func _refresh() -> void:
-	sprite_frames = make_frames(character_id)
-	play_action("idle", initial_direction)
+	sprite_frames = make_frames(character_id, stained_outfit)
+	play_action("idle", _facing)
 
 
-static func make_frames(id: String) -> SpriteFrames:
+static func make_frames(id: String, use_stained_outfit := false) -> SpriteFrames:
 	if not CHARACTERS.has(id):
 		push_error("Unknown character sprite: " + id)
 		return SpriteFrames.new()
-	var sheet := load("res://assets/characters/%s_sprites.png" % id) as Texture2D
+	var sheet_name := "rake_stained" if id == "rake" and use_stained_outfit else id
+	var sheet := load("res://assets/characters/%s_sprites.png" % sheet_name) as Texture2D
 	var result := SpriteFrames.new()
 	if result.has_animation("default"):
 		result.remove_animation("default")
@@ -108,10 +116,22 @@ static func make_frames(id: String) -> SpriteFrames:
 				atlas.atlas = action_sheet
 				atlas.region = Rect2i(Vector2i((definition[0] + frame_index) * CELL_SIZE.x, 0), CELL_SIZE)
 				result.add_frame(action, atlas)
+	if id == "matron":
+		var casualty_sheet := load("res://assets/characters/actions/matron_steam_casualty.png") as Texture2D
+		result.add_animation("steam_casualty")
+		result.set_animation_speed("steam_casualty", 6.0)
+		result.set_animation_loop("steam_casualty", false)
+		for frame_index in range(4):
+			var atlas := AtlasTexture.new()
+			atlas.atlas = casualty_sheet
+			atlas.region = Rect2i(Vector2i(frame_index * CELL_SIZE.x, 0), CELL_SIZE)
+			result.add_frame("steam_casualty", atlas)
 	return result
 
 
 func play_action(action: String, direction: String) -> void:
+	if DIRECTIONS.has(direction):
+		_facing = direction
 	var name := "%s_%s" % [action, direction]
 	if sprite_frames.has_animation(action):
 		name = action
@@ -120,6 +140,12 @@ func play_action(action: String, direction: String) -> void:
 		push_error("Unknown character animation: " + name)
 		return
 	play(name)
+
+
+func set_outfit_stained(value: bool) -> void:
+	if character_id != "rake":
+		return
+	stained_outfit = value
 
 
 func _on_animation_finished() -> void:

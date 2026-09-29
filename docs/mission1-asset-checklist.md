@@ -18,6 +18,9 @@ final polish can follow playtesting.
   doors, suitcase, bag hiding place, code panel, drink, chandelier, steam vent
   and the foundation valve. Their first-playable visual states are in
   transparent sheets and can be switched by name in Godot.
+- Character 1's stained movement, Character 3's held steam casualty clip, and
+  four effect scenes in `assets/effects/mission_1/`. Steam, chandelier dust,
+  drink splash and the anonymous spiking hand are connected to their props.
 - Diary title and blank spread art plus reusable first-playable interface scenes
   in `assets/ui/mission_1/`: resizable speech bubble, title opening transition,
   action wheel, code panel, clock/progress HUD, diary notice/tab, interaction
@@ -27,8 +30,6 @@ final polish can follow playtesting.
 
 | Area | First-playable assets needed |
 | --- | --- |
-| Characters | Character 1 stained idle/walk after the spill; a visually obscured drink-spiking action that does not reveal the culprit; steam casualty pose if Character 3's failure remains visible in the room. |
-| Effects | Motion between the existing prop states: drifting steam plume, chandelier fall and dust, and a brief drink-splash animation. The static warning, wreckage and spilled states already exist. Water and ship bobbing are already in the dock scene. |
 | Interface content | Populate the blank diary pages, mission result wording, witnessed evidence and context-specific action labels from authored Mission 1 data. Decide the reset presentation when recorded-history rewind is wired; the GDD's backward page flip remains the fallback. The reusable first-playable UI art is ready. |
 
 ## Remaining audio

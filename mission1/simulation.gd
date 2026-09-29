@@ -3,6 +3,8 @@ extends RefCounted
 const Rooms = preload("res://mission1/rooms.gd")
 const HOUR := 1800
 const END := 6 * HOUR
+const CREAK := 2 * HOUR + 480
+const FALL := CREAK + 80
 var s: Dictionary
 var memory: Dictionary = {"notes":[], "bag":false, "procedure":false, "shortcut":false, "reset":false, "completed":false}
 var history: Array = []
@@ -132,7 +134,29 @@ func _complete(id: String) -> void:
   _: _complete_rescue(id)
 
 func _schedule() -> void:
- pass
+ if s.tick == CREAK:
+  s.flags.chandelier_warning = true
+  if s.room == "foyer":
+   note("creak", "The chandelier creaks and trembles above the guest.")
+   events.append({"kind":"sound", "text":"chandelier_creak"})
+ if s.tick == FALL:
+  s.flags.chandelier_fallen = true
+  s.flags.chandelier_warning = false
+  if not s.safe.has("chandelier_guest"): _death("chandelier_guest", "The chandelier fell on the guest.", "foyer")
+  elif s.room == "foyer": note("fall_safe", "The chandelier crashed onto the place where the guest had been standing.")
+  if s.room == "foyer": events.append({"kind":"sound", "text":"chandelier_impact"})
+
+func _death(id: String, witnessed: String, room: String) -> void:
+ if s.dead.has(id): return
+ s.dead.append(id)
+ if s.room == room: note("death_" + id, witnessed)
+ var names := {"guest":"the luggage owner", "chandelier_guest":"the foyer guest", "chatterbox":"the talkative passenger"}
+ memory.notes.append("Hour %d — The diary records the death of %s." % [mini(6,1+int(s.tick/HOUR)), names[id]])
+ s.message = "The diary records the death of %s." % names[id]
+ if not memory.reset:
+  memory.reset = true
+  s.message += " The ink runs backwards. Tab / Y: read the diary; R / Back: return to the docks. You may keep investigating."
+ events.append({"kind":"death", "text":id})
 
 func _observe() -> void:
  if s.room == "docks" and s.tick < HOUR:
@@ -147,15 +171,27 @@ func _observe() -> void:
  _observe_rescues()
 
 func _rescue_options(_result: Array[Dictionary], _local: bool) -> void:
- pass
+ _option(_result, "shove", "Shove", "foyer", Vector2(680,440), _local, flag("chandelier_warning") and not s.safe.has("chandelier_guest"))
+ _option(_result, "wreckage", "Inspect wreckage", "foyer", Vector2(680,440), _local, flag("chandelier_fallen"))
 func _complete_rescue(_id: String) -> void:
- pass
+ match _id:
+  "shove":
+   s.safe.append("chandelier_guest")
+   note("shove", "I shoved the guest out from beneath the chandelier. She was furious.")
+   events.append({"kind":"sound", "text":"shove"})
+  "wreckage": note("wreckage", "Broken glass and a snapped suspension pin. The chandelier fell during Hour 3.")
 func _observe_rescues() -> void:
- pass
+ if s.room == "foyer":
+  if flag("chandelier_warning"): note("creak", "The chandelier creaks and trembles above the guest.")
+  if flag("chandelier_fallen"): note("fallen_seen", "The fallen chandelier leaves enough space to cross the foyer.")
 
 func actor_positions() -> Dictionary:
  var t := int(s.tick)
  var guest := {"room":"docks", "pos":[390,430], "action":"search_bag" if flag("bag_hidden") else "idle", "skin":"rake"}
  if t >= (HOUR if flag("bag_hidden") else 800):
   guest = {"room":"cabins", "pos":[580,315], "action":"idle", "skin":"rake"}
- return {"guest":guest, "chandelier_guest":{"room":"foyer", "pos":[680,440], "action":"idle", "skin":"glamorous"}, "chatterbox":{"room":"cabins", "pos":[930,320], "action":"idle", "skin":"matron"}, "crew":{"room":"controls", "pos":[310,305], "action":"idle", "skin":"ex_army"}}
+ var chandelier := {"room":"foyer", "pos":[680,440], "action":"idle", "skin":"glamorous"}
+ if s.safe.has("chandelier_guest"): chandelier.pos = [780,470]
+ elif s.dead.has("chandelier_guest"): chandelier.action = "chandelier_casualty"
+ elif flag("chandelier_warning"): chandelier.action = "chandelier_warn"
+ return {"guest":guest, "chandelier_guest":chandelier, "chatterbox":{"room":"cabins", "pos":[930,320], "action":"idle", "skin":"matron"}, "crew":{"room":"controls", "pos":[310,305], "action":"idle", "skin":"ex_army"}}

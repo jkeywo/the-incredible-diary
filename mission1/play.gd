@@ -295,6 +295,8 @@ func _prop(id: String, p: Vector2) -> void:
  props[id] = prop
 
 func _sync_props(state: Dictionary) -> void:
+ if props.has("chandelier"):
+  props.chandelier.set_state("fallen" if state.flags.get("chandelier_fallen", false) else "warning" if state.flags.get("chandelier_warning", false) else "intact")
  if props.has("suitcase"):
   props.suitcase.set_state("hidden" if state.flags.get("bag_hidden",false) else "present")
   props.bag_hiding.set_state("occupied" if state.flags.get("bag_hidden",false) else "empty")

@@ -28,7 +28,7 @@ try {
             if (-not $result.passed) { throw 'Probe checks failed.' }
 			& $godot --headless --path $root --script res://tests/foundation_test.gd
 			if ($LASTEXITCODE -ne 0) { throw 'Foundation checks failed.' }
-			$missionSuites = @('audio_settings', 'settings_menu', 'title_audio', 'mission1_audio', 'pocket_watch', 'mission1_rooms', 'mission1_chandelier', 'mission1_steam', 'mission1_route', 'mission1_walking', 'mission1_save', 'mission1_play', 'mission1_revision', 'mission1_life', 'mission1_dialogue', 'mission1_hospitality', 'action_menu')
+			$missionSuites = @('audio_settings', 'settings_menu', 'title_audio', 'mission1_audio', 'pocket_watch', 'mission1_rooms', 'mission1_chandelier', 'mission1_steam', 'mission1_route', 'mission1_walking', 'mission1_save', 'mission1_play', 'mission1_revision', 'mission1_life', 'mission1_dialogue', 'mission1_hospitality', 'action_menu', 'touch_controls')
 			foreach ($suite in $missionSuites) {
 				$frameLimit = if ($suite -eq "title_audio") { 2400 } else { 300 }
 				$output = & $godot --headless --path $root --script "res://tests/$($suite)_test.gd" --quit-after $frameLimit 2>&1

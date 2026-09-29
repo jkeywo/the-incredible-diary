@@ -4,6 +4,7 @@ extends Control
 signal option_confirmed(index: int, label: String)
 const FRAME = preload("res://assets/ui/popup/nine_piece_style.gd")
 const BUTTON_SIZE := Vector2(224,48)
+var touches: Dictionary = {}
 var page := 0
 var buttons: Array[Button] = []
 var indices: Array[int] = []
@@ -25,6 +26,7 @@ func _ready() -> void:
  _rebuild()
 
 func _rebuild() -> void:
+ touches.clear()
  for button in buttons:
   remove_child(button)
   button.queue_free()
@@ -88,6 +90,27 @@ func activate_slot(slot: int) -> void:
   selected_index = 0
   _rebuild()
  else: option_confirmed.emit(index,options[index])
+
+func _input(event: InputEvent) -> void:
+ if not event is InputEventScreenTouch: return
+ if not is_visible_in_tree() or get_tree().paused:
+  touches.clear()
+  return
+ if event.pressed:
+  for slot in buttons.size():
+   if buttons[slot].get_global_rect().has_point(event.position):
+    touches[event.index] = slot
+    selected_index = slot
+    get_viewport().set_input_as_handled()
+    return
+ elif touches.has(event.index):
+  var slot: int = touches[event.index]
+  touches.erase(event.index)
+  if not event.canceled and slot<buttons.size() and buttons[slot].get_global_rect().has_point(event.position): activate_slot(slot)
+  get_viewport().set_input_as_handled()
+
+func _notification(what: int) -> void:
+ if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_VISIBILITY_CHANGED: touches.clear()
 
 func select_from_vector(direction: Vector2) -> void:
  if direction.length_squared()<0.16 or buttons.is_empty(): return

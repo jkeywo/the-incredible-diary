@@ -1,5 +1,6 @@
 extends Node2D
 ## Mission 1 presentation; all consequential state lives in the deterministic simulation.
+const TouchControls = preload("res://assets/ui/mission_1/touch_controls.gd")
 const Simulation = preload("res://mission1/simulation.gd")
 const Rooms = preload("res://mission1/rooms.gd")
 const Watch = preload("res://mission1/pocket_watch.gd")
@@ -25,6 +26,7 @@ var heading: Label
 var message: Label
 var notice: Label
 var help: Label
+var touch_controls: Control
 var movement_prompt: Control
 var carrying: Label
 var using_controller := false
@@ -170,6 +172,31 @@ func _build_hud() -> void:
  reset.pressed.connect(_begin_reset)
  right_page.add_child(reset)
  diary.hide()
+ touch_controls = TouchControls.new()
+ hud.add_child(touch_controls)
+ touch_controls.action_pressed.connect(_touch_action)
+
+func _touch_action(action: String) -> void:
+ if not controls_enabled or get_tree().paused: return
+ match action:
+  "diary": _toggle_diary()
+  "rewind": _begin_reset()
+  "cancel":
+   if diary_open: _toggle_diary()
+   else:
+    sim.s.action = {}
+    sim.s.code_open = false
+    sim.s.hospitality.menu = ""
+    sim.s.message = "Action cancelled."
+  "highlight":
+   if not diary_open and rewind_index<0: highlight = not highlight
+ _refresh()
+
+func _movement_input() -> Vector2:
+ var direction := Input.get_vector("move_left","move_right","move_up","move_down")
+ if touch_controls != null and touch_controls.active and touch_controls.movement.length_squared()>0.0:
+  direction = touch_controls.movement
+ return direction
 
 func _label(p: Vector2, dimensions: Vector2, font_size: int) -> Label:
  var label := Label.new()
@@ -189,11 +216,11 @@ func _physics_process(delta: float) -> void:
   _rewind(delta)
   return
  if diary_open or sim.s.finished: return
- var held := Input.is_physical_key_pressed(KEY_F) or Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.5
+ var held: bool = Input.is_physical_key_pressed(KEY_F) or Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.5 or touch_controls.wait_held
  if not held: wait_latched = false
  var waiting := held and not wait_latched and not sim.tutorial_active()
  accumulator += delta * (20.0 if waiting else 1.0)
- var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down") if not waiting else Vector2.ZERO
+ var direction := _movement_input() if not waiting else Vector2.ZERO
  while accumulator >= 0.1:
   accumulator -= 0.1
   sim.step(direction)
@@ -262,7 +289,8 @@ func _submit_code() -> void:
 
 func _refresh(direction := Vector2.INF) -> void:
  if direction == Vector2.INF:
-  direction = Input.get_vector("move_left", "move_right", "move_up", "move_down") if rewind_index < 0 else Vector2.ZERO
+  direction = _movement_input() if rewind_index < 0 else Vector2.ZERO
+ touch_controls.set_context(controls_enabled,diary_open or rewind_index>=0 or sim.s.finished)
  var state: Dictionary = sim.history[rewind_index] if rewind_index >= 0 else sim.s
  if shown_room != state.room: _show_room(state.room)
  watch.elapsed_seconds = float(state.tick)/10.0
@@ -297,10 +325,12 @@ func _refresh(direction := Vector2.INF) -> void:
  _refresh_prompt(state)
  progress.visible = not state.action.is_empty()
  if progress.visible: progress.value = 100.0*float(state.action.progress)/float(state.action.duration)
- wheel.visible = not diary_open and rewind_index < 0 and not state.finished
+ wheel.visible = not diary_open and rewind_index < 0 and not state.finished and not choices.is_empty()
  wheel.position = Vector2(clampf(actors.amelia.position.x-wheel.size.x/2,12,1148-wheel.size.x),clampf(actors.amelia.position.y-140,155,650-wheel.size.y))
  var labels := PackedStringArray()
  for i in choices.size(): labels.append(choices[i].label)
+ if touch_controls.active:
+  wheel.position.y = minf(wheel.position.y,touch_controls.top_edge-20-wheel.size.y)
  wheel.options = labels
 
  world_overlay.queue_redraw()
@@ -333,6 +363,10 @@ func _refresh_bubble(state: Dictionary) -> void:
  bubble.present(line,maxf(0,(float(state.get("frame",state.tick))-float(line.started))/10.0+fraction))
  if wheel.visible and Rect2(wheel.position,wheel.size).intersects(Rect2(bubble.position,bubble.size)):
   wheel.position.y = minf(650-wheel.size.y,bubble.position.y+bubble.size.y+8)
+ if touch_controls.active and wheel.visible:
+  wheel.position.y = minf(wheel.position.y,touch_controls.top_edge-20-wheel.size.y)
+  if Rect2(wheel.position,wheel.size).intersects(Rect2(bubble.position,bubble.size)):
+   bubble.position.y = maxf(12,wheel.position.y-bubble.size.y-8)
  # Dialogue belongs to the character; keep the status strip for controls/results.
  if not state.code_open: message.text = ""
 
@@ -361,6 +395,14 @@ func _refresh_prompt(state: Dictionary) -> void:
  var drink: String = state.get("hospitality",{}).get("carried","")
  carrying.visible = visible_now and drink != ""
  carrying.text = "Carrying: "+Simulation.Hospitality.DRINKS.get(drink,"")
+ if touch_controls.active:
+  movement_prompt.hide()
+  help.text = "Use the left stick to reach the captain." if phase == "approach" and choices.is_empty() else "Tap an action to interact." if not choices.is_empty() else ""
+  if state.finished: help.text = "Tap Rewind to play again, or Diary to read your notes."
+  carrying.position.y = touch_controls.top_edge-52
+  message.position = Vector2(220,touch_controls.top_edge-28)
+  if help.position.y > touch_controls.top_edge-64: help.position.y = touch_controls.top_edge-64
+
 
 # Interpolate adjacent recorded ticks at a fixed rate, never chase the target
 # with lerp(delta), which produces visible acceleration and deceleration.

@@ -24,6 +24,10 @@ These later user decisions supersede conflicting layout and diary details below.
 - The in-game diary conceals Amelia's name and omits loop numbers. It records only witnessed observations in the current run, with hour and minute timestamps. Reset clears the written entries while retaining learned interaction knowledge.
 - Editor menus begin to the right of the settings cog.
 
+### Mobile browser controls — clarified 29 September 2026
+
+Touch play uses one virtual movement joystick. Interactions are activated by tapping their option buttons directly, including More… and steam-panel digits, Clear and Commit; mouse clicks also activate these buttons. Separate touch buttons provide Diary, hold-to-Wait, Rewind, Highlight and Cancel. There is no selection joystick or Act button. Each finger is tracked independently, allowing movement and interaction together. Modal screens, focus loss and resizing release held controls. The mobile interface omits pause/editor controls.
+
 ### Opening audio — clarified 29 September 2026
 
 The main menu plays the saved destination room's music and ambience when Continue is available; otherwise it uses the new game's starting room. Playback starts at half the normal in-game amplitude, after respecting the player's volume preferences. Continue preserves the active tracks and raises their volume smoothly to normal during the book-opening transition. New leaves the preview unchanged until confirmation, then crossfades to the starting room's audio over that same transition. Cancelling New does not affect playback. The existing players transfer into gameplay so tracks shared by the menu and destination do not restart.

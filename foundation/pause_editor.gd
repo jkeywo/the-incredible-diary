@@ -24,6 +24,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if preload("res://assets/ui/mission_1/touch_controls.gd").supported(): return
 	if not event.is_action_pressed("pause_game") or event.is_echo():
 		return
 	var scene := get_tree().current_scene

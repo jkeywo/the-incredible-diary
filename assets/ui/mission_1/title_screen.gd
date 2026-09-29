@@ -44,7 +44,6 @@ var _pending_new := false
 var _pending_saved: Dictionary = {}
 var _pending_scene := LevelLoader.MISSION
 var _preview_state: Dictionary = {}
-var _neighbour_ticket: Dictionary = {}
 
 
 func is_pause_editor_available() -> bool:
@@ -174,7 +173,6 @@ func _level_prepared() -> void:
 		_enter_prepared_level()
 	else:
 		_preview_destination(_preview_state)
-		_neighbour_ticket = get_node("/root/ResourceStream").request_resources(LevelLoader.Plan.neighbours(str(_preview_state.room)))
 
 
 func _level_failed(message: String) -> void:
@@ -189,7 +187,7 @@ func _level_failed(message: String) -> void:
 
 
 func _enter_prepared_level() -> void:
-	if not _neighbour_ticket.is_empty(): _neighbour_ticket.cancelled = true
+	if not level_loader.neighbour_ticket.is_empty(): level_loader.neighbour_ticket.cancelled = true
 	# New only replaces the previous save once all required content is available.
 	if _pending_new:
 		var cleared: Dictionary = Save.clear(mission_save_path)
@@ -209,6 +207,7 @@ func _enter_prepared_level() -> void:
 		_preview_destination(_pending_saved.get("current",{"room":"docks","tick":0}))
 	var game: Node2D = level_loader.resources[LevelLoader.MISSION].instantiate()
 	game.stream_resources = true
+	game.character_ticket = level_loader.character_ticket
 	game.save_path = mission_save_path
 	game.configure(_pending_saved, true)
 	game.room_audio = _menu_audio
@@ -377,6 +376,3 @@ func _controller_for(parent: Node, controls: Callable, active: Callable, on_back
 	navigator.back = on_back
 	parent.add_child(navigator)
 	return navigator
-
-func _exit_tree() -> void:
-	if not _neighbour_ticket.is_empty(): _neighbour_ticket.cancelled = true

@@ -10,6 +10,14 @@ const Character = preload("res://assets/characters/character_sprite.tscn")
 const RoomAudio = preload("res://mission1/room_audio.gd")
 const EventAudio = preload("res://mission1/event_audio.gd")
 const Save = preload("res://mission1/save.gd")
+# A position-only actor keeps interaction/bubble anchors correct while art loads.
+class PendingCharacter extends AnimatedSprite2D:
+ var stained_outfit := false
+ func play_action(_action: String, _direction: String) -> void: pass
+ func set_outfit_stained(value: bool) -> void: stained_outfit = value
+
+var character_ticket: Dictionary = {}
+var _character_retry_at := 0
 var stream_resources := false
 var _content_key := ""
 var _content_ticket: Dictionary = {}
@@ -93,6 +101,8 @@ func configure(saved: Dictionary = {}, enable_save := true) -> void:
  save_enabled = enable_save
 
 func _ready() -> void:
+ if stream_resources and character_ticket.is_empty():
+  character_ticket = get_node("/root/ResourceStream").request_resources(ContentPlan.level_characters(),false,2)
  texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
  room_slot = Node2D.new()
  add_child(room_slot)
@@ -309,6 +319,8 @@ func _label(p: Vector2, dimensions: Vector2, font_size: int) -> Label:
  return label
 
 func _process(delta: float) -> void:
+ if stream_resources:
+  _refresh_character_art()
  if not is_instance_valid(time_presentation): return
  if stream_resources and not _prepare_visible(_display_state()): return
  time_presentation.suppressed = diary_open or sim.s.finished or not application_focused
@@ -610,8 +622,34 @@ func _draw_world_markers() -> void:
 func _display_state() -> Dictionary:
  return sim.history[rewind_index] if rewind_index >= 0 else sim.s
 
+func _refresh_character_art() -> void:
+ if not character_ticket.is_empty() and not str(character_ticket.error).is_empty():
+  if _character_retry_at == 0: _character_retry_at = Time.get_ticks_msec()+5000
+  elif Time.get_ticks_msec() >= _character_retry_at:
+   character_ticket = get_node("/root/ResourceStream").request_resources(ContentPlan.level_characters(),false,2)
+   _character_retry_at = 0
+ var changed := false
+ for id in actors.keys():
+  if actors[id] is PendingCharacter:
+   _ensure_actor(id)
+   if not actors[id] is PendingCharacter: changed = true
+ if changed: _refresh()
+
 func _ensure_actor(id: String) -> void:
- if actors.has(id): return
+ if actors.has(id) and not actors[id] is PendingCharacter: return
+ if stream_resources:
+  var cache: Dictionary = get_node("/root/ResourceStream").resources
+  if not ContentPlan.character_paths(id).all(func(path): return cache.has(path)):
+   if not actors.has(id):
+    var pending := PendingCharacter.new()
+    pending.self_modulate.a = 0.0
+    entity_layer.add_child(pending)
+    actors[id] = pending
+   return
+ if actors.has(id):
+  entity_layer.remove_child(actors[id])
+  actors[id].queue_free()
+  actors.erase(id)
  var actor: AnimatedSprite2D
  var skin: String = ContentPlan.SKINS.get(id,Simulation.Routines.INCIDENTAL_SKINS.get(id,""))
  if skin == "captain":
@@ -627,11 +665,7 @@ func _ensure_actor(id: String) -> void:
  actors[id] = actor
 
 func _prepare_visible(state: Dictionary) -> bool:
- var ids: Array = []
- for id in state.get("actors",{}):
-  if state.actors[id].room == state.room: ids.append(id)
- ids.sort()
- var key := str(state.room)+":"+str(ids)
+ var key := str(state.room)
  var stream := get_node("/root/ResourceStream")
  if key != _content_key:
   _content_key = key
@@ -906,6 +940,7 @@ func _restore_initial() -> void:
  journal.restore_run(sim, initial)
 
 func _exit_tree() -> void:
+ if not character_ticket.is_empty(): character_ticket.cancelled = true
  if not _content_ticket.is_empty(): _content_ticket.cancelled = true
  if not _neighbour_ticket.is_empty(): _neighbour_ticket.cancelled = true
  _persist()
@@ -959,6 +994,7 @@ func _sync_highlights() -> void:
  for collection in [actors,props]:
   for id in collection:
    var entity: Node = collection[id]
+   if entity is PendingCharacter: continue
    if not (entity is Sprite2D or entity is AnimatedSprite2D): continue
    if entity.material == null:
     entity.material = ShaderMaterial.new()
@@ -993,6 +1029,7 @@ func _sync_prop_occlusion() -> void:
   if bounds.size.y*prop.scale.y < 80: continue
   var obscures := false
   for actor in actors.values():
+   if actor is PendingCharacter: continue
    if not actor.visible: continue
    if prop.z_index < actor.z_index or (prop.z_index == actor.z_index and prop.position.y < actor.position.y): continue
    var character_bounds := Rect2(actor.position-Vector2(12,46),Vector2(24,44))

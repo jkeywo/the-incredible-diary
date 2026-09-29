@@ -8,6 +8,8 @@ var error := ""
 var progress := 0.0
 var resources: Dictionary = {}
 var ticket: Dictionary = {}
+var character_ticket: Dictionary = {}
+var neighbour_ticket: Dictionary = {}
 var requested_scene := ""
 var requested_state: Dictionary = {}
 
@@ -32,6 +34,11 @@ func start(scene_path: String = MISSION, state: Dictionary = {}, foreground := f
   # The authoring test scene is a separate explicit destination.
   _test_assets("res://assets",paths)
  ticket = get_node("/root/ResourceStream").request_resources(paths,foreground)
+ if not neighbour_ticket.is_empty(): neighbour_ticket.cancelled = true
+ if scene_path == MISSION:
+  neighbour_ticket = get_node("/root/ResourceStream").request_resources(Plan.neighbours(str(state.room)))
+ if scene_path == MISSION and character_ticket.is_empty():
+  character_ticket = get_node("/root/ResourceStream").request_resources(Plan.level_characters(),false,2)
  progress = ticket.progress
  set_process(true)
 
@@ -53,3 +60,5 @@ func _process(_delta: float) -> void:
 
 func _exit_tree() -> void:
  if not ticket.is_empty(): ticket.cancelled = true
+ if not character_ticket.is_empty(): character_ticket.cancelled = true
+ if not neighbour_ticket.is_empty(): neighbour_ticket.cancelled = true

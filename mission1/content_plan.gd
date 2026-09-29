@@ -26,10 +26,13 @@ static func character_paths(id: String) -> Array:
 	return paths
 
 static func for_state(state: Dictionary) -> Array:
-	var paths := room_paths(str(state.room))
-	paths.append_array(character_paths("amelia"))
-	for id in state.get("actors",{}):
-		if state.actors[id].room == state.room: paths.append_array(character_paths(id))
+	return room_paths(str(state.room))
+
+static func level_characters() -> Array:
+	var paths: Array = []
+	for id in SKINS.keys() + Sim.Routines.INCIDENTAL_SKINS.keys():
+		for path in character_paths(id):
+			if not paths.has(path): paths.append(path)
 	return paths
 
 static func neighbours(id: String) -> Array:

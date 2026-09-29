@@ -1,4 +1,5 @@
 extends SceneTree
+const Play = preload("res://mission1/play.gd")
 const Title = preload("res://assets/ui/mission_1/title_screen.tscn")
 const Save = preload("res://mission1/save.gd")
 const Sim = preload("res://mission1/simulation.gd")
@@ -54,15 +55,41 @@ func checks() -> void:
 	var cached: Dictionary = stream.request_resources(Plan.for_state(game.sim.s),true)
 	assert(cached.done and cached.error.is_empty())
 	assert(not game.actors.has("chatterbox")) # Offscreen character art is not instantiated.
+	# Hold a character's art back even after the screen is ready. Arrival must
+	# retain a position-only actor, without a modal or a stopped simulation.
+	stream.set_process(false)
+	for path in Plan.character_paths("chatterbox"): stream.resources.erase(path)
 	game.sim.s.actors.chatterbox = {"room":"salon","pos":[740,400],"action":"idle","facing":"down"}
 	game._refresh()
+	assert(game.actors.chatterbox is Play.PendingCharacter)
+	assert(game.actors.chatterbox.self_modulate.a == 0.0)
+	assert(game._prepare_visible(game.sim.s) and not is_instance_valid(game._content_overlay))
+	game.sim.s.tutorial = "done"
+	var frame_before: int = game.sim.s.frame
+	game._physics_process(0.11)
+	assert(game.sim.s.frame > frame_before)
+	game.sim.s.actors.chatterbox = {"room":"salon","pos":[740,400],"action":"idle","facing":"down"}
+	var character_state := JSON.stringify(game.sim.s)
+	stream.request_resources(Plan.character_paths("chatterbox"),false,2)
+	stream.set_process(true)
 	for i in 1000:
-		if game._prepare_visible(game.sim.s): break
+		if Plan.character_paths("chatterbox").all(func(path): return stream.resources.has(path)): break
 		await process_frame
 	game._refresh()
 	assert(game.actors.chatterbox.visible)
+	assert(not game.actors.chatterbox is Play.PendingCharacter)
+	assert(JSON.stringify(game.sim.s) == character_state)
+	# Screen priority wins even when character work was queued first.
+	var scheduler = load("res://assets/ui/loading/resource_stream.gd").new()
+	root.add_child(scheduler)
+	scheduler.set_process(false)
+	scheduler.request_resources(Plan.character_paths("chatterbox"),false,2)
+	scheduler.request_resources(Plan.room_paths("foyer"))
+	scheduler._process(0.0)
+	assert(scheduler.active_resource == Plan.room_paths("foyer")[0])
+	scheduler.queue_free()
 	title.queue_free()
 	await process_frame
 	Save.clear(PATH)
-	print("LEVEL LOADING PASS: early click, failure preserves save, retry, swipe, room wait, unchanged history and cache reuse")
+	print("LEVEL LOADING PASS: screen priority, invisible character fallback without pausing, save preservation, room wait and cache reuse")
 	quit()

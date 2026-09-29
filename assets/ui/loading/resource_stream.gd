@@ -19,7 +19,7 @@ func _ready() -> void:
 			bridge = JavaScriptBridge.get_interface("diaryAssets")
 			DirAccess.make_dir_recursive_absolute("/tmp/diary-assets")
 
-func request_resources(paths: Array, foreground := false) -> Dictionary:
+func request_resources(paths: Array, foreground := false, background_priority := 1) -> Dictionary:
 	var unique: Array = []
 	var packs: Dictionary = {}
 	for path in paths:
@@ -29,7 +29,7 @@ func request_resources(paths: Array, foreground := false) -> Dictionary:
 		for hash in manifest.get("resources",{}).get(path,[]):
 			packs[hash] = true
 			failures.erase(hash)
-	var ticket := {"paths":unique,"packs":packs,"foreground":foreground,"done":false,"cancelled":false,"error":"","progress":0.0}
+	var ticket := {"paths":unique,"packs":packs,"foreground":foreground,"priority":background_priority,"done":false,"cancelled":false,"error":"","progress":0.0}
 	if not manifest.is_empty() and bridge == null:
 		ticket.done = true
 		ticket.error = "Resource downloads could not start. Please reload the page."
@@ -70,11 +70,10 @@ func _process(_delta: float) -> void:
 			active_resource = ""
 	for ticket in tickets: _update_ticket(ticket)
 	tickets = tickets.filter(func(ticket): return not ticket.done and not ticket.cancelled)
-	var has_foreground := tickets.any(func(ticket): return ticket.foreground)
-	for foreground in [true,false]:
-		if not foreground and has_foreground: break
+	for priority in [0,1,2]: # Current screen, neighbouring screens, level characters.
+		if not tickets.any(func(ticket): return _priority(ticket) == priority): continue
 		for ticket in tickets:
-			if ticket.foreground != foreground: continue
+			if _priority(ticket) != priority: continue
 			for path in ticket.paths:
 				if resources.has(path): continue
 				var missing := false
@@ -88,6 +87,10 @@ func _process(_delta: float) -> void:
 				if ResourceLoader.load_threaded_request(path) != OK:
 					failures[path] = "A resource could not be opened. Please try again."
 				else: active_resource = path
+		break
+
+func _priority(ticket: Dictionary) -> int:
+	return 0 if ticket.foreground else int(ticket.priority)
 
 func _poll_pack(hash: String) -> void:
 	var status: Dictionary = JSON.parse_string(bridge.status(hash))

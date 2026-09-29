@@ -47,9 +47,9 @@ The main menu plays the saved destination room's music and ambience when Continu
 
 ### Resource loading — clarified 29 September 2026
 
-PC and web use the same staged loading flow. Initial loading prepares the title, Settings and docks, including docks audio. The title prepares the Continue or New destination in the background. A room prefetches adjacent rooms; character art is prepared as characters arrive. Shared resources are reused across rooms and future missions. Web downloads are cached separately from personal saves; PC prepares the same resources from its installed files.
+PC and web use the same staged loading flow. Initial loading prepares the title, Settings and docks, including docks audio. The title prepares the Continue or New destination in the background. A room prefetches adjacent rooms. All character art for the selected level is preloaded in the background at a lower priority than screen resources. Shared resources are reused across rooms and future missions. Web downloads are cached separately from personal saves; PC prepares the same resources from its installed files.
 
-If Continue or New is selected before its destination is ready, a full-size diary flicks pages above a loading bar, then the existing swipe transition opens into play. If travel or a character arrival outruns preparation, simulation time waits until the required resources are ready. Recorded history is unchanged. Failed loading offers recovery, and New does not erase an existing voyage until its destination is ready. A saved room's title audio starts when that room is ready.
+If Continue or New is selected before its destination is ready, a full-size diary flicks pages above a loading bar, then the existing swipe transition opens into play. If travel outruns screen preparation, simulation time waits until the screen is ready. Character arrivals never trigger a loading screen or stop simulation time: a character whose art is still loading stays invisible until it is ready, while its recorded position and actions continue normally. Recorded history is unchanged. Failed loading offers recovery, and New does not erase an existing voyage until its destination is ready. A saved room's title audio starts when that room is ready.
 
 ### Chandelier staging — clarified 29 September 2026
 

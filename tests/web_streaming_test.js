@@ -48,8 +48,16 @@ const server = http.createServer(async (req,res) => {
   fs.writeFileSync('build/web-stream-result.json',JSON.stringify({first,firstDocksRequests,repeated,errors,logs},null,2));
   assert.deepEqual(errors,[]); assert.equal(repeated,0);
   const manifest=JSON.parse(fs.readFileSync('build/web-content-manifest.json','utf8'));
-  for (const resource of ['res://assets/rooms/mission_1/05_party_salon.tscn', 'res://assets/characters/matron_sprites.png', 'res://assets/characters/glamorous_sprites.png']) {
-    for (const hash of manifest.resources[resource]) assert(!firstDocksRequests.includes(manifest.packs[hash].url),resource+' downloaded too early');
+  for (const hash of manifest.resources['res://assets/rooms/mission_1/05_party_salon.tscn']) {
+    assert(!firstDocksRequests.includes(manifest.packs[hash].url),'Unconnected salon downloaded too early');
+  }
+  const screenIndices=manifest.resources['res://assets/rooms/mission_1/02_foyer.tscn'].map(hash=>firstDocksRequests.indexOf(manifest.packs[hash].url));
+  assert(screenIndices.every(index=>index>=0),'Neighbour screen was not prefetched');
+  for (const resource of ['res://assets/characters/matron_sprites.png','res://assets/characters/glamorous_sprites.png']) {
+    for (const hash of manifest.resources[resource]) {
+      const index=firstDocksRequests.indexOf(manifest.packs[hash].url);
+      assert(index>Math.max(...screenIndices),'Level characters must preload after screens');
+    }
   }
   console.log(JSON.stringify({passed:true,first,repeated,firstDocks:firstDocksRequests.length}));
  } finally { await browser.close(); server.close(); }

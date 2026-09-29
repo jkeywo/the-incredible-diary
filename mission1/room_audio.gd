@@ -10,12 +10,13 @@ var _intermittent_interval := 14.0
 var _hiss_cycle := -1
 
 
-func set_room(settings: Node, elapsed_ms: int) -> void:
+func set_room(settings: Node, elapsed_ms: int, opening_fade_override_seconds: float = -1.0) -> void:
 	assert(settings is Settings)
-	_set_bed("music", settings.music, settings.music_volume_db, settings.fade_seconds, elapsed_ms)
-	_set_bed("ambience", settings.ambience, settings.ambience_volume_db, settings.fade_seconds, elapsed_ms)
-	_set_bed("secondary_ambience", settings.secondary_ambience, settings.secondary_ambience_volume_db, settings.fade_seconds, elapsed_ms)
-	_set_intermittent(settings, elapsed_ms)
+	var fade: float = opening_fade_override_seconds if opening_fade_override_seconds >= 0.0 else settings.fade_seconds
+	_set_bed("music", settings.music, settings.music_volume_db, fade, elapsed_ms)
+	_set_bed("ambience", settings.ambience, settings.ambience_volume_db, fade, elapsed_ms)
+	_set_bed("secondary_ambience", settings.secondary_ambience, settings.secondary_ambience_volume_db, fade, elapsed_ms)
+	_set_intermittent(settings, elapsed_ms, fade)
 
 
 func set_game_time(elapsed_ms: int) -> void:
@@ -39,15 +40,15 @@ func set_game_time(elapsed_ms: int) -> void:
 		_hiss_cycle = cycle
 
 
-func _set_intermittent(settings: Node, elapsed_ms: int) -> void:
+func _set_intermittent(settings: Node, elapsed_ms: int, fade: float) -> void:
 	if _hiss_player != null:
 		var old := _hiss_player
 		_hiss_player = null
-		if settings.fade_seconds <= 0.0:
+		if fade <= 0.0:
 			old.queue_free()
 		else:
 			var outgoing := create_tween()
-			outgoing.tween_property(old, "volume_db", -80.0, settings.fade_seconds)
+			outgoing.tween_property(old, "volume_db", -80.0, fade)
 			outgoing.tween_callback(old.queue_free)
 	_intermittent_clips = settings.intermittent_ambience.duplicate()
 	_hiss_cycle = -1
@@ -57,12 +58,12 @@ func _set_intermittent(settings: Node, elapsed_ms: int) -> void:
 	_hiss_player = AudioStreamPlayer.new()
 	_hiss_player.name = "IntermittentAmbience"
 	_hiss_player.process_mode = Node.PROCESS_MODE_PAUSABLE
-	_hiss_player.volume_db = -80.0 if settings.fade_seconds > 0.0 else settings.intermittent_volume_db
+	_hiss_player.volume_db = -80.0 if fade > 0.0 else settings.intermittent_volume_db
 	add_child(_hiss_player)
 	set_game_time(elapsed_ms)
-	if settings.fade_seconds > 0.0:
+	if fade > 0.0:
 		var incoming := create_tween()
-		incoming.tween_property(_hiss_player, "volume_db", settings.intermittent_volume_db, settings.fade_seconds)
+		incoming.tween_property(_hiss_player, "volume_db", settings.intermittent_volume_db, fade)
 
 
 func _set_bed(slot: String, source: AudioStream, target_db: float, fade: float, elapsed_ms: int) -> void:

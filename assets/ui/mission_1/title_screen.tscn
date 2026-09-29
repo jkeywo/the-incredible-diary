@@ -11,7 +11,7 @@
 [sub_resource type="ShaderMaterial" id="OpenPortalMaterial"]
 resource_local_to_scene = true
 shader = ExtResource("6")
-shader_parameter/portal = 0.0
+shader_parameter/portal = 1.0
 shader_parameter/frame_alpha = 1.0
 
 [sub_resource type="ShaderMaterial" id="ClosedCoverMaterial"]

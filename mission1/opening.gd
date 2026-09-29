@@ -7,6 +7,7 @@ const RoomAudio = preload("res://mission1/room_audio.gd")
 const DOCKS = preload("res://assets/rooms/mission_1/01_docks.tscn")
 const FOYER = preload("res://assets/rooms/mission_1/02_foyer.tscn")
 const WALK_SPEED := 140.0
+const OPENING_ROOM_FADE_SECONDS := 1.74
 
 @export var save_path := Save.DEFAULT_PATH
 
@@ -25,6 +26,7 @@ var _save_enabled := false
 var _record_elapsed := 0.0
 var _save_elapsed := 0.0
 var _elapsed_fraction_ms := 0.0
+var _first_room := true
 
 
 func configure(saved: Dictionary = {}, enable_save: bool = true) -> void:
@@ -131,7 +133,9 @@ func _show_room() -> void:
 	var packed: PackedScene = DOCKS if room_id == "docks" else FOYER
 	var room := packed.instantiate()
 	room_slot.add_child(room)
-	room_audio.set_room(room.get_node("RoomAudioSettings"), elapsed_ms)
+	var opening_fade := OPENING_ROOM_FADE_SECONDS if _first_room else -1.0
+	room_audio.set_room(room.get_node("RoomAudioSettings"), elapsed_ms, opening_fade)
+	_first_room = false
 
 
 func _record_snapshot() -> void:

@@ -3,11 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://fpg76iwtceis"
-valid=false
+path="res://.godot/imported/diary_title_preview.png-8e489bc7f3521efec641698bc41b0b72.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://assets/ui/mission_1/diary_title_preview.png"
+dest_files=["res://.godot/imported/diary_title_preview.png-8e489bc7f3521efec641698bc41b0b72.ctex"]
 
 [params]
 

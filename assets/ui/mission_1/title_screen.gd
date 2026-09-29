@@ -96,7 +96,6 @@ func begin() -> void:
 	menu.hide()
 	var tween := create_tween()
 	tween.tween_method(_set_open_progress, 0.0, 1.0, 0.82).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_method(_set_portal, 0.0, 1.0, 0.42).set_trans(Tween.TRANS_SINE)
 	tween.tween_interval(0.1)
 	tween.tween_property(open_book, "scale", Vector2(2.45, 2.45), 0.82).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tween.parallel().tween_method(_set_frame_alpha, 1.0, 0.0, 0.42).set_delay(0.4).set_trans(Tween.TRANS_SINE)
@@ -119,7 +118,7 @@ func set_game_world(world: Node2D) -> void:
 
 func _reset_visuals() -> void:
 	_set_open_progress(0.0)
-	_set_portal(0.0)
+	_set_portal(1.0)
 	_set_frame_alpha(1.0)
 	open_book.pivot_offset = Vector2(580, 370)
 	open_book.scale = Vector2.ONE

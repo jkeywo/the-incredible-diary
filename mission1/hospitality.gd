@@ -49,11 +49,13 @@ static func options(run, result: Array[Dictionary], local: bool) -> void:
   var id: String = state.menu
   if not run.s.actors.has(id) or busy(run,id) or not can_direct(run,id): return
   var actor: Dictionary = run.s.actors[id]
-  for door in run.memory.cabins:
+  for door in Rooms.CABIN_DOORS:
    var correct: bool = GUESTS[id].door == door
    var outcome: Dictionary = state.outcomes.get(id,{})
    if correct or (not outcome.get("wrong_cabin",false) and not detour_plan(run,id,door).is_empty()):
-    run._option(result,"direct:%s:%s" % [id,door],"Cabin %d" % GUESTS[owner(door)].number,actor.room,Rooms.point(actor.pos),local,true)
+    var label := "Cabin %d" % GUESTS[owner(door)].number
+    if not run.memory.cabins.has(door): label += " (guess)"
+    run._option(result,"direct:%s:%s" % [id,door],label,actor.room,Rooms.point(actor.pos),local,true)
   run._option(result,"duties_back","Back",actor.room,Rooms.point(actor.pos),local,true)
   return
  for door in Rooms.CABIN_DOORS:
@@ -70,7 +72,7 @@ static func options(run, result: Array[Dictionary], local: bool) -> void:
   if actor.room == "salon" and state.carried != "" and not outcome.get("served",false):
    var allowed: bool = not outcome.get("wrong_drink",false) or state.carried == GUESTS[id].drink
    run._option(result,"serve:"+id,"Offer "+DRINKS[state.carried],actor.room,Rooms.point(actor.pos),local,allowed)
-  run._option(result,"directions:"+id,"Give cabin directions",actor.room,Rooms.point(actor.pos),local,not run.memory.cabins.is_empty() and can_direct(run,id))
+  run._option(result,"directions:"+id,"Give cabin directions",actor.room,Rooms.point(actor.pos),local,can_direct(run,id))
 
 static func can_direct(run, id: String) -> bool:
  var actor: Dictionary = run.s.actors.get(id,{})

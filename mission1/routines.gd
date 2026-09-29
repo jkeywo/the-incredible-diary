@@ -210,7 +210,8 @@ static func with_foyer_stop(id: String, stages: Array, origin: Vector2) -> Array
  var outward := duration(path("docks",origin,"foyer",Rooms.point(stop.pos)))
  var onward := duration(path("foyer",Rooms.point(stop.pos),first[1],Rooms.point(first[2])))
  var deadline := int(result[1][0]) if result.size()>1 else 10800
- var departure := mini(int(first[0])+outward+300,deadline-onward-30)
+ # Spend all spare time in the Foyer, reserving travel and a short cabin visit.
+ var departure := deadline-onward-30
  result[0] = [first[0],"foyer",stop.pos,"idle",stop.facing]
  result.insert(1,[maxi(int(first[0])+outward,departure),first[1],first[2],first[3]])
  return result

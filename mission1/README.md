@@ -42,7 +42,7 @@ Each guest accepts one correct drink and reacts to one wrong drink per loop.
 
 Inspect cabin nameplates to learn their occupants: Felix Harcourt (1, middle),
 Evelyn Vale (2, left), and Mabel Pritchard (3, right). Give cabin directions opens
-a choice of inspected cabin numbers. Wrong directions produce a visit to that
+a choice of cabin numbers, with unread nameplates marked as guesses. Wrong directions produce a visit to that
 door, a complaint, and a return to the guest's normal activity. They are offered
 only in the Foyer before the guest discovers their cabin, and when there is
 enough time before the next appointment. Blocked detours
@@ -131,8 +131,13 @@ follow recorded voyage time during pause, Continue and rewind.
 
 Main rooms have two triangular guest gathering groups and one sailor group,
 with reserved places facing inward. The service passage stays clear. Principal
-guests pause in the Foyer for about 20 real seconds before their first cabin
-visit; directions can extend that visit without moving major appointments.
+guests spend the available time in the Foyer before their first cabin visit,
+reserving the onward journey and a two-second cabin visit before their next
+scheduled departure. At normal speed Evelyn waits about 22 seconds and Mabel
+about 27 seconds. Felix has up to 46 seconds if his luggage is found immediately,
+less when it is found later, and about 3 minutes 54 seconds on the delayed-luggage
+route. These are planned standing times; walking through the Foyer adds time
+when directions are available. Crowds and player blocking can delay travel.
 
 The operator leaves after the demonstration, then travels back for checks on
 voyage watch boundaries at :00 and :30. He speaks before restoring pressure.

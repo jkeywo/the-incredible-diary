@@ -43,6 +43,12 @@ func checks() -> void:
  while run.s.tick < 6500: run.step()
  assert(not run.flag("steam_off") and run.s.safe.has("chatterbox") and not run.s.dead.has("chatterbox"))
 
+ # Every spare tick before the next appointment belongs to the Foyer stop.
+ for id in ["chandelier_guest","chatterbox"]:
+  var plan := Sim.Routines._passenger_plan(id,0,800,Sim.CREAK-30,{})
+  var stages := Sim.Routines.with_foyer_stop(id,plan.stages,plan.origin)
+  var onward := Sim.Routines.duration(Sim.Routines.path("foyer",Rooms.point(stages[0][2]),stages[1][1],Rooms.point(stages[1][2])))
+  assert(int(stages[1][0])+onward+30 == int(stages[2][0]))
  var arrival := Sim.new(false)
  var foyer_ticks := 0
  while arrival.s.tick < 850:
@@ -50,6 +56,9 @@ func checks() -> void:
   var guest: Dictionary = arrival.s.actors.chandelier_guest
   if guest.room == "foyer" and guest.action in ["idle","talk"]: foyer_ticks += 1
  assert(foyer_ticks >= 190)
+ assert(arrival.s.hospitality.outcomes.chandelier_guest.found_cabin)
+ while arrival.s.tick < 980: arrival.step()
+ assert(arrival.s.hospitality.outcomes.chatterbox.found_cabin)
 
  var pace := Sim.new(false)
  pace.s.room = "foyer"

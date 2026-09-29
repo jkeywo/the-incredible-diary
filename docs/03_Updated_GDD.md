@@ -100,7 +100,9 @@ remain carried. Each guest permits one wrong-drink reaction and one successful
 delivery per loop. After rejection only the requested drink can be offered to
 that guest. Refreshments do not replace the poisoned glass or change schedules.
 
-Cabin directions offer inspected cabin numbers. Correct directions receive
+Cabin directions offer cabin numbers without requiring nameplate inspection.
+Unread nameplates are marked as guesses; choosing one does not learn its occupant.
+Existing wrong-direction limits and deadline checks still apply. Correct directions receive
 thanks. Wrong directions make the guest visit the named door, read its plate,
 complain about the mismatch, and return without entering the wrong cabin.
 Directions are offered only in the Foyer before cabin discovery. Detours remain
@@ -620,9 +622,12 @@ Repository: https://github.com/jkeywo/the-incredible-diary . Local checkout: `C:
 - Door crossings, visible unlabelled transition rectangles and inward arrival
   positions are separate. Player and NPC arrivals use the same geometry and
   wait or find a clear arrival when occupied.
-- Give principal guests about 20 real seconds in the Foyer before their first
-  cabin visit. Directions detours may adjust cabin departure without delaying
-  major appointments.
+- Keep principal guests in the Foyer until the latest planned departure that
+  reserves travel to their cabin and a two-second visit before the next scheduled
+  departure. Evelyn has about 22 real seconds standing there, Mabel about 27;
+  Felix has up to 46 with immediate luggage recovery, falling to no spare pause
+  on automatic recovery, or about 234 on the delayed-luggage route. Transit adds
+  to the time available for directions. Major appointments remain unchanged.
 - The steam operator leaves after the demonstration and returns at subsequent
   voyage :00/:30 boundaries, allowing for travel. On finding pressure off, he
   wonders aloud before operating the machine. Record each phase. A shutdown

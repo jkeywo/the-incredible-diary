@@ -32,6 +32,8 @@ func _initialize() -> void:
  assert(run.start("shove"))
  until(Sim.CREAK+18)
  walk(Vector2(580,540))
+ # The luggage owner now waits with the Foyer group; walk around it.
+ walk(Vector2(820,580))
  walk(Vector2(980,460),"controls")
  walk(Vector2(350,300))
  until(Sim.TRAP+10)

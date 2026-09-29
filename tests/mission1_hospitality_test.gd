@@ -104,13 +104,16 @@ func checks() -> void:
  assert(run.memory.preferences.size() == 3 and run.memory.cabins.size() == 3)
  assert(run.s.hospitality.outcomes.is_empty() and run.s.hospitality.carried == "")
 
- # Directions are offered during the first foyer crossing, before discovery.
+ # Unread cabin numbers are guesses; directions do not require nameplate knowledge.
  run = Sim.new(false)
- run.memory.cabins = ["cabin_left","cabin_middle","cabin_right"]
  while run.s.actors.chandelier_guest.room != "foyer": run.step()
  near_guest(run,"chandelier_guest")
+ assert(run.memory.cabins.is_empty())
  assert(run.start("directions:chandelier_guest"))
+ var guesses := run.options().filter(func(option): return option.id.begins_with("direct:"))
+ assert(guesses.size() == 3 and guesses.all(func(option): return option.label.ends_with("(guess)")))
  assert(run.start("direct:chandelier_guest:cabin_middle"))
+ assert(run.memory.cabins.is_empty())
  assert(run.s.hospitality.detours.has("chandelier_guest"))
  round_trip(run)
  run.s.room = "cabins"
@@ -130,7 +133,7 @@ func checks() -> void:
  assert(not run.start("directions:chandelier_guest"))
  # Correct directions end eligibility immediately; leaving the foyer closes a submenu.
  var fresh := Sim.new(false)
- fresh.memory.cabins = ["cabin_left"]
+ fresh.memory.cabins = []
  fresh.s.actors.chandelier_guest.room = "foyer"
  fresh.s.actors.chandelier_guest.pos = [400,500]
  near_guest(fresh,"chandelier_guest")
@@ -142,6 +145,7 @@ func checks() -> void:
  fresh.s.actors.chandelier_guest.room = "foyer"
  assert(fresh.start("directions:chandelier_guest"))
  assert(fresh.start("direct:chandelier_guest:cabin_left"))
+ assert(fresh.memory.cabins.is_empty())
  assert(not fresh.start("directions:chandelier_guest"))
 
  # Blocked wrong directions abandon the detour without relocating the guest.

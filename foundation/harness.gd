@@ -201,6 +201,30 @@ func _ready() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--github-native-smoke=") and not OS.has_feature("web"):
 			call_deferred("_run_github_native_smoke", argument.trim_prefix("--github-native-smoke="))
+	if OS.has_feature("web") and github_integration_test:
+		var github_web_smoke: String = str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('github_web_smoke') || ''"))
+		if not github_web_smoke.is_empty():
+			call_deferred("_run_github_web_smoke", github_web_smoke)
+
+func _run_github_web_smoke(mode: String) -> void:
+	var report := {"passed": false, "mode": mode, "platform": OS.get_name(), "browser_user_agent": str(JavaScriptBridge.eval("navigator.userAgent"))}
+	if mode != "read":
+		report.reason = "Unsupported hosted smoke mode"
+	elif github_api.access_token.is_empty():
+		report.reason = "No token saved for this browser origin"
+	else:
+		var repository := "jkeywo/the-incredible-diary"
+		var branch := "codex/sync-integration-test"
+		var opened: Dictionary = await github_repository.open_project(repository, branch)
+		if not opened.ok:
+			report.reason = str(opened.reason)
+		else:
+			report.head = str(opened.head)
+			report.asset_count = opened.content.assets.size()
+			report.passed = true
+	var encoded := JSON.stringify(report)
+	print("GITHUB_WEB_SMOKE ", encoded)
+	JavaScriptBridge.eval("document.body.dataset.githubWebSmoke = " + JSON.stringify(encoded) + ";")
 
 func _run_github_storage_smoke(seed: bool) -> void:
 	var store := GithubCredentials.new("user://unused_github_storage_smoke.json", "the-incredible-diary.github-storage-smoke.v1")
@@ -311,6 +335,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if session.paused and editor_overlay.visible and event.is_action_pressed("step_tick"):
 		_step_tick()
+		return
+	if session.paused and editor_overlay.visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F8:
+		_toggle_github_panel()
 		return
 	if session.paused:
 		return

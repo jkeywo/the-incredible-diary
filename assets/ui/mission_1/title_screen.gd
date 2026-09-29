@@ -23,6 +23,9 @@ var _game_world: Node2D
 
 
 func _ready() -> void:
+	if OS.has_feature("web") and bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('github_integration_test') && new URLSearchParams(location.search).get('github_web_smoke') === 'read'")):
+		call_deferred("_on_test_level")
+		return
 	continue_button.pressed.connect(_on_continue)
 	$Menu/NewButton.pressed.connect(_on_new)
 	$Menu/TestLevelButton.pressed.connect(_on_test_level)

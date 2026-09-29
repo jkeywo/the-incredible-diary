@@ -77,6 +77,7 @@ static func make_frames(id: String, use_stained_outfit := false) -> SpriteFrames
 		return SpriteFrames.new()
 	var sheet_name := "rake_stained" if id == "rake" and use_stained_outfit else id
 	var sheet := load("res://assets/characters/%s_sprites.png" % sheet_name) as Texture2D
+	var walk_sheet: Texture2D = load("res://assets/characters/player_walk.png") if id == "player" else sheet
 	var result := SpriteFrames.new()
 	if result.has_animation("default"):
 		result.remove_animation("default")
@@ -89,9 +90,10 @@ static func make_frames(id: String, use_stained_outfit := false) -> SpriteFrames
 			result.set_animation_loop(name, action != "bob")
 			for frame_index in range(definition[1]):
 				var atlas := AtlasTexture.new()
-				atlas.atlas = sheet
+				atlas.atlas = walk_sheet if action == "walk" else sheet
+				var first_column: int = 0 if id == "player" and action == "walk" else definition[0]
 				atlas.region = Rect2i(
-					Vector2i((definition[0] + frame_index) * CELL_SIZE.x, direction_index * CELL_SIZE.y),
+					Vector2i((first_column + frame_index) * CELL_SIZE.x, direction_index * CELL_SIZE.y),
 					CELL_SIZE
 				)
 				result.add_frame(name, atlas)

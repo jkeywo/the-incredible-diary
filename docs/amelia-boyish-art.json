@@ -1,0 +1,21 @@
+{
+  "tool": "Built-in imagegen",
+  "direction": "Amelia should read as a boy. Cropped hair, no bun, boxy uniform; retain the character and animation poses.",
+  "edits": [
+    {
+      "source": "assets/characters/walk_source/player_cycle.png",
+      "output": "assets/characters/player_walk.png",
+      "prompt": "Edit target Image 1: the 4 by 4 walking sprite sheet. Image 2 is the original standing-character identity reference. Correct Amelia's disguise so she convincingly reads as a BOY / young male cabin attendant at game sprite size, matching the original reference. She is still the same character; this is her boyish outward presentation. In ALL SIXTEEN frames: remove the round hair BUN entirely, remove tied-back hair, give her very SHORT CROPPED brown hair at the nape and above the ears, mostly hidden under the navy cap. Short straight sideburns. Plain youthful boyish face with straight eyebrows, no long lashes, no blush, no lipstick. Slightly squarer jaw, modestly broader straight shoulders. Boxy straight-cut navy purser jacket with no pinched waist, flat chest, straight loose trousers and practical flat shoes. Preserve cap, gold anchor and buttons, navy/gold palette and detailed pixel-art style. Preserve EXACT 4 columns and 4 rows and ALL existing walking limb poses and their alternating arm/leg motion: rows front/down, left profile, back/up, right profile. Preserve consistent height, scale, frame centers and baselines. Each cell separated by transparent gutter. Do not add age lines, beard, muscles or an adult man's bulk. Transparent alpha background, NO background, shadow, text or grid. Main correction is removing bun/feminine hair silhouette and tailored hourglass waist in every pose, replacing with cropped boy's haircut and boxy uniform. Output only the edited walk sheet."
+    },
+    {
+      "source": "assets/characters/source/player.png",
+      "output": "assets/characters/player_sprites.png",
+      "prompt": "Edit Image 1 (four-direction standing sprite strip). Image 2 is the corrected boyish character reference. Amelia should pass visually as a BOY / young male cabin attendant. Preserve her identity, original standing poses and navy purser uniform, cap with gold anchor, gold buttons, trousers, shoes, and brown diary where already held. Make hair very short cropped brown, ears and nape clear, no bun or long hair. Simple boyish youthful face, straight eyebrows, no long eyelashes or blush. Boxy straight jacket, flat chest, no pinched waist, modestly squarer shoulders, straight loose trousers. Retain original slim game-character proportions (NOT chibi, no extra-large head). Four equally sized full-body sprites in one horizontal row: FRONT, LEFT three-quarter, BACK, RIGHT three-quarter in the same order as Image 1. Preserve equal cell spacing and common baseline with clear gutters. Pixel-art style and original palette. Completely transparent alpha background with no haze or floor. No letters, captions or grid."
+    },
+    {
+      "source": "assets/characters/actions/source/amelia.png",
+      "output": "assets/characters/actions/amelia_actions.png",
+      "prompt": "Edit target Image 1 (four action key poses of Amelia). Image 2 is corrected boyish identity reference. She must pass visually as a boy / young male ship's attendant: very short cropped brown hair under cap, ears and nape clear, no bun/ponytail, plain youthful boyish face with straight eyebrows and no long lashes, slightly square shoulders, boxy straight navy jacket with flat chest and no pinched waist, loose straight trousers. Preserve original pixel art style, gold buttons and trim, cap with anchor, shoes, original slim proportions and all four actions EXACTLY: crouching down reaching to hide luggage; standing and shoving with both hands; operating a valve with raised hand; shoulder bump while stepping. Preserve one horizontal row of four separate equally spaced full-body poses, common baseline and transparent gutters. Remove any background haze: output true transparent alpha behind sprites, no floor/shadow/text. No extra props. Keep limb/action silhouettes readable at 32x48."
+    }
+  ]
+}

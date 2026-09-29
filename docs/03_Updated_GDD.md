@@ -38,6 +38,8 @@ A pixel-art time-loop rescue game set aboard a 1920s Mediterranean cruise ship, 
 
 The framing is reading the diary of our great-great-aunt, found in a dusty loft. We play Amelia, a girl dressed as a boy. The Mission 8 conspiracy clue reveals this and enables outfit switching, granting additional access and many more options during the investigation playthrough. The title's “Lady” foreshadows a potential sequel; it is not a newly assigned starting rank.
 
+**Visual presentation — clarified 29 September 2026:** Amelia must read as a boy at gameplay sprite size. Keep cropped hair and a straight, boxy uniform silhouette consistent across standing, walking and action poses; do not introduce a visible bun or a fitted feminine silhouette.
+
 **Amelia starts as a junior purser / general ship’s clerk.** Her role covers passenger requests, tickets, manifests, messages, keys, complaints and coordination between departments. She receives two promotions during the voyage. Each expands legitimate ship access and social authority through defined responsibilities. This was recovered from the saved conversation; Q136 was an erroneous repeat question, not an unresolved design choice. Exact promoted titles and permission lists remain examples rather than confirmed specifics.
 
 Mission 1 has the tone of a comedy of errors: inconvenient, apparently rude interventions save lives. In particular, Amelia repeatedly inconveniences Character 1 to keep them away from a poisoned drink.

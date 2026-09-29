@@ -53,5 +53,18 @@ func _initialize() -> void:
  walk(Vector2(510,635),"salon")
  walk(Vector2(800,330))
  assert(run.s.dead.has("guest"))
+ run.reset()
+ run.s.room = "salon"
+ run.s.pos = [850,380]
+ until(Sim.CREAK+20)
+ assert(run.start("bump"))
+ until(Sim.CREAK+30)
+ walk(Vector2(960,520),"controls")
+ walk(Vector2(140,635),"foyer")
+ walk(Vector2(745,445))
+ if run.start("shove"):
+  for i in 11: run.step()
+ until(Sim.FALL)
+ assert(run.s.dead.has("chandelier_guest"))
  print("MISSION1 WALKING PASS: real doorway route wins; early drink/foyer route conflicts")
  quit()

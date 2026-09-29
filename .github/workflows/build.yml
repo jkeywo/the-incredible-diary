@@ -37,6 +37,13 @@ jobs:
           .tools/godot/godot --headless --path . res://main.tscn -- --probe-test --save-path="$PWD/build/probe-save.json" --report="$PWD/build/probe-results.json"
           python -c "import json; assert json.load(open('build/probe-results.json'))['passed']"
           .tools/godot/godot --headless --path . --script res://tests/foundation_test.gd
+      - name: Test Mission 1
+        run: |
+          for suite in pocket_watch mission1_rooms mission1_chandelier mission1_steam mission1_route mission1_walking mission1_save mission1_play; do
+            .tools/godot/godot --headless --path . --script "res://tests/${suite}_test.gd" --quit-after 300 > "build/${suite}.log" 2>&1
+            cat "build/${suite}.log"
+            python -c 'import pathlib,sys; t=pathlib.Path(sys.argv[1]).read_text(); assert "SCRIPT ERROR" not in t and "Assertion failed" not in t and ("PASS" in t or "\"passed\":true" in t)' "build/${suite}.log"
+          done
       - name: Record and reload a full simulated leg
         run: |
           .tools/godot/godot --headless --path . res://foundation/harness.tscn -- --foundation-benchmark --benchmark-save-path="$PWD/build/foundation-benchmark.jsonl" --benchmark-report="$PWD/build/foundation-benchmark-result.json"

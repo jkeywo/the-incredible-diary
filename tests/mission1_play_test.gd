@@ -19,7 +19,27 @@ func run_checks() -> void:
  game._physics_process(1)
  check(game.sim.s.tick == tick, "diary pauses game clock")
  game._toggle_diary()
-
+ var wait_key := InputEventKey.new()
+ wait_key.physical_keycode = KEY_F
+ wait_key.pressed = true
+ Input.parse_input_event(wait_key)
+ Input.flush_buffered_events()
+ game.sim.s.tick = Sim.HOUR-5
+ game._physics_process(1)
+ check(game.sim.s.tick == Sim.HOUR and game.wait_latched, "accelerated wait stops at Hour boundary")
+ game._physics_process(0.1)
+ check(game.sim.s.tick == Sim.HOUR+1, "holding wait does not accelerate through next Hour")
+ wait_key = wait_key.duplicate()
+ wait_key.pressed = false
+ Input.parse_input_event(wait_key)
+ Input.flush_buffered_events()
+ game._physics_process(0.1)
+ check(not game.wait_latched, "release rearms waiting")
+ paused = true
+ tick = game.sim.s.tick
+ game._physics_process(1)
+ check(game.sim.s.tick == tick, "editor pause freezes simulation")
+ paused = false
  var scenarios := [
   ["docks",[350,430],60],
   ["foyer",[680,440],Sim.CREAK],
@@ -41,6 +61,10 @@ func run_checks() -> void:
   game._refresh()
   if item[0] == "controls":
    game.sim.start("panel")
+   for i in 3: game._choose(int(game.sim.s.code[i])-1)
+   check(game.sim.s.code_open and not game.sim.flag("steam_off"), "third digit does not submit automatically")
+   game._choose(7)
+   check(game.sim.s.entry.is_empty(), "Clear removes entire entry")
    game._refresh()
   check(game.shown_room == item[0], "loads room "+item[0])
   check(is_equal_approx(game.watch.elapsed_seconds,float(item[2])/10), "watch follows simulation")

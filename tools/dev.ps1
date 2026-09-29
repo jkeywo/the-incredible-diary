@@ -28,6 +28,12 @@ try {
             if (-not $result.passed) { throw 'Probe checks failed.' }
 			& $godot --headless --path $root --script res://tests/foundation_test.gd
 			if ($LASTEXITCODE -ne 0) { throw 'Foundation checks failed.' }
+			$missionSuites = @('pocket_watch', 'mission1_rooms', 'mission1_chandelier', 'mission1_steam', 'mission1_route', 'mission1_walking', 'mission1_save', 'mission1_play')
+			foreach ($suite in $missionSuites) {
+				$output = & $godot --headless --path $root --script "res://tests/$($suite)_test.gd" --quit-after 300 2>&1
+				$output | Write-Output
+				if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -match 'SCRIPT ERROR|Assertion failed' -or ($output -join "`n") -notmatch 'PASS|"passed":true') { throw "Mission suite failed: $suite" }
+			}
         }
         'ExportWeb' {
             New-Item -ItemType Directory -Force build/web | Out-Null

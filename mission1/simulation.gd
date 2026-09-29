@@ -74,7 +74,7 @@ func start(id: String) -> bool:
 func step(direction := Vector2.ZERO, cancel := false) -> void:
  if s.finished: return
  events.clear()
- s.tick += 1
+ s.tick = int(s.tick)+1
  s.door_cooldown = maxi(0, int(s.door_cooldown)-1)
  if direction.length_squared() > 0.01:
   var p := Rooms.move(s.room, Rooms.point(s.pos), direction.limit_length() * 14.0)
@@ -325,8 +325,8 @@ func _party_schedule() -> void:
  if s.tick >= arrival and not flag("party_arrived"):
   s.flags.party_arrived = true
   if s.room == "salon": note("party_arrival", "The luggage owner is at the party, holding a drink.")
- var spike := arrival+30 if flag("bag_hidden") else CREAK
- var drink := spike + (80 if flag("bag_hidden") else 65)
+ var spike := arrival+30 if flag("bag_hidden") else CREAK+20
+ var drink := spike + (80 if flag("bag_hidden") else 40)
  if s.tick == spike:
   s.flags.spiked = true
   if s.room == "salon":

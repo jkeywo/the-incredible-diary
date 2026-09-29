@@ -25,11 +25,15 @@ func _initialize() -> void:
  resumed.s = loaded.data.current
  resumed.history = loaded.data.history
  resumed.memory = loaded.data.memory
+ for i in 15:
+  run.step(Vector2.RIGHT)
+  resumed.step(Vector2.RIGHT)
+ assert(JSON.parse_string(JSON.stringify(run.s)) == JSON.parse_string(JSON.stringify(resumed.s)))
  var repair := Save.new()
  repair.sequence = int(loaded.data.sequence)
  resumed.step()
  assert(repair.save_run(resumed,PATH).ok)
- assert(Save.load_saved(PATH).data.current.tick == 76)
+ assert(Save.load_saved(PATH).data.current.tick == 91)
  resumed.memory.reset = true
  resumed.reset()
  assert(repair.save_run(resumed,PATH).ok)

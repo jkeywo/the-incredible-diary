@@ -8,7 +8,7 @@ func _initialize() -> void:
  run.step()
  assert(run.start("shove"))
  for i in 80: run.step()
- assert(run.s.safe.has("chandelier_guest") and run.s.dead.is_empty())
+ assert(run.s.safe.has("chandelier_guest") and not run.s.dead.has("chandelier_guest"))
  run.reset()
  run.s.tick = Sim.FALL-1
  run.step()

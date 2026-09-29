@@ -199,7 +199,8 @@ func _choose(index: int) -> void:
   sim.start(choices[index].id)
 
 func _submit_code() -> void:
- pass
+ sim.submit_code()
+ _events()
 
 func _refresh(direction := Vector2.ZERO) -> void:
  var state: Dictionary = sim.history[rewind_index] if rewind_index >= 0 else sim.s
@@ -224,7 +225,7 @@ func _refresh(direction := Vector2.ZERO) -> void:
   for i in 6: choices.append({"label":str(i+1)})
   choices.append({"label":"Confirm"})
   choices.append({"label":"Clear"})
-  message.text = "CONTROL PANEL   [ %s ]   Enter three digits · Enter: confirm · Backspace: clear" % state.entry
+  message.text = "CONTROL PANEL   [ %s ]   Enter: confirm · Backspace: clear\n%s" % [state.entry, state.message]
  selected = clampi(selected, 0, maxi(0, choices.size()-1))
  _sync_props(state)
  sim.s = live
@@ -295,6 +296,9 @@ func _prop(id: String, p: Vector2) -> void:
  props[id] = prop
 
 func _sync_props(state: Dictionary) -> void:
+ if props.has("steam_vent"):
+  props.steam_vent.set_state("off" if state.flags.get("steam_off",false) or int(state.tick) < Simulation.TRAP else "active")
+  props.code_panel.set_state("rejected" if state.flags.get("panel_rejected",false) else "entry" if state.code_open else "accepted" if state.flags.get("steam_off",false) else "standby")
  if props.has("chandelier"):
   props.chandelier.set_state("fallen" if state.flags.get("chandelier_fallen", false) else "warning" if state.flags.get("chandelier_warning", false) else "intact")
  if props.has("suitcase"):

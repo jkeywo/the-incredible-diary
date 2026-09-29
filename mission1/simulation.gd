@@ -5,6 +5,10 @@ const HOUR := 1800
 const END := 6 * HOUR
 const CREAK := 2 * HOUR + 480
 const FALL := CREAK + 80
+const TRAP := 3 * HOUR + 100
+const STEAM_FATAL := 3 * HOUR + 600
+const DEMO_START := HOUR + 50
+const DEMO_END := HOUR + 500
 var s: Dictionary
 var memory: Dictionary = {"notes":[], "bag":false, "procedure":false, "shortcut":false, "reset":false, "completed":false}
 var history: Array = []
@@ -134,6 +138,21 @@ func _complete(id: String) -> void:
   _: _complete_rescue(id)
 
 func _schedule() -> void:
+ _demonstration()
+ if s.tick == TRAP or s.tick == STEAM_FATAL + 100:
+  s.flags.steam_off = false
+  if s.room == "controls": note("restart_%d" % s.tick, "The engineer restores pressure on his round.")
+ if s.tick == TRAP:
+  s.flags.trapped = true
+  if s.room == "controls":
+   note("trapped", "Steam blocks the far room's normal exit. The talkative passenger is trapped.")
+   events.append({"kind":"sound", "text":"steam_hiss"})
+ if s.tick == STEAM_FATAL and not s.safe.has("chatterbox"):
+  _death("chatterbox", "The passenger collapsed behind the steam.", "controls")
+ if s.tick == STEAM_FATAL + 30:
+  # The late public alarm is audible throughout the ship, but reveals no cause.
+  note("alarm", "Crew: A passenger needs help in the steam passage!", true)
+  events.append({"kind":"sound", "text":"crew_alarm"})
  if s.tick == CREAK:
   s.flags.chandelier_warning = true
   if s.room == "foyer":
@@ -171,6 +190,7 @@ func _observe() -> void:
  _observe_rescues()
 
 func _rescue_options(_result: Array[Dictionary], _local: bool) -> void:
+ _option(_result, "panel", "Use controls", "controls", Vector2(350,300), _local, memory.procedure)
  _option(_result, "shove", "Shove", "foyer", Vector2(680,440), _local, flag("chandelier_warning") and not s.safe.has("chandelier_guest"))
  _option(_result, "wreckage", "Inspect wreckage", "foyer", Vector2(680,440), _local, flag("chandelier_fallen"))
 func _complete_rescue(_id: String) -> void:
@@ -181,6 +201,10 @@ func _complete_rescue(_id: String) -> void:
    events.append({"kind":"sound", "text":"shove"})
   "wreckage": note("wreckage", "Broken glass and a snapped suspension pin. The chandelier fell during Hour 3.")
 func _observe_rescues() -> void:
+ if s.room == "controls":
+  if flag("trapped") and not s.safe.has("chatterbox") and not s.dead.has("chatterbox"):
+   note("trapped", "Steam blocks the far room's normal exit. The talkative passenger is trapped.")
+  if s.dead.has("chatterbox"): note("steam_body", "The passenger lies motionless beyond the steam leak.")
  if s.room == "foyer":
   if flag("chandelier_warning"): note("creak", "The chandelier creaks and trembles above the guest.")
   if flag("chandelier_fallen"): note("fallen_seen", "The fallen chandelier leaves enough space to cross the foyer.")
@@ -194,4 +218,58 @@ func actor_positions() -> Dictionary:
  if s.safe.has("chandelier_guest"): chandelier.pos = [780,470]
  elif s.dead.has("chandelier_guest"): chandelier.action = "chandelier_casualty"
  elif flag("chandelier_warning"): chandelier.action = "chandelier_warn"
- return {"guest":guest, "chandelier_guest":chandelier, "chatterbox":{"room":"cabins", "pos":[930,320], "action":"idle", "skin":"matron"}, "crew":{"room":"controls", "pos":[310,305], "action":"idle", "skin":"ex_army"}}
+ var chatter := {"room":"cabins", "pos":[930,320], "action":"idle", "skin":"matron"}
+ if t >= 3 * HOUR:
+  chatter.room = "controls"
+  chatter.pos = [840,360]
+  chatter.action = "steam_trapped" if flag("trapped") else "idle"
+ if s.dead.has("chatterbox"): chatter.action = "steam_casualty"
+ if s.safe.has("chatterbox"):
+  chatter.room = "cabins"
+  chatter.pos = [700,530]
+  chatter.action = "chatter"
+ return {"guest":guest, "chandelier_guest":chandelier, "chatterbox":chatter, "crew":{"room":"controls", "pos":[310,305], "action":"talk" if t >= DEMO_START and t < DEMO_END else "idle", "skin":"ex_army"}}
+
+func _demonstration() -> void:
+ if s.tick < DEMO_START or s.tick > DEMO_END: return
+ if not s.flags.has("demo_cursor"):
+  s.flags.demo_cursor = 0
+  s.flags.demo_progress = 0
+  s.flags.demo_heard = []
+ var cursor := int(s.flags.demo_cursor)
+ if cursor >= 3: return
+ var close := nearby("controls", Vector2(310,305), 110)
+ var remaining := (3-cursor)*30 - int(s.flags.demo_progress)
+ # Waiting and pausing use only spare time inside the authored window.
+ if not close and DEMO_END-int(s.tick) > remaining:
+  if s.room == "controls": s.message = "The engineer glances at his watch, waiting for an audience."
+  return
+ s.flags.demo_progress += 1
+ if close:
+  var lines := ["Engineer: Pressure must be running for the controls to respond.", "Engineer: Enter three digits, then press Confirm. Clear starts your entry again.", "Engineer: Today's shutoff code is %s." % s.code]
+  note("demo_%d" % cursor, lines[cursor])
+  if not s.flags.demo_heard.has(cursor): s.flags.demo_heard.append(cursor)
+  if cursor == 2:
+   s.flags.known_code = s.code
+   if s.flags.demo_heard.size() == 3: memory.procedure = true
+ s.flags.demo_progress = int(s.flags.demo_progress)
+ if s.flags.demo_progress >= 30:
+  s.flags.demo_cursor += 1
+  s.flags.demo_progress = 0
+
+func submit_code() -> bool:
+ if not s.code_open or not nearby("controls", Vector2(350,300)) or not memory.procedure: return false
+ if s.entry.length() != 3 or s.entry != s.code:
+  s.message = "Code rejected. Clear and try again."
+  s.flags.panel_rejected = true
+  return false
+ s.flags.panel_rejected = false
+ s.flags.steam_off = true
+ s.code_open = false
+ note("shutoff_%d" % s.tick, "I stopped the steam.")
+ events.append({"kind":"sound", "text":"steam_valve"})
+ if flag("trapped") and s.tick < STEAM_FATAL and not s.dead.has("chatterbox"):
+  if not s.safe.has("chatterbox"): s.safe.append("chatterbox")
+  s.flags.escape_tick = s.tick
+  note("escape", "The passenger crosses the cleared path and leaves through the normal exit.")
+ return true

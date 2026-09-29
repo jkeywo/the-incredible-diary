@@ -15,7 +15,7 @@ are not needed by Godot or the web export.
 
 | Scene | Use |
 | --- | --- |
-| `title_screen.tscn` | Project startup scene. Continue appears for a valid Mission 1 save; New warns before clearing that save; Test Level opens the foundation harness; Quit exits. New and Continue place `mission1/opening.tscn` beneath the book. The cover swipes aside, the feathered page interiors reveal the room, then the book frame enlarges and fades. Amelia is controllable only after `opened_to_game`. |
+| `title_screen.tscn` | Project startup scene. Continue appears for a valid Mission 1 save; New warns before clearing that save; Test Level opens the foundation harness; Quit exits. New and Continue place `mission1/play.tscn` beneath the book. The cover swipes aside, the feathered page interiors reveal the room, then the book frame enlarges and fades. Amelia is controllable only after `opened_to_game`. |
 | `open_diary.tscn` | Blank whole-screen spread with separate empty `LeftPageContent` and `RightPageContent` regions for diary entries. |
 | `speech_bubble.tscn` | Textured navy-and-brass speech/thought bubble. Set `bubble_size` and `tail_position`; call `present(line, elapsed_seconds)` for recorded typewriter progress. Speech has a pointed tail; thoughts have a cloud outline and trailing dots. Uses the existing popup texture assets. |
 | `action_wheel.tscn` | Two banks of up to four navy-and-brass textured buttons. More… pages lists longer than eight. Mouse, visible-slot number keys and right-stick selection share the same option mapping. |
@@ -26,8 +26,7 @@ are not needed by Godot or the web export.
 | `interaction_highlight.tscn` | Resizable gold brackets for an available object. |
 | `mission_result.tscn` | Success/failure card with externally supplied witnessed outcome text. |
 
-The title scene now starts the project. The Mission 1 scene currently supports
-the dock opening, boarding into the foyer, movement, and a separate autosave
-with current-leg position history. The authored rescue simulation and diary
-content are still to be assembled. The diary must pause simulation time, while the interaction
-wheel and code panel must leave it running, as specified in the GDD.
+The title scene starts the project and opens the current six-Hour Mission 1
+rescue simulation, including the dock tutorial. The voyage journal retains the
+current leg's recorded history. The diary pauses simulation time; interactions
+and code entry through the action wheel leave it running, as specified in the GDD.

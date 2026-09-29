@@ -1,6 +1,9 @@
 extends SceneTree
 
-const Opening = preload("res://mission1/opening.tscn")
+const Play = preload("res://mission1/play.tscn")
+const Sim = preload("res://mission1/simulation.gd")
+const Save = preload("res://mission1/save.gd")
+const SAVE_PATH := "res://build/pause-editor-test.journal"
 const Title = preload("res://assets/ui/mission_1/title_screen.tscn")
 var failures: Array[String] = []
 
@@ -59,7 +62,8 @@ func _run() -> void:
 	await process_frame
 	press_pause()
 	check(not paused, "title menu does not enter editor")
-	var game := Opening.instantiate()
+	var game := Play.instantiate()
+	game.sim = Sim.new(false)
 	game.configure({}, false)
 	title.set_game_world(game)
 	title._game_world = game
@@ -69,34 +73,55 @@ func _run() -> void:
 		var frames := {}
 		for i in range(40):
 			await physics_frame
-			frames[game.amelia.frame] = true
-		check(frames.size() == 4 and game.amelia.animation == "walk_" + direction, "full looping walk: " + direction)
+			frames[game.actors.amelia.frame] = true
+		check(frames.size() == 4 and game.actors.amelia.animation == "walk_" + direction, "full looping walk: " + direction)
 		Input.action_release("move_" + direction)
 	press_pause()
 	check(paused and editor.overlay.visible, "docks inherits shared editor through title host")
-	var position: Vector2 = game.player_position
-	var time: int = game.elapsed_ms
-	var frame: int = game.amelia.frame
-	var phase: float = game.amelia.frame_progress
-	var recorded: Array = game.history.duplicate(true)
+	var position: Array = game.sim.s.pos.duplicate()
+	var time: int = game.sim.s.tick
+	var recorded_frame: int = game.sim.s.frame
+	var frame: int = game.actors.amelia.frame
+	var phase: float = game.actors.amelia.frame_progress
+	var recorded: Array = game.sim.history.duplicate(true)
 	Input.action_press("move_right")
 	await create_timer(0.25, true).timeout
-	check(game.player_position == position and game.elapsed_ms == time, "pause freezes movement and game clock")
-	check(game.amelia.frame == frame and game.amelia.frame_progress == phase, "pause freezes animation phase")
-	check(game.history == recorded, "pause does not fabricate history")
+	check(game.sim.s.pos == position and game.sim.s.tick == time and game.sim.s.frame == recorded_frame, "pause freezes movement and game clock")
+	check(game.actors.amelia.frame == frame and game.actors.amelia.frame_progress == phase, "pause freezes animation phase")
+	check(game.sim.history == recorded, "pause does not fabricate history")
 	press_pause()
 	await create_timer(0.15).timeout
 	Input.action_release("move_right")
-	check(not paused and game.player_position != position and game.elapsed_ms > time, "resume continues same world")
-	var saved := {"room": game.room_id, "position": [game.player_position.x, game.player_position.y], "facing": game.facing, "elapsed_ms": game.elapsed_ms, "history": game.history.duplicate(true)}
-	var continued := Opening.instantiate()
+	check(not paused and game.sim.s.pos != position and game.sim.s.tick > time, "resume continues same world")
+	Save.clear(SAVE_PATH)
+	check(Save.new().save_run(game.sim, SAVE_PATH).ok, "current voyage saved to isolated fixture")
+	var loaded := Save.load_saved(SAVE_PATH)
+	check(loaded.ok, "current voyage fixture loads")
+	var saved: Dictionary = loaded.data
+	var continued := Play.instantiate()
 	continued.configure(saved, false)
 	title.set_game_world(continued)
 	title._game_world = continued
 	continued.enable_controls()
 	press_pause()
-	check(paused and editor.overlay.visible and continued.player_position == Vector2(saved.position[0], saved.position[1]), "continued opening uses same default editor at loaded position")
+	check(paused and editor.overlay.visible and continued.sim.s == saved.current and continued.sim.history == saved.history, "continued mission uses shared editor with recorded state")
 	press_pause()
+	Save.clear(SAVE_PATH)
+	var tutorial := Play.instantiate()
+	tutorial.configure({}, false)
+	title.set_game_world(tutorial)
+	title._game_world = tutorial
+	tutorial.enable_controls()
+	await create_timer(0.2).timeout
+	check(tutorial.sim.s.tick == 0 and tutorial.sim.s.frame > 0, "tutorial records frames while voyage clock is frozen")
+	press_pause()
+	var tutorial_state: Dictionary = tutorial.sim.s.duplicate(true)
+	var tutorial_history: Array = tutorial.sim.history.duplicate(true)
+	await create_timer(0.2, true).timeout
+	check(tutorial.sim.s == tutorial_state and tutorial.sim.history == tutorial_history, "pause freezes tutorial recorded frames")
+	press_pause()
+	await create_timer(0.2).timeout
+	check(tutorial.sim.s.tick == 0 and tutorial.sim.s.frame > tutorial_state.frame, "tutorial frames resume without advancing voyage time")
 	title.free()
 	var authored := AuthoredGameplay.new()
 	root.add_child(authored)

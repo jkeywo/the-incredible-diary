@@ -1,7 +1,7 @@
 # Mission 1: the unmooring party
 
 Choose **New** or **Continue** on the title screen. `play.tscn` now runs the
-six-Hour rescue mission; `opening.tscn` remains the earlier dock-only slice.
+six-Hour rescue mission, including the dock tutorial.
 `main.gd` remains the authoring feasibility probe.
 
 ## Play

@@ -15,12 +15,13 @@ A scene with `toggle_pause_editor()` supplies its own authoring adapter. The
 foundation harness uses this to retain its recorded simulation, validation,
 source editors, history and GitHub workflow. Its pause shortcut still routes
 through the shared autoload. The default inspector does not yet provide those
-content-authoring features to the Mission 1 opening.
+content-authoring features to Mission 1.
 
 `tests/pause_editor_test.gd`, included in `tools/dev.ps1 Test`, covers default
 activation without scene setup, title gating, paused property undo/redo,
 disabled edits while running, all four walk directions, frozen simulation and
-animation, saved-opening state and authoring-adapter delegation.
+animation, recorded tutorial frames, continued Mission 1 state, shared panel
+lifecycle and authoring-adapter delegation.
 
 ## Amelia walk art
 

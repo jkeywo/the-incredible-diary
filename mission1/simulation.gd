@@ -28,6 +28,7 @@ func reset() -> void:
   "flags":{}, "dead":[], "safe":[], "action":{}, "entry":"", "code_open":false,
   "dialogue":{}, "observed":[], "message":"A new posting. An unmooring party. What could possibly go wrong?",
   "finished":false, "door_cooldown":0}
+ s.actors = actor_positions()
  history = [s.duplicate(true)]
  events.clear()
 
@@ -49,7 +50,7 @@ func options(local := true) -> Array[Dictionary]:
  var result: Array[Dictionary] = []
  if not s.action.is_empty() or s.finished: return result
  _option(result, "inspect_bag", "Inspect luggage", "docks", Vector2(340,430), local, s.tick < HOUR and not flag("bag_hidden"))
- _option(result, "hide_bag", "Hide bag nearby", "docks", Vector2(340,430), local, s.tick < HOUR and flag("bag_lead") and not flag("bag_hidden"))
+ _option(result, "hide_bag", "Hide bag nearby", "docks", Vector2(340,430), local, s.tick < 800 and flag("bag_lead") and not flag("bag_hidden"))
  _option(result, "porter", "Ask about the stair", "foyer", Vector2(450,365), local, s.tick >= 3*HOUR and not flag("shortcut"))
  _option(result, "latch", "Release stair latch", "foyer", Vector2(580,250), local, flag("shortcut_lead") and not flag("shortcut"))
  _rescue_options(result, local)
@@ -101,9 +102,11 @@ func step(direction := Vector2.ZERO, cancel := false) -> void:
  if s.code_open and not nearby("controls", Vector2(350,300)): s.code_open = false
  _schedule()
  _observe()
+ s.actors = actor_positions()
  if s.tick >= END:
   s.finished = true
   memory.completed = bool(memory.completed) or s.dead.is_empty()
+  if s.dead.is_empty(): memory.location_rewriting = true
   events.append({"kind":"end", "text":"The unmooring party has ended."})
  history.append(s.duplicate(true))
 
@@ -176,9 +179,18 @@ func _death(id: String, witnessed: String, room: String) -> void:
  if not memory.reset:
   memory.reset = true
   s.message += " The ink runs backwards. Tab / Y: read the diary; R / Back: return to the docks. You may keep investigating."
+ s.notice = s.message
+ s.notice_until = s.tick+150
  events.append({"kind":"death", "text":id})
 
 func _observe() -> void:
+ note("room_"+s.room, "I visited " + str(Rooms.ROOMS[s.room].title) + ".")
+ var positions := actor_positions()
+ for id in positions:
+  var actor: Dictionary = positions[id]
+  if actor.room == s.room:
+   var name: String = {"guest":"The luggage owner", "chandelier_guest":"The foyer guest", "chatterbox":"The talkative passenger", "crew":"The engineer", "porter":"The porter"}[id]
+   note("seen_%s_%d_%s" % [id,int(s.tick/HOUR),s.room], name + " is in " + str(Rooms.ROOMS[s.room].title) + ".")
  if s.room == "docks" and s.tick < HOUR:
   note("docks", "The luggage owner is waiting on the docks.")
  if nearby("docks", Vector2(390,430), 110) and s.tick >= 50 and s.tick <= 500:
@@ -232,6 +244,24 @@ func actor_positions() -> Dictionary:
  var guest := {"room":"docks", "pos":[390,430], "action":"search_bag" if flag("bag_hidden") else "idle", "skin":"rake"}
  if t >= (HOUR if flag("bag_hidden") else 800):
   guest = {"room":"cabins", "pos":[580,315], "action":"idle", "skin":"rake"}
+ var boarding := HOUR if flag("bag_hidden") else 800
+ if t >= boarding-80 and t < boarding:
+  guest.pos = _travel(Vector2(390,430), Vector2(580,245), t, boarding-80, boarding-40)
+  if t >= boarding-40: guest.pos = _travel(Vector2(580,245),Vector2(580,105),t,boarding-40,boarding)
+  guest.action = "walk"
+ if t >= boarding and t < boarding+60:
+  guest.room = "foyer"
+  guest.pos = _travel(Vector2(580,650),Vector2(175,460),t,boarding,boarding+60)
+  guest.action = "walk"
+ if t >= boarding+60 and t < boarding+120:
+  guest.room = "cabins"
+  guest.pos = _travel(Vector2(1080,530),Vector2(580,530),t,boarding+60,boarding+120)
+  guest.action = "walk"
+ var arrival := party_arrival()
+ if t >= arrival-60 and t < arrival and not flag("chat_delay"):
+  guest.room = "cabins"
+  guest.pos = _travel(Vector2(580,530),Vector2(80,530),t,arrival-60,arrival)
+  guest.action = "walk"
  if flag("chat_delay") and t < 4*HOUR:
   guest.room = "cabins"
   guest.pos = [745,530]
@@ -240,6 +270,9 @@ func actor_positions() -> Dictionary:
   guest.room = "salon"
   guest.pos = [800,330]
   guest.action = "hold_drink"
+  if t < arrival+30:
+   guest.pos = _travel(Vector2(580,650),Vector2(800,330),t,arrival,arrival+30)
+   guest.action = "walk"
  if s.dead.has("guest"): guest.action = "poison_collapse"
  if s.safe.has("guest"):
   guest.action = "spill_react" if t-int(s.flags.spill_tick)<15 else "walk"
@@ -259,26 +292,41 @@ func actor_positions() -> Dictionary:
   chatter.room = "controls"
   chatter.pos = [840,360]
   chatter.action = "steam_trapped" if flag("trapped") else "idle"
+  if t < 3*HOUR+40:
+   chatter.pos = _travel(Vector2(1040,635),Vector2(840,360),t,3*HOUR,3*HOUR+40)
+   chatter.action = "walk"
  if s.dead.has("chatterbox"): chatter.action = "steam_casualty"
  if s.safe.has("chatterbox"):
   chatter.room = "cabins"
   chatter.pos = [700,530]
   chatter.action = "chatter"
- return {"guest":guest, "chandelier_guest":chandelier, "chatterbox":chatter, "crew":{"room":"controls", "pos":[310,305], "action":"talk" if t >= DEMO_START and t < DEMO_END else "idle", "skin":"ex_army"}}
+  var escaped := int(s.flags.escape_tick)
+  if t < escaped+40:
+   chatter.room = "controls"
+   chatter.pos = _travel(Vector2(840,360),Vector2(1040,635),t,escaped,escaped+40)
+   chatter.action = "walk"
+  elif t < escaped+80:
+   chatter.pos = _travel(Vector2(1080,530),Vector2(700,530),t,escaped+40,escaped+80)
+   chatter.action = "walk"
+ return {"guest":guest, "chandelier_guest":chandelier, "chatterbox":chatter, "crew":{"room":"controls", "pos":[310,305], "action":"talk" if t >= DEMO_START and t < DEMO_END else "idle", "skin":"ex_army"}, "porter":{"room":"foyer", "pos":[450,365], "action":"idle", "skin":"ex_army"}}
+
+func _travel(from: Vector2, to: Vector2, time: int, start_tick: int, end_tick: int) -> Array:
+ var p := from.lerp(to,clampf(float(time-start_tick)/float(end_tick-start_tick),0,1))
+ return [p.x,p.y]
 
 func party_arrival() -> int:
  if not flag("bag_hidden"): return CREAK-30
  return 4*HOUR if flag("chat_delay") else 3*HOUR+300
 
 func _party_schedule() -> void:
- if s.safe.has("chatterbox") and flag("bag_hidden") and s.tick < 3*HOUR+300 and not flag("chat_delay"):
+ if s.safe.has("chatterbox") and s.tick >= int(s.flags.escape_tick)+80 and flag("bag_hidden") and s.tick < 3*HOUR+240 and not flag("chat_delay"):
   s.flags.chat_delay = true
  var arrival := party_arrival()
  if s.tick >= arrival and not flag("party_arrived"):
   s.flags.party_arrived = true
   if s.room == "salon": note("party_arrival", "The luggage owner is at the party, holding a drink.")
  var spike := arrival+30 if flag("bag_hidden") else CREAK
- var drink := spike+80
+ var drink := spike + (80 if flag("bag_hidden") else 65)
  if s.tick == spike:
   s.flags.spiked = true
   if s.room == "salon":
@@ -324,6 +372,7 @@ func _demonstration() -> void:
   s.flags.demo_progress = 0
 
 func submit_code() -> bool:
+ events.clear()
  if not s.code_open or not nearby("controls", Vector2(350,300)) or not memory.procedure: return false
  if s.entry.length() != 3 or s.entry != s.code:
   s.message = "Code rejected. Clear and try again."
@@ -339,3 +388,4 @@ func submit_code() -> bool:
   s.flags.escape_tick = s.tick
   note("escape", "The passenger crosses the cleared path and leaves through the normal exit.")
  return true
+

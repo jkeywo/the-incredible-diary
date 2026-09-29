@@ -23,7 +23,7 @@ func _initialize() -> void:
  assert(run.start("panel"))
  run.s.entry = run.s.code
  assert(run.submit_code())
- run.step()
+ advance(run, Sim.TRAP+100)
  assert(run.flag("chat_delay") and run.party_arrival() == 4*Sim.HOUR)
  run.s.room = "salon"
  run.s.pos = [800,330]

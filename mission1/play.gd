@@ -13,6 +13,7 @@ var controls_enabled := false
 var save_path := Save.DEFAULT_PATH
 var save_enabled := false
 var room_slot: Node2D
+var world_overlay: Node2D
 var actors := {}
 var props := {}
 var room_audio: Node
@@ -20,6 +21,7 @@ var sounds: Node
 var watch: Control
 var heading: Label
 var message: Label
+var notice: Label
 var help: Label
 var hud: Control
 var wheel: Control
@@ -52,14 +54,19 @@ func _ready() -> void:
  add_child(room_audio)
  sounds = EventAudio.new()
  add_child(sounds)
- for id in ["amelia", "guest", "chandelier_guest", "chatterbox", "crew"]:
+ for id in ["amelia", "guest", "chandelier_guest", "chatterbox", "crew", "porter"]:
   var actor := Character.instantiate()
-  actor.character_id = {"amelia":"player", "guest":"rake", "chandelier_guest":"glamorous", "chatterbox":"matron", "crew":"ex_army"}[id]
+  actor.character_id = {"amelia":"player", "guest":"rake", "chandelier_guest":"glamorous", "chatterbox":"matron", "crew":"ex_army", "porter":"ex_army"}[id]
   add_child(actor)
   actors[id] = actor
+ world_overlay = Node2D.new()
+ world_overlay.z_index = 10
+ add_child(world_overlay)
+ world_overlay.draw.connect(_draw_world_markers)
  _build_hud()
  _restore_initial()
  _refresh()
+ if get_tree().current_scene == self: enable_controls()
 
 func enable_controls() -> void:
  controls_enabled = true
@@ -76,6 +83,7 @@ func _build_hud() -> void:
  watch.position = Vector2(1010, 36)
  hud.add_child(watch)
  heading = _label(Vector2(25,18), Vector2(800,35), 23)
+ notice = _label(Vector2(25,62), Vector2(870,85), 17)
  message = _label(Vector2(25,620), Vector2(900,65), 18)
  help = _label(Vector2(25,696), Vector2(1110,36), 15)
  help.text = "WASD / left stick: move   1–6 / right stick + RB: interact   Tab / Y: diary   Hold F / LT: wait   H / X: highlight   Space: editor"
@@ -210,12 +218,15 @@ func _refresh(direction := Vector2.ZERO) -> void:
  watch.elapsed_seconds = float(state.tick)/10.0
  heading.text = "MISSION 1  ·  " + str(Rooms.ROOMS[state.room].title)
  message.text = state.message
+ notice.text = state.get("notice", "") if int(state.tick) < int(state.get("notice_until",0)) else ""
  room_audio.set_game_time(int(state.tick)*100)
  actors.amelia.position = Rooms.point(state.pos)
- actors.amelia.play_action("walk" if direction.length_squared()>0.01 else "idle", state.facing)
+ var player_action := "walk" if direction.length_squared()>0.01 else "idle"
+ if not state.action.is_empty(): player_action = {"hide_bag":"hide_bag", "shove":"shove", "bump":"bump"}.get(state.action.id,"idle")
+ actors.amelia.play_action(player_action, state.facing)
  var live := sim.s
  sim.s = state
- var positions := sim.actor_positions()
+ var positions: Dictionary = state.get("actors", sim.actor_positions())
  for id in positions:
   var info: Dictionary = positions[id]
   actors[id].visible = info.room == state.room
@@ -234,9 +245,12 @@ func _refresh(direction := Vector2.ZERO) -> void:
  progress.visible = not state.action.is_empty()
  if progress.visible: progress.value = 100.0*float(state.action.progress)/float(state.action.duration)
  wheel.visible = not diary_open and rewind_index < 0 and not state.finished
- wheel.position = Vector2(clampf(float(state.pos[0]), 220, 900), clampf(float(state.pos[1])-110, 240, 465))
+ var side := -185.0 if float(state.pos[0]) > 780 else 185.0
+ wheel.position = Vector2(clampf(float(state.pos[0])+side, 145, 960), clampf(float(state.pos[1])-125, 245, 475))
  wheel.queue_redraw()
- queue_redraw()
+ world_overlay.queue_redraw()
+ if room_slot.get_child_count() > 0 and room_slot.get_child(0).has_method("set_motion_time"):
+  room_slot.get_child(0).set_motion_time(float(state.tick)/10.0)
  if state.finished:
   message.text = _summary()
   help.text = "Enter / A: turn back the pages and play again    Tab / Y: read diary"
@@ -258,18 +272,18 @@ func _draw_wheel() -> void:
   var width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
   wheel.draw_string(font, p+Vector2(-width/2,5), label, HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color("fff1cc"))
 
-func _draw() -> void:
+func _draw_world_markers() -> void:
  if not controls_enabled: return
  var state: Dictionary = sim.history[rewind_index] if rewind_index >= 0 else sim.s
  for door in Rooms.exits(state.room, state.flags.get("shortcut", false)):
   var p := Rooms.point(door.point)
-  draw_circle(p, 12, Color("d4b571a0"))
-  draw_string(ThemeDB.fallback_font, p+Vector2(-45,-20), Rooms.ROOMS[door.room].title.split(" /")[0], HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color("fff1cc"))
+  world_overlay.draw_circle(p, 12, Color("d4b571a0"))
+  world_overlay.draw_string(ThemeDB.fallback_font, p+Vector2(-45,-20), Rooms.ROOMS[door.room].title.split(" /")[0], HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color("fff1cc"))
  if highlight and rewind_index < 0:
   for option in sim.options(false):
    var p := Rooms.point(option.pos)
-   draw_arc(p, 27, 0, TAU, 28, Color("f8d873"), 2)
-   draw_string(ThemeDB.fallback_font, p+Vector2(-45,35), option.label,HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color("fff1cc"))
+   world_overlay.draw_arc(p, 27, 0, TAU, 28, Color("f8d873"), 2)
+   world_overlay.draw_string(ThemeDB.fallback_font, p+Vector2(-45,35), option.label,HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color("fff1cc"))
 
 func _show_room(id: String) -> void:
  for child in room_slot.get_children():
@@ -278,6 +292,7 @@ func _show_room(id: String) -> void:
  props.clear()
  var room := load("res://assets/rooms/mission_1/%s.tscn" % Rooms.ROOMS[id].scene).instantiate() as Node2D
  room_slot.add_child(room)
+ if room.has_method("set_motion_time"): room.animate_bobbing = false
  room_audio.set_room(room.get_node("RoomAudioSettings"), int(sim.s.tick)*100, 1.0)
  shown_room = id
  match id:

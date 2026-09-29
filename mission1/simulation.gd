@@ -5,6 +5,7 @@ const Routines = preload("res://mission1/routines.gd")
 const Conversations = preload("res://mission1/conversations.gd")
 const Crowd = preload("res://mission1/crowd.gd")
 const Hospitality = preload("res://mission1/hospitality.gd")
+const Reactions = preload("res://mission1/reactions.gd")
 const Operator = preload("res://mission1/operator.gd")
 const Hints = preload("res://mission1/tutorial_hints.gd")
 const CAPTAIN := Vector2(650,280)
@@ -12,7 +13,8 @@ const BRIEFING := [["captain","Boy! Report for duty."],["amelia","Yes, Captain."
 var opening_enabled := true
 const HOUR := 1800
 const CLOCK_RATE := 1.5
-const END := 5 * HOUR
+const POISON := 4 * HOUR + HOUR / 4
+const END := 4 * HOUR + HOUR / 2
 const CREAK := 2 * HOUR + 480
 const FALL := CREAK + 80
 const DROP_TICKS := 12
@@ -60,6 +62,7 @@ func tutorial_active() -> bool:
  return s.get("tutorial","done") != "done"
 
 func display_name(id: String) -> String:
+ if id.begins_with("incidental_"): return "Sailor" if id.contains("sailor") else "Guest"
  if Hospitality.GUESTS.has(id): return Hospitality.GUESTS[id].name
  return {"amelia":"Boy","captain":"Captain","crew":"Sailor","dock_sailor":"Sailor","porter":"Porter"}.get(id,id)
 
@@ -100,22 +103,25 @@ func options(local := true) -> Array[Dictionary]:
   _option(result, id, "Close door" if flag(id) else "Open door", "cabins", Vector2(Rooms.CABIN_DOORS[id],405), local, not (flag(id) and occupied))
  _rescue_options(result, local)
  Hospitality.options(self,result,local)
- return result
+ return nearest_options(result) if local else result
 
 func _option(result: Array[Dictionary], id: String, label: String, room: String, p: Vector2, local: bool, eligible: bool) -> void:
  if eligible and s.room == room and (not local or nearby(room, p)):
   result.append({"id":id, "label":label, "pos":[p.x,p.y], "room":room,"target":interaction_target(id)})
 
 func interaction_target(id: String) -> String:
+ if id.begins_with("collect:") or id == "return_drink": return "bar"
+ if id == "duties_back": return str(s.hospitality.menu)
  var parts := id.split(":")
  if parts[0] in ["request","serve","directions","direct"]: return parts[1]
  if parts[0] == "plate": return parts[1]
  if Rooms.CABIN_DOORS.has(id): return id
- return {"report":"captain","inspect_bag":"suitcase","retrieve_bag":"suitcase","hide_bag":"suitcase","panel":"code_panel","bump":"guest","glass":"drink","shove":"chandelier_guest","wreckage":"chandelier"}.get(id,"")
+ return {"report":"captain","inspect_bag":"suitcase","retrieve_bag":"suitcase","hide_bag":"suitcase","panel":"code_panel","bump":"guest","glass":"drink","shove":"chandelier_guest","apologise":"guest","wreckage":"chandelier"}.get(id,"")
 
 func start(id: String) -> bool:
  for item in options():
   if item.id == id:
+   memory.interactions = int(memory.get("interactions",0))+1
    if id == "report":
     s.tutorial = "briefing"
     Conversations.start(self,"captain_briefing",BRIEFING,["captain","amelia"])
@@ -178,6 +184,8 @@ func step(direction := Vector2.ZERO, cancel := false) -> void:
    break
  _demonstration()
  Operator.update(self)
+ Reactions.update(self)
+ _advance_shove()
  Hospitality.update(self)
  _open_passenger_doors(_planned_actors())
  _open_passenger_doors(s.actors)
@@ -302,7 +310,7 @@ func _death(id: String, witnessed: String, room: String) -> void:
  s.message = witnessed if s.room == room else "The diary shivers."
  if not memory.reset:
   memory.reset = true
-  s.message += " The ink runs backwards. Tab / Y: read the diary; R / Back: return to the docks. You may keep investigating."
+  s.message += " The ink runs backwards. Tab / Y: read the diary; R: return to the docks. You may keep investigating."
  s.notice = s.message
  s.notice_until = s.tick+150
  events.append({"kind":"death", "text":id})
@@ -337,6 +345,8 @@ func _rescue_options(_result: Array[Dictionary], _local: bool) -> void:
  _option(_result, "glass", "Inspect glass", "salon", Rooms.point(s.flags.get("glass_drop",[Rooms.BAR_GUEST.x+28,Rooms.BAR_GUEST.y+8])), _local, s.dead.has("guest"))
  _option(_result, "panel", "Use controls", "controls", Vector2(350,300), _local, true)
  _option(_result, "shove", "Shove", "foyer", Rooms.point(s.actors.get("chandelier_guest",{}).get("pos",[Rooms.CHANDELIER_GUEST.x,Rooms.CHANDELIER_GUEST.y])), _local, flag("chandelier_warning") and not s.safe.has("chandelier_guest"))
+ var guest: Dictionary = s.actors.get("guest",{})
+ _option(_result,"apologise","Apologise","cabins",Rooms.point(guest.get("pos",[580,315])),_local,flag("spilled") and guest.get("room","") == "cabins" and not flag("apologised"))
  _option(_result, "wreckage", "Inspect wreckage", "foyer", Vector2(580,420), _local, flag("chandelier_fallen"))
 func _complete_rescue(_id: String) -> void:
  match _id:
@@ -351,7 +361,11 @@ func _complete_rescue(_id: String) -> void:
    Conversations.start(self,"spill_reply",[["guest","My suit! Do watch where you are going!"]],["guest"])
    events.append({"kind":"sound", "text":"drink_spill"})
   "glass": note("poison_evidence", "A sharp chemical residue in the glass. The drink was poisoned; nothing here identifies who did it.")
+  "apologise":
+   s.flags.apologised = true
+   Conversations.start(self,"spill_apology",[["amelia","I wanted to apologise about your drink, sir."],["guest","You ruined my suit. I have no interest in your excuses. Now leave me alone."]],["amelia","guest"])
   "shove":
+   _begin_shove()
    s.safe.append("chandelier_guest")
    s.flags.shove_tick = s.tick
    s.flags.chandelier_drop_tick = s.tick
@@ -415,7 +429,13 @@ func _planned_actors() -> Dictionary:
   result.chandelier_guest.pos = [Rooms.CHANDELIER_GUEST.x,Rooms.CHANDELIER_GUEST.y]
   result.chandelier_guest.fixed = true
  if s.safe.has("chandelier_guest"):
-  result.chandelier_guest.pos = [Rooms.CHANDELIER_SAFE.x,Rooms.CHANDELIER_SAFE.y]
+  result.chandelier_guest.pos = s.flags.get("shove_target",[Rooms.CHANDELIER_SAFE.x,Rooms.CHANDELIER_SAFE.y])
+  if s.flags.has("shove_motion"):
+   var motion: Dictionary = s.flags.shove_motion
+   var fraction := clampf(float(s.frame-motion.frame)/6.0,0,1)
+   var location := Rooms.point(motion.guest).lerp(Rooms.point(s.flags.shove_target),fraction)
+   result.chandelier_guest.pos = [location.x,location.y]
+  result.chandelier_guest.fixed = true
  if flag("party_arrived") and (not flag("spiked") or int(s.frame)-int(s.flags.get("spike_frame",-100)) < 7): result.guest.action = "idle"
  if s.dead.has("guest"):
   result.guest = s.flags.get("guest_collapse",result.guest).duplicate(true)
@@ -455,6 +475,7 @@ func _planned_actors() -> Dictionary:
    result[id] = {"room":"cabins","pos":[-25,530],"action":"idle"}
  reserve_groups(result)
  Hospitality.apply_routes(self,result)
+ Reactions.apply_routes(self,result)
  return result
 
 func _escape_path() -> Array:
@@ -497,7 +518,7 @@ func _party_schedule() -> void:
  if s.tick >= arrival and not flag("party_arrived"):
   s.flags.party_arrived = true
   if s.room == "salon": note("party_arrival", "The luggage owner is waiting at the bar.")
- var spike := arrival+30 if luggage_delayed() else CREAK+20
+ var spike := POISON
  var drink := spike + (80 if luggage_delayed() else 40)
  if s.tick == spike:
   s.flags.spiked = true
@@ -665,3 +686,39 @@ func reserve_groups(planned: Dictionary) -> void:
       used[key] = id
       assigned = true
       break
+
+func _begin_shove() -> void:
+ var guest := Rooms.point(s.actors.chandelier_guest.pos)
+ var player := Rooms.point(s.pos)
+ var direction := (guest-player).normalized()
+ if direction == Vector2.ZERO: direction = Vector2.UP
+ var distance := 120.0
+ for candidate in range(120,261,10):
+  var target := guest+direction*candidate
+  var follow := player+direction*candidate
+  if Rooms.can_stand("foyer",target,s.flags) and Rooms.can_stand("foyer",follow,s.flags) and not Rooms.WRECKAGE.grow(25).has_point(target) and not Rooms.WRECKAGE.grow(25).has_point(follow):
+   distance = candidate
+   break
+ var target := guest+direction*distance
+ s.flags.shove_target = [target.x,target.y]
+ s.flags.shove_motion = {"frame":s.frame,"guest":[guest.x,guest.y],"player":[player.x,player.y],"delta":[direction.x*distance,direction.y*distance]}
+
+func _advance_shove() -> void:
+ if not s.flags.has("shove_motion"): return
+ var motion: Dictionary = s.flags.shove_motion
+ var age := int(s.frame)-int(motion.frame)
+ if age > 6: return
+ var p := Rooms.point(motion.player)+Rooms.point(motion.delta)*clampf(float(age)/6.0,0,1)
+ s.pos = [p.x,p.y]
+
+func nearest_options(available: Array[Dictionary]) -> Array[Dictionary]:
+ if available.is_empty(): return available
+ var nearest: Dictionary = available[0]
+ var distance := INF
+ for option in available:
+  var candidate := Rooms.point(s.pos).distance_squared_to(Rooms.point(option.pos))
+  if candidate < distance:
+   nearest = option
+   distance = candidate
+ var target: String = nearest.target
+ return available.filter(func(option): return option.target == target if target != "" else option.pos == nearest.pos)

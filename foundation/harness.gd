@@ -372,7 +372,7 @@ func _build_ui() -> void:
 	state_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(state_label)
 	status_label = Label.new()
-	status_label.text = "WASD / left stick moves Amelia. 1–2 / right stick + RB chooses a local action."
+	status_label.text = "WASD / left stick moves Amelia. 1–2 / right stick + X chooses a local action."
 	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(status_label)
 	editor_overlay = Control.new()

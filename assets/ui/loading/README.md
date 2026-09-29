@@ -20,5 +20,7 @@ The startup JavaScript preserves the pinned Godot template's feature checks
 and service-worker handling.
 
 `boot-splash.png` is the matching static engine splash, including the corner
-Godot credit. Godot's pre-runtime splash cannot animate; Windows uses this
-still, and the Web page supplies the animation during download/startup.
+Godot credit. Godot's pre-runtime splash cannot animate; the native loading scene takes over with animated pages once the runtime starts.
+It loads the title resources on a background thread, using the same diary art
+and page motion as the Web loader. The Web page supplies its animation during
+download/startup.

@@ -35,7 +35,7 @@ func checks() -> void:
  for i in 100: run.step()
  assert(not run.flag("sailor_thanked"))
 
- for hour in range(1,7):
+ for hour in range(1,5):
   var clock_run := Sim.new(false)
   clock_run.s.tick = hour*Sim.HOUR-1
   clock_run.step()

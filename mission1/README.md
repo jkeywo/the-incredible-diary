@@ -1,7 +1,7 @@
 # Mission 1: the unmooring party
 
 Choose **New** or **Continue** on the title screen. `play.tscn` now runs the
-six-Hour rescue mission, including the dock tutorial.
+rescue mission from 1:00 to 5:30, including the dock tutorial.
 `main.gd` remains the authoring feasibility probe.
 
 ## Play
@@ -11,15 +11,16 @@ six-Hour rescue mission, including the dock tutorial.
   The captain's final instruction starts time and guest arrivals. Diary resets
   skip the tutorial; Continue restores it exactly if unfinished.
 - WASD / left stick moves Boy. Walk into a doorway to change screens.
-- Nearby actions appear in a radial wheel. Use its number, or right stick and RB.
+- Only the nearest target offers actions. Click a button, press its number, or
+  choose with the right stick and confirm with X. The menu stays over that target.
 - Tab / Y opens the diary and pauses simulation time.
-- Hold F / LT to wait at 20x speed. Acceleration stops at the next Hour; release
+- Hold F / B to wait at 20x speed. Acceleration stops at the next Hour; release
   and press again to wait through another Hour.
-- H / X highlights available interactions. Escape / B interrupts an action,
+- H / A highlights available interactions. Escape / B interrupts an action,
   closes code entry, or leaves the cabin-directions submenu.
 - Enter three digits using 1–6 or the controller wheel. Enter / the wheel's
   Confirm submits; Backspace / Clear clears all digits. Entry does not pause.
-- R / Back turns back the diary after the first death. A second press skips the
+- R or the diary’s rewind button turns back the diary after the first death. A second press skips the
   recorded rewind. Learned procedures, drink preferences and cabin assignments survive; written observations and physical state
   and the three-digit code reset. The end-of-leg summary stays readable until
   Enter / A starts the next attempt.
@@ -28,8 +29,7 @@ six-Hour rescue mission, including the dock tutorial.
   Test Level retains the foundation's structured authoring tools.
 
 The brass pocket watch is driven by simulation time. It shows Hour 1 at 1:00,
-then six complete Hours through 7:00, including the whole of Hour 6. Each Hour
-lasts 180 real seconds at normal speed. Diary and editor pauses stop its hands;
+and ends at 5:30. Each watch Hour lasts 120 real seconds at normal speed. Diary and editor pauses stop its hands;
 waiting and recorded rewind change them with the simulation.
 
 ## Optional hospitality and mischief
@@ -163,7 +163,7 @@ queues are recorded for Continue and rewind.
 
 The voyage clock advances 1.5 times faster: each watch hour takes two real
 minutes. Movement, action progress, speech and visual effects retain their real
-speed. The voyage begins at 1:00 and ends at 6:00, after ten active real minutes.
+speed. The voyage begins at 1:00 and ends at 5:30, after nine active real minutes.
 The luggage-delayed bar arrival is now 4:15 so the rescued passenger can still
 intercept the luggage owner at the unchanged walking speed.
 
@@ -177,7 +177,33 @@ Speech boxes choose a position once for each line, then follow the speaker at
 that fixed offset. Tails can point from any side. Overlap still fades the panel
 without fading the text.
 
-At 6:00 the open diary becomes the mission-over screen: the outcome summary is
+At 5:30 the open diary becomes the mission-over screen: the outcome summary is
 on the left page, with buttons on the right. Failure offers the usual rewind;
 victory offers **Turn the Page**. Both offer **Return to main menu**. Until the
 next mission exists, Turn the Page also returns to the main menu.
+
+
+### Witnesses, interaction focus and loading
+
+Shoving moves the guest away from Boy and carries Boy forward with her. A
+nearby incidental guest approaches after a rescue and says “Close shave”. If
+she dies, two incidental guests approach, discuss the tragedy and remain there.
+Two different guests gather after the poisoned passenger dies; one calls him a
+bore. These assignments and conversation progress survive Continue and rewind.
+
+An incidental sailor checks the steam compartment hourly, avoiding it while the
+living passenger is there. Trained crew can cross the steam obstruction. A
+sailor finding her body comments and stays. This is separate from the machine
+operator’s half-hour checks. Entered digits appear on the machine itself.
+
+Poisoning happens at 5:15. After spilling the drink, Boy can visit the passenger’s
+cabin to apologise; the passenger refuses the apology. The mission ends at 5:30.
+
+The interaction menu belongs to the nearest target and never combines different
+targets. Its click/number-key hint disappears after three interactions. Buttons
+have hover/press feedback and a quiet click with slight pitch variation. Tall
+foreground props fade to 50% when their opaque pixels cover a character.
+
+PC startup now uses an animated diary while title resources load in the
+background. The engine’s brief pre-runtime splash remains static; the existing
+web loading animation remains in place.

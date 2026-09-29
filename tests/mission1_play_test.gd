@@ -47,7 +47,7 @@ func run_checks() -> void:
   ["controls",[350,300],Sim.TRAP+10],
   ["cabins",[580,480],Sim.TRAP+110],
   ["passage",[580,480],Sim.TRAP+110],
-  ["salon",[Sim.Rooms.BAR_GUEST.x,Sim.Rooms.BAR_GUEST.y],4*Sim.HOUR+35]
+  ["salon",[Sim.Rooms.BAR_GUEST.x,Sim.Rooms.BAR_GUEST.y],Sim.POISON+5]
  ]
  for item in scenarios:
   game.sim.s.room = item[0]

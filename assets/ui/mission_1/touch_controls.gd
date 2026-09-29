@@ -132,6 +132,7 @@ func _input(event: InputEvent) -> void:
     for action in ACTIONS:
      if _allowed(action) and buttons[action].has_point(point) and not fingers.values().has(action):
       fingers[id] = action
+      if action == "wait": get_node("/root/ButtonFeedback").activate()
       break
   elif fingers.has(id):
    var action: String = fingers[id]
@@ -171,6 +172,7 @@ func _draw() -> void:
   if not _allowed(action): continue
   var rect: Rect2 = buttons[action]
   draw_style_box(FRAME.new(),rect)
+  if fingers.values().has(action): draw_rect(rect,Color(1.0,0.8,0.4,0.18))
   if action == tutorial_action: draw_rect(rect.grow(3),Color("ffd578"),false,3)
   var color := Color("ffd578") if fingers.values().has(action) else Color("fff1d6")
   draw_string(font,rect.position+Vector2(4,rect.size.y/2+12 if portrait else rect.size.y/2+6),LABELS[i],HORIZONTAL_ALIGNMENT_CENTER,rect.size.x-8,36 if portrait else 18,color)

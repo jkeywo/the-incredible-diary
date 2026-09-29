@@ -68,7 +68,7 @@ func checks() -> void:
  game.sim.step()
  game._refresh()
  assert(game.diary.visible and game.diary_reset.visible and not game.diary_next.visible)
- assert(game.diary_text.text.contains("6:00") and game.diary_menu.visible)
+ assert(game.diary_text.text.contains("5:30") and game.diary_menu.visible)
  await capture("defeat")
  game.sim.s.dead.clear()
  game._refresh()

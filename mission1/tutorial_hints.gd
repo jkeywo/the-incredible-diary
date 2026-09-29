@@ -23,5 +23,5 @@ static func update(run) -> void:
 
 static func prompt(id: String, controller: bool, touch: bool) -> String:
  if touch: return {"highlight":"Tap Highlight", "wait":"Hold Wait", "diary":"Tap Diary"}.get(id,"")
- if controller: return {"highlight":"X — Highlight", "wait":"Hold LT — Wait", "diary":"Y — Open diary"}.get(id,"")
+ if controller: return {"highlight":"A — Highlight", "wait":"Hold B — Wait", "diary":"Y — Open diary"}.get(id,"")
  return {"highlight":"H — Highlight", "wait":"Hold F — Wait", "diary":"Tab — Open diary"}.get(id,"")

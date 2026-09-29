@@ -57,6 +57,8 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
  for id in ordered:
   if not planned.has(id): continue
   var actor: Dictionary = planned[id].duplicate(true)
+  var actor_flags := flags.duplicate() if actor.get("steam_access",false) else flags
+  if actor.get("steam_access",false): actor_flags.steam_off = true
   var p := Rooms.point(actor.pos)
   if actor.get("fixed",false):
    result[id] = actor
@@ -66,7 +68,7 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
    var before: Dictionary = previous[id]
    var origin := Rooms.point(before.pos)
    var destination: String = actor.room
-   var route := Routines.path(before.room,origin,destination,p,false,flags)
+   var route := Routines.path(before.room,origin,destination,p,false,actor_flags)
    # The first waypoint after the current position is the next local goal.
    var goal := p
    var room: String = before.room
@@ -79,7 +81,7 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
     if origin.distance_to(Rooms.point(point.pos)) > 0.01:
      goal = Rooms.point(point.pos)
      break
-   if room != before.room and (not Rooms.arrival_open(room,origin,flags) or (actor.get("solid",true) and not clear(room,origin,occupied,id))):
+   if room != before.room and (not Rooms.arrival_open(room,origin,actor_flags) or (actor.get("solid",true) and not clear(room,origin,occupied,id))):
     room = before.room
     origin = Rooms.point(before.pos)
     goal = origin
@@ -90,7 +92,7 @@ static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionar
    if step.length_squared() > 0.001:
     for angle in [0,30,-30,60,-60,90,-90,120,-120]:
      var candidate := origin+step.rotated(deg_to_rad(float(angle)))
-     if not Rooms.can_step(room,origin,candidate,flags): continue
+     if not Rooms.can_step(room,origin,candidate,actor_flags): continue
      if actor.get("solid",true) and not swept_clear(room,origin,candidate,occupied,sweep_previous,id): continue
      var score := candidate.distance_to(goal)
      if score < best:

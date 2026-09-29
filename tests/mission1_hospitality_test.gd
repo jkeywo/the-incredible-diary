@@ -193,10 +193,10 @@ func checks() -> void:
   root.get_texture().get_image().save_png("res://build/tutorial-docks.png")
  game.sim.s.pos = [610,310]
  game._refresh()
- assert(not game.movement_prompt.visible and game.help.text.contains("Press 1"))
+ assert(not game.movement_prompt.visible and game.help.text.contains("press 1"))
  game.using_controller = true
  game._refresh()
- assert(game.help.text.contains("RB"))
+ assert(game.help.text.contains("X"))
  game.sim.start("report")
  for i in 18: game.sim.step()
  game._refresh()

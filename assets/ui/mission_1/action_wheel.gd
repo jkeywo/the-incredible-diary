@@ -40,6 +40,7 @@ func _rebuild() -> void:
  var left_count := ceili(indices.size()/2.0)
  for slot in indices.size():
   var button := Button.new()
+  button.set_meta("custom_feedback",true)
   button.mouse_filter = Control.MOUSE_FILTER_STOP
   button.custom_minimum_size = BUTTON_SIZE
   button.size = BUTTON_SIZE
@@ -84,6 +85,8 @@ func _highlight() -> void:
 func activate_slot(slot: int) -> void:
  if slot < 0 or slot >= indices.size(): return
  selected_index = slot
+ var feedback := get_node_or_null("/root/ButtonFeedback")
+ if feedback: feedback.activate(buttons[slot])
  var index := indices[slot]
  if index < 0:
   page = (page+1) % ceili(options.size()/7.0)

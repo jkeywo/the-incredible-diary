@@ -42,7 +42,7 @@ func _initialize() -> void:
  walk(Vector2(580,260))
  walk(Vector2(580,140),"salon")
  walk(Sim.Rooms.BAR_GUEST+Vector2(0,40))
- until(4*Sim.HOUR+35)
+ until(Sim.POISON+5)
  assert(run.flag("chat_delay"))
  assert(run.start("bump"))
  until(Sim.END)

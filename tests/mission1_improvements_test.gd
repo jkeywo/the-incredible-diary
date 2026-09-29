@@ -80,7 +80,7 @@ func checks() -> void:
  hints.record_current_frame()
  check_record(hints)
  assert(Sim.Hints.prompt("wait",false,false).contains("Hold F"))
- assert(Sim.Hints.prompt("highlight",true,false).contains("X"))
+ assert(Sim.Hints.prompt("highlight",true,false).contains("A"))
  assert(Sim.Hints.prompt("diary",false,true) == "Tap Diary")
 
  var game := preload("res://mission1/play.tscn").instantiate()
@@ -153,7 +153,7 @@ func checks() -> void:
  game.sim = Sim.new(false)
  game.sim.s.room = "salon"
  game.sim.s.pos = [900,280]
- game.sim.s.tick = Sim.CREAK+59
+ game.sim.s.tick = Sim.POISON+39
  game.sim.s.flags.party_arrived = true
  game.sim.s.flags.spiked = true
  game.sim.s.actors = game.sim.actor_positions()

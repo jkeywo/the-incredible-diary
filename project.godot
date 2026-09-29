@@ -5,7 +5,7 @@ config/name="The Incredible Diary"
 boot_splash/image="res://assets/ui/loading/boot-splash.png"
 boot_splash/bg_color=Color(0.043, 0.09, 0.137, 1)
 boot_splash/fullsize=true
-run/main_scene="res://assets/ui/mission_1/title_screen.tscn"
+run/main_scene="res://assets/ui/loading/native_loading.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/use_custom_user_dir=true
 config/custom_user_dir_name="AmeliaAuthoringProbe"
@@ -15,6 +15,7 @@ DialogueManager="*res://addons/dialogue_manager/dialogue_manager.gd"
 BrowserFullscreen="*res://foundation/browser_fullscreen.gd"
 PauseEditor="*res://foundation/pause_editor.gd"
 AudioSettings="*res://foundation/audio_settings.gd"
+ButtonFeedback="*res://foundation/button_feedback.gd"
 
 [display]
 window/size/viewport_width=1160
@@ -57,7 +58,7 @@ interaction_two={
 }
 wheel_confirm={
 "deadzone": 0.2,
-"events": [Object(InputEventJoypadButton,"button_index":10)]
+"events": [Object(InputEventJoypadButton,"button_index":2)]
 }
 cancel_action={
 "deadzone": 0.2,

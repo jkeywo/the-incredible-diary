@@ -18,6 +18,7 @@ var entity_layer: Node2D
 var world_overlay: Node2D
 var actors := {}
 var props := {}
+var prop_images := {}
 var opening_audio_fade := 1.0
 var room_audio: Node
 var sounds: Node
@@ -194,7 +195,7 @@ func _build_hud() -> void:
  right_page.add_child(close)
  var reset := Button.new()
  diary_reset = reset
- reset.text = "Turn back the pages (R / Back)"
+ reset.text = "Turn back the pages (R)"
  reset.pressed.connect(_begin_reset)
  right_page.add_child(reset)
  diary_next = Button.new()
@@ -211,6 +212,7 @@ func _build_hud() -> void:
  touch_controls.action_pressed.connect(_touch_action)
 
 func _touch_action(action: String) -> void:
+ get_node("/root/ButtonFeedback").activate()
  idle_seconds = 0.0
  if not controls_enabled or get_tree().paused: return
  match action:
@@ -251,9 +253,9 @@ func _physics_process(delta: float) -> void:
   _rewind(delta)
   return
  if diary_open or sim.s.finished: return
- var held: bool = Input.is_physical_key_pressed(KEY_F) or Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.5 or touch_controls.wait_held
+ var held: bool = Input.is_physical_key_pressed(KEY_F) or Input.is_joy_button_pressed(0,JOY_BUTTON_B) or touch_controls.wait_held
  if not held: wait_latched = false
- var waiting := held and not wait_latched and not sim.tutorial_active()
+ var waiting: bool = held and not wait_latched and not sim.tutorial_active() and not sim.s.code_open and sim.s.hospitality.menu == "" and sim.s.action.is_empty()
  accumulator += delta * (20.0 if waiting else 1.0)
  var direction := _movement_input() if not waiting else Vector2.ZERO
  while accumulator >= 0.1:
@@ -285,13 +287,15 @@ func _unhandled_input(event: InputEvent) -> void:
  var button: int = event.button_index if event is InputEventJoypadButton and event.pressed else -1
  if key == KEY_TAB or button == JOY_BUTTON_Y:
   _toggle_diary()
- elif key == KEY_R or button == JOY_BUTTON_BACK:
+ elif key == KEY_R:
   _begin_reset()
  elif sim.s.finished and (key == KEY_ENTER or button == JOY_BUTTON_A):
   if sim.s.dead.is_empty(): _return_to_menu()
   else: _begin_reset()
+ elif button == JOY_BUTTON_B and diary_open:
+  _toggle_diary()
  elif diary_open or rewind_index >= 0: return
- elif key == KEY_H or button == JOY_BUTTON_X:
+ elif key == KEY_H or button == JOY_BUTTON_A:
   highlight = not highlight
  elif key == KEY_ESCAPE or button == JOY_BUTTON_B:
   sim.s.action = {}
@@ -304,7 +308,7 @@ func _unhandled_input(event: InputEvent) -> void:
   _submit_code()
  elif key == KEY_BACKSPACE and sim.s.code_open:
   sim.s.entry = ""
- elif button == JOY_BUTTON_RIGHT_SHOULDER:
+ elif button == JOY_BUTTON_X:
   wheel.confirm_selected()
  elif event is InputEventJoypadMotion:
   var stick := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
@@ -357,20 +361,25 @@ func _refresh(direction := Vector2.INF) -> void:
   for i in 6: choices.append({"label":str(i+1)})
   choices.append({"label":"Commit"})
   choices.append({"label":"Clear"})
-  message.text = "CONTROL PANEL   [ %s ]   Enter: commit · Backspace: clear\n%s" % [state.entry, state.message]
+  message.text = ""
  _sync_props(state)
+ _sync_prop_occlusion()
  _sync_highlights()
  sim.s = live
  _refresh_prompt(state)
  progress.visible = not state.action.is_empty()
  if progress.visible: progress.value = 100.0*float(state.action.progress)/float(state.action.duration)
  wheel.visible = not diary_open and rewind_index < 0 and not state.finished and not choices.is_empty()
- wheel.position = Vector2(clampf(actors.amelia.position.x-wheel.size.x/2,12,1148-wheel.size.x),clampf(actors.amelia.position.y-140,155,650-wheel.size.y))
+ var anchor: Vector2 = Vector2(350,280) if state.code_open else Rooms.point(choices[0].pos) if not choices.is_empty() else actors.amelia.position
+ wheel.position = Vector2(clampf(anchor.x-wheel.size.x/2,12,1148-wheel.size.x),clampf(anchor.y-wheel.size.y/2,12,650-wheel.size.y))
  var labels := PackedStringArray()
  for i in choices.size(): labels.append(choices[i].label)
  if touch_controls.active:
   wheel.position.y = minf(wheel.position.y,touch_controls.top_edge-20-wheel.size.y)
  wheel.options = labels
+ if help.visible and not choices.is_empty():
+  help.position = Vector2(clampf(anchor.x-help.size.x/2,12,1148-help.size.x),minf(wheel.position.y+wheel.size.y+8,635))
+  if touch_controls.active: help.position.y = minf(help.position.y,touch_controls.top_edge-64)
 
  world_overlay.queue_redraw()
  if room_slot.get_child_count() > 0 and room_slot.get_child(0).has_method("set_motion_time"):
@@ -384,7 +393,7 @@ func _refresh(direction := Vector2.INF) -> void:
    end_presented = true
    (diary_next if sim.s.dead.is_empty() else diary_reset).call_deferred("grab_focus")
  elif rewind_index >= 0:
-  message.text = "The pages turn backwards…  R / Back to skip"
+  message.text = "The pages turn backwards…  R to skip"
  _refresh_bubble(state)
  if diary_open: _refresh_diary()
 
@@ -445,12 +454,13 @@ func _refresh_prompt(state: Dictionary) -> void:
  movement_prompt.position = help.position+Vector2(111,0)
  movement_prompt.controller = using_controller
  if phase == "approach":
-  help.text = "Nearby actions: right stick to choose, RB to report for duty" if using_controller else "Nearby actions appear here.\nPress 1: Report for duty"
+  help.text = "Nearby actions: right stick to choose, X to report for duty" if using_controller else "Nearby actions appear here.\nClick the action or press 1: Report for duty"
   if choices.is_empty():
    help.position.y += 60
    help.text = "Report to the captain for duty."
  elif phase == "briefing": help.text = ""
- else: help.text = ("Right stick + RB: interact" if using_controller else "Number keys: interact") if not choices.is_empty() else ""
+ else: help.text = ("Right stick + X: interact" if using_controller else "Click an action or press its number") if not choices.is_empty() else ""
+ if int(sim.memory.get("interactions",0)) >= 3: help.hide()
  var drink: String = state.get("hospitality",{}).get("carried","")
  carrying.visible = visible_now and drink != ""
  carrying.text = "Carrying: "+Simulation.Hospitality.DRINKS.get(drink,"")
@@ -521,6 +531,15 @@ func _show_room(id: String) -> void:
    _prop("chandelier", Rooms.CHANDELIER_FLOOR)
   "controls":
    _prop("code_panel", Vector2(350,280))
+   var digits := Label.new()
+   digits.name = "Digits"
+   digits.position = Vector2(-23,-47)
+   digits.size = Vector2(46,15)
+   digits.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+   digits.add_theme_font_size_override("font_size",11)
+   digits.add_theme_color_override("font_color",Color("ffe8a3"))
+   digits.mouse_filter = Control.MOUSE_FILTER_IGNORE
+   props.code_panel.add_child(digits)
    _prop("steam_vent", Vector2(1035,615))
    var smoke := preload("res://assets/effects/mission_1/room_steam.gd").new()
    smoke.z_index = 8
@@ -558,6 +577,8 @@ func _sync_props(state: Dictionary) -> void:
   props.drink.show_at(state)
  var stained: bool = state.flags.get("spilled", false)
  if actors.guest.stained_outfit != stained: actors.guest.set_outfit_stained(stained)
+ if props.has("code_panel"):
+  props.code_panel.get_node("Digits").text = " ".join(str(state.entry).rpad(3,"_").split("")) if state.code_open else ""
  if props.has("steam_vent"):
   var active := Rooms.steam_blocked(state.flags)
   props.steam_vent.set_state("active" if active else "off")
@@ -608,7 +629,7 @@ func _refresh_diary() -> void:
  diary_next.visible = victory
  diary_menu.visible = ended
  if ended:
-  diary_text.text = "6:00 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n")
+  diary_text.text = "5:30 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n")
   return
  diary_text.text = "Boy · Voyage notebook\n\n" + "\n\n".join(sim.memory.notes)
  if sim.memory.reset:
@@ -681,7 +702,7 @@ func _input(event: InputEvent) -> void:
 
 func _update_idle_hint(delta: float) -> void:
  var eligible: bool = controls_enabled and application_focused and not get_tree().paused and not diary_open and rewind_index<0 and not sim.s.finished and not sim.tutorial_active() and sim.s.dialogue.is_empty() and sim.s.get("conversation",{}).is_empty() and sim.s.action.is_empty() and not sim.s.code_open and sim.s.hospitality.menu == ""
- var active_input: bool = _movement_input().length_squared()>0.01 or Input.is_physical_key_pressed(KEY_F) or Input.get_joy_axis(0,JOY_AXIS_TRIGGER_LEFT)>0.5 or touch_controls.wait_held
+ var active_input: bool = _movement_input().length_squared()>0.01 or Input.is_physical_key_pressed(KEY_F) or Input.is_joy_button_pressed(0,JOY_BUTTON_B) or touch_controls.wait_held
  if not eligible or active_input:
   idle_seconds = 0.0
   return
@@ -727,3 +748,30 @@ func _place_bubble(anchor: Vector2) -> void:
  bubble.position = chosen
  bubble.tail_position = clampf((anchor.x-chosen.x)/bubble.size.x,0.15,0.85)
  bubble.background_opacity = 0.5 if Rect2(chosen,bubble.size).intersects(player_rect) else 1.0
+
+func _sync_prop_occlusion() -> void:
+ for prop in props.values():
+  if not prop is Sprite2D or not prop.visible or prop.texture == null: continue
+  var bounds: Rect2 = prop.get_rect()
+  if bounds.size.y*prop.scale.y < 80: continue
+  var obscures := false
+  for actor in actors.values():
+   if not actor.visible: continue
+   if prop.z_index < actor.z_index or (prop.z_index == actor.z_index and prop.position.y < actor.position.y): continue
+   var character_bounds := Rect2(actor.position-Vector2(12,46),Vector2(24,44))
+   var overlap: Rect2 = (prop.transform*bounds).intersection(character_bounds)
+   if not overlap.has_area(): continue
+   var texture_id: int = prop.texture.get_instance_id()
+   if not prop_images.has(texture_id): prop_images[texture_id] = prop.texture.get_image()
+   var pixels: Image = prop_images[texture_id]
+   var region: Vector2 = prop.region_rect.position if prop.region_enabled else Vector2.ZERO
+   for y in range(int(overlap.position.y),int(overlap.end.y)+1,4):
+    for x in range(int(overlap.position.x),int(overlap.end.x)+1,4):
+     var local: Vector2 = prop.transform.affine_inverse()*Vector2(x,y)
+     var uv: Vector2 = local-bounds.position+region
+     if uv.x>=0 and uv.y>=0 and uv.x<pixels.get_width() and uv.y<pixels.get_height() and pixels.get_pixel(int(uv.x),int(uv.y)).a>0.2:
+      obscures = true
+      break
+    if obscures: break
+   if obscures: break
+  prop.self_modulate.a = 0.5 if obscures else 1.0

@@ -51,7 +51,7 @@ The chandelier hangs above the compass rose at the centre of the Grand Foyer. Th
 
 ### Interaction menu — clarified 29 September 2026
 
-Use a Sims-inspired arrangement around the character: up to four separate textured option buttons on each side. Buttons use the game's navy-and-brass art style. Eight choices fit without paging. Longer lists show seven actions and a final **More…** option; additional pages cycle back to the first. Mouse clicks, number keys 1–8, and right-stick selection with RB confirmation all address the visible choices.
+Use a Sims-inspired arrangement around the nearest interaction target: up to four separate textured option buttons on each side. Buttons use the game's navy-and-brass art style. Eight choices fit without paging. Longer lists show seven actions and a final **More…** option; additional pages cycle back to the first. Mouse clicks, number keys 1–8, and right-stick selection with X confirmation all address the visible choices.
 
 ### Dialogue presentation — clarified 29 September 2026
 
@@ -263,10 +263,10 @@ One automatically and continuously updated save slot preserves the exact current
 |---|---|---|
 | Move Amelia directly | WASD | Left stick |
 | Choose nearby wheel option | Numbered choices | Right stick highlights an option |
-| Activate option | Associated number key | RB activates highlighted option |
-| Code digit entry | Manual digits 1–6; exact supporting bindings not assigned | Right-stick digit wheel, RB enters digit |
+| Activate option | Associated number key | X activates highlighted option |
+| Code digit entry | Manual digits 1–6; exact supporting bindings not assigned | Right-stick digit wheel, X enters digit |
 
-Interactions use a wheel, like the user's Sims reference, rather than a vertical context list. No click-to-walk or automated walk-to-interact is intended. Only one action at a time; no action queue. A toggle highlights currently available interactions across the screen; undiscovered knowledge-gated options remain hidden. Bindings for diary, waiting, highlight toggle, wheel dismissal and non-digit code buttons are not yet assigned.
+Interactions use a wheel, like the user's Sims reference, rather than a vertical context list. No click-to-walk or automated walk-to-interact is intended. Only one action at a time; no action queue. A toggle highlights currently available interactions across the screen; undiscovered knowledge-gated options remain hidden. Controller face buttons are X for interaction, A for Highlight, Y for Diary, and hold B for Wait. B also dismisses open menus. The diary provides a rewind button.
 
 ### Timed actions
 
@@ -349,7 +349,7 @@ Once outside, Character 3 meets Character 1 on their route and chats, postponing
 - One step reveals a code that changes every run. Once the procedure is familiar, only that step is essential.
 - The witnessed current code is recorded in the diary.
 - Code contains three digits, each drawn from 1–6.
-- Entry is manual. On controller, a six-option digit wheel uses right stick selection and RB entry.
+- Entry is manual. On controller, a six-option digit wheel uses right stick selection and X entry.
 - After three digits, a separate “Confirm” option submits. There is no automatic submission.
 - “Clear” removes the entire entry for re-entry; there is no delete-last or per-slot editing requirement.
 - Wrong code: reject it and permit an immediate retry. Elapsed time is the only penalty; no lockout.
@@ -390,7 +390,7 @@ Multiple supported solutions remain a whole-game design goal, but the user has e
 | Automatic code entry | Manual three-digit input, digits 1–6. |
 | Automatic third-digit submission / delete last | Separate Confirm and full Clear. |
 | Mouse click-to-walk, vertical context menu | Direct movement and radial interaction wheel. |
-| Right trigger, then bumpers plus X | Right stick selects; RB activates. Left stick moves. |
+| Right trigger, then bumpers plus X | Right stick selects; X activates. Left stick moves. |
 | Geometry-limited observation / proposed window | Entire current screen observed regardless of geometry. Speech remains proximity-limited. |
 | Provisional eight-Hour first level | Six-Hour Mission 1. |
 | Original whole-voyage finale, with departure checkpoints and downstream replay after earlier changes (original Q2) | Later final-leg-only ending, free investigation revisits and protected completed legs take precedence. Do not restore the old finale checkpoint scheme. |
@@ -650,7 +650,7 @@ Repository: https://github.com/jkeywo/the-incredible-diary . Local checkout: `C:
 
 The voyage clock advances 1.5 times faster: each watch hour takes two real
 minutes. Movement, action progress, speech and visual effects retain their real
-speed. The voyage begins at 1:00 and ends at 6:00, after ten active real minutes.
+speed. The voyage begins at 1:00 and ends at 5:30, after nine active real minutes.
 The luggage-delayed bar arrival is now 4:15 so the rescued passenger can still
 intercept the luggage owner at the unchanged walking speed.
 
@@ -664,7 +664,33 @@ Speech boxes choose a position once for each line, then follow the speaker at
 that fixed offset. Tails can point from any side. Overlap still fades the panel
 without fading the text.
 
-At 6:00 the open diary becomes the mission-over screen: the outcome summary is
+At 5:30 the open diary becomes the mission-over screen: the outcome summary is
 on the left page, with buttons on the right. Failure offers the usual rewind;
 victory offers **Turn the Page**. Both offer **Return to main menu**. Until the
 next mission exists, Turn the Page also returns to the main menu.
+
+
+### Witnesses, interaction focus and loading
+
+Shoving moves the guest away from Boy and carries Boy forward with her. A
+nearby incidental guest approaches after a rescue and says “Close shave”. If
+she dies, two incidental guests approach, discuss the tragedy and remain there.
+Two different guests gather after the poisoned passenger dies; one calls him a
+bore. These assignments and conversation progress survive Continue and rewind.
+
+An incidental sailor checks the steam compartment hourly, avoiding it while the
+living passenger is there. Trained crew can cross the steam obstruction. A
+sailor finding her body comments and stays. This is separate from the machine
+operator’s half-hour checks. Entered digits appear on the machine itself.
+
+Poisoning happens at 5:15. After spilling the drink, Boy can visit the passenger’s
+cabin to apologise; the passenger refuses the apology. The mission ends at 5:30.
+
+The interaction menu belongs to the nearest target and never combines different
+targets. Its click/number-key hint disappears after three interactions. Buttons
+have hover/press feedback and a quiet click with slight pitch variation. Tall
+foreground props fade to 50% when their opaque pixels cover a character.
+
+PC startup now uses an animated diary while title resources load in the
+background. The engine’s brief pre-runtime splash remains static; the existing
+web loading animation remains in place.

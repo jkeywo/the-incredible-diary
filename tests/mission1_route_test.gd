@@ -44,7 +44,7 @@ func _initialize() -> void:
  assert(run.flag("chat_delay") and run.party_arrival() == 4*Sim.HOUR)
  run.s.room = "salon"
  run.s.pos = [Sim.Rooms.BAR_GUEST.x,Sim.Rooms.BAR_GUEST.y]
- advance(run, 4*Sim.HOUR+35)
+ advance(run, Sim.POISON+5)
  assert(run.start("bump"))
  advance(run, Sim.END-2)
  assert(not run.s.finished)

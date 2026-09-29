@@ -50,7 +50,7 @@ func expect_joy_button(action: String, button: int) -> void:
 	expect(mapped, "controller_mapping_" + action)
 
 func run() -> void:
-	expect_joy_button("wheel_confirm", JOY_BUTTON_RIGHT_SHOULDER)
+	expect_joy_button("wheel_confirm", JOY_BUTTON_X)
 	expect_joy_button("pause_game", JOY_BUTTON_BACK)
 	expect_joy_button("cancel_action", JOY_BUTTON_B)
 	expect_joy_button("reset_loop", JOY_BUTTON_START)

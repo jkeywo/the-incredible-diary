@@ -4,7 +4,7 @@
 
 [node name="ActionWheel" type="Control"]
 layout_mode = 3
-offset_right = 270.0
-offset_bottom = 270.0
+offset_right = 556.0
+offset_bottom = 216.0
 mouse_filter = 2
 script = ExtResource("1")

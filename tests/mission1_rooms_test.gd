@@ -2,7 +2,7 @@ extends SceneTree
 const Simulation = preload("res://mission1/simulation.gd")
 const Rooms = preload("res://mission1/rooms.gd")
 func _initialize() -> void:
- var sim := Simulation.new()
+ var sim := Simulation.new(false)
  sim.s.pos = [390,430]
  for i in 51: sim.step()
  assert(sim.flag("bag_lead"))

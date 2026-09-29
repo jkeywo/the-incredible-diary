@@ -3,7 +3,7 @@ const Sim = preload("res://mission1/simulation.gd")
 func _initialize() -> void:
  call_deferred("checks")
 func checks() -> void:
- var run := Sim.new()
+ var run := Sim.new(false)
  run.s.room = "foyer"
  run.s.pos = [580,380]
  run.s.tick = Sim.CREAK-1

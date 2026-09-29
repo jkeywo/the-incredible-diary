@@ -1,7 +1,7 @@
 extends SceneTree
 const Sim = preload("res://mission1/simulation.gd")
 const Rooms = preload("res://mission1/rooms.gd")
-var run := Sim.new()
+var run := Sim.new(false)
 func walk(p: Vector2, expect_room := "") -> void:
  var before: String = run.s.room
  for i in 500:

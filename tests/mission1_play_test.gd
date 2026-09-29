@@ -8,6 +8,7 @@ func _initialize() -> void:
  call_deferred("run_checks")
 func run_checks() -> void:
  var game := Play.instantiate()
+ game.sim = preload("res://mission1/simulation.gd").new(false)
  game.configure({},false)
  root.add_child(game)
  current_scene = game
@@ -80,6 +81,12 @@ func run_checks() -> void:
   await RenderingServer.frame_post_draw
   root.get_texture().get_image().save_png("res://build/mission1-diary.png")
   game._toggle_diary()
+  var editor := root.get_node("PauseEditor")
+  editor.pause(game)
+  await process_frame
+  await RenderingServer.frame_post_draw
+  root.get_texture().get_image().save_png("res://build/mission1-editor.png")
+  editor.resume()
  game.sim.memory.reset = true
  game._begin_reset()
  check(game.rewind_index >= 0, "reset starts recorded rewind")

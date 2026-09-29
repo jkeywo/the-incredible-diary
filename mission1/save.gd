@@ -2,7 +2,7 @@ extends RefCounted
 ## Append-only transactions retain the entire recorded leg without rewriting it each second.
 ## A checksum protects each transaction; an interrupted tail is ignored and repaired on load.
 const DEFAULT_PATH := "user://mission1_v2.journal"
-const SCHEMA := 2
+const SCHEMA := 3
 const Rooms = preload("res://mission1/rooms.gd")
 var saved_count := 0
 var generation := -1
@@ -105,12 +105,34 @@ static func _valid_state(state: Variant) -> bool:
  return true
 
 static func _valid_batch(batch: Dictionary, count: int) -> bool:
- if batch.get("schema")!=SCHEMA or int(batch.get("start",-1))!=count or not batch.get("history") is Array: return false
+ if int(batch.get("schema",-1)) not in [2,SCHEMA] or int(batch.get("start",-1))!=count or not batch.get("history") is Array: return false
  if not _valid_state(batch.get("current")) or not batch.get("memory") is Dictionary: return false
- if int(batch.current.tick)!=count+batch.history.size()-1: return false
+ var legacy: bool = batch.schema == 2
+ if not legacy and not _valid_extension(batch.current): return false
+ if int(batch.current.get("tick" if legacy else "frame",-1))!=count+batch.history.size()-1: return false
  for key in ["notes","bag","procedure","shortcut","reset","completed"]:
   if not batch.memory.has(key): return false
  if not batch.memory.notes is Array: return false
  for i in batch.history.size():
-  if not _valid_state(batch.history[i]) or int(batch.history[i].tick)!=count+i: return false
+  if not _valid_state(batch.history[i]) or int(batch.history[i].get("tick" if legacy else "frame",-1))!=count+i: return false
+  if not legacy and not _valid_extension(batch.history[i]): return false
+ if legacy:
+  for state in batch.history: _migrate_state(state)
+  _migrate_state(batch.current)
+ if not batch.memory.has("cabins"): batch.memory.cabins = []
+ if not batch.memory.has("preferences"): batch.memory.preferences = []
  return batch.has("sequence") and batch.has("loop")
+
+static func _migrate_state(state: Dictionary) -> void:
+ state.frame = state.tick
+ state.tutorial = "done"
+ state.arrivals = false
+ state.hospitality = {"carried":"","outcomes":{},"detours":{},"menu":""}
+
+static func _valid_extension(state: Dictionary) -> bool:
+ if not state.get("frame") is float and not state.get("frame") is int: return false
+ if int(state.frame)<int(state.tick) or state.get("tutorial") not in ["approach","briefing","done"]: return false
+ if state.tutorial != "done" and int(state.tick)!=0: return false
+ var duties: Variant = state.get("hospitality")
+ if not duties is Dictionary: return false
+ return duties.get("carried") in ["","lemonade","water","tea"] and duties.get("outcomes") is Dictionary and duties.get("detours") is Dictionary and duties.get("menu") is String

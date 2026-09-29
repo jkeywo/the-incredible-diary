@@ -28,11 +28,65 @@ These later user decisions supersede conflicting layout and diary details below.
 
 The chandelier hangs above the compass rose at the centre of the Grand Foyer. The guest's danger position, shove interaction and wreckage inspection share that floor position. The fixture visibly drops from overhead with accelerating downward motion, then changes to wreckage and dust at impact. The fall is sampled from recorded simulation time, including during rewind.
 
+### Interaction menu — clarified 29 September 2026
+
+Use a Sims-inspired arrangement around the character: up to four separate textured option buttons on each side. Buttons use the game's navy-and-brass art style. Eight choices fit without paging. Longer lists show seven actions and a final **More…** option; additional pages cycle back to the first. Mouse clicks, number keys 1–8, and right-stick selection with RB confirmation all address the visible choices.
+
+### Dialogue presentation — clarified 29 September 2026
+
+Conversations play out as alternating spoken lines in textured bubbles above the speaker. Thoughts use a distinct cloud outline and trailing dots, with the same navy-and-brass texture palette. Text appears with a typewriter effect; line timing and speaker identity are recorded with simulation history so pausing, saving and rewinding preserve what was shown. The diary records witnessed speech after its text has appeared. Character labels use roles and keep Amelia's identity secret. Inspections use thoughts; status text remains for controls and system feedback.
+
 ### Passenger movement and staging — clarified 29 September 2026
 
 Passengers appear on the docks during Hour 1, board after their prerequisites, visit cabins and hold conversations before taking their places for significant events. They walk through connected rooms at a constant speed. Characters have solid foot-level collision with each other and Amelia; recorded history includes their resolved positions. Closed cabin doors block movement and passengers open doors on their routes. The missing suitcase starts in the clear aisle left of the luggage stacks. Stationary animations keep the feet planted while the upper body moves, with the visible soles aligned to the floor and a contact shadow.
 
 ## 1. Identity and intended experience
+
+### Dock tutorial and optional hospitality — agreed 29 September 2026
+
+A new game begins with Boy in the middle of the docks and the captain beside
+the gangway. Contextual WASD/left-stick prompts teach movement; approaching the
+captain teaches the interaction wheel and Report for duty. The captain addresses
+the player only as Boy and instructs him to explore the ship, help with luggage,
+bring refreshments and show guests to their cabins. Voyage time, arrivals and
+hazards remain frozen while movement and spoken dialogue run. The final line
+starts the clock; the captain walks up the gangway and disappears. Guests enter
+the docks before their existing boarding commitments. Diary resets skip this
+tutorial; an unfinished tutorial resumes from its save.
+
+| Guest | Cabin | Refreshment |
+|---|---|---|
+| Mr. Felix Harcourt (luggage owner) | 1, middle | Lemonade |
+| Miss Evelyn Vale (chandelier guest) | 2, left | Sparkling water |
+| Mrs. Mabel Pritchard (steam guest) | 3, right | Tea |
+
+These names replace provisional passenger labels in dialogue. The player's
+speaker label is Boy. All cabin doors have numbered, inspectable nameplates,
+including when open. Inspecting a plate teaches its occupant. Asking about
+refreshments reveals the guest's preference; learned preferences and cabin
+assignments survive diary resets, while written observations remain per-run.
+
+Optional errands have helpful and mischievous choices. Boy carries one drink
+from the foyer refreshment station and can return it to choose another. Correct
+drinks receive thanks; wrong drinks are refused with personalised complaints and
+remain carried. Each guest permits one wrong-drink reaction and one successful
+delivery per loop. After rejection only the requested drink can be offered to
+that guest. Refreshments do not replace the poisoned glass or change schedules.
+
+Cabin directions offer inspected cabin numbers. Correct directions receive
+thanks. Wrong directions make the guest visit the named door, read its plate,
+complain about the mismatch, and return without entering the wrong cabin.
+Detours are available only aboard, outside critical scenes, with sufficient
+time for travel, reaction and return before the next commitment. One wrong
+detour per guest per loop is allowed, followed by correct directions. Blocked
+detours return early; scheduled commitments take priority. No stacked detours,
+checklist or reward system. Existing luggage hiding/retrieval retains its
+boarding consequences.
+
+Recorded-frame indices advance independently of voyage ticks during the
+tutorial. Saves and history include tutorial progress, dialogue, resolved actor
+positions, carried drinks and errand outcomes. Older journals retain their
+recorded frames and load with the tutorial completed.
 
 A pixel-art time-loop rescue game set aboard a 1920s Mediterranean cruise ship, in which Amelia observes passengers and crew, learns their routines, and uses ordinary interventions, later diary powers, and increasing authority to construct a timeline in which everyone survives. Individual rescues are insufficient: their timing and consequences must fit together.
 

@@ -43,13 +43,16 @@ static func swept_clear(room: String, origin: Vector2, target: Vector2, others: 
 
 static func separate(planned: Dictionary, flags: Dictionary, previous: Dictionary = {}, blockers: Dictionary = {}, blocker_previous: Dictionary = {}) -> Dictionary:
  var result := {}
- var occupied := previous.duplicate(true)
+ var occupied := {}
+ for id in previous:
+  if planned.has(id): occupied[id] = previous[id].duplicate(true)
  occupied.merge(blockers,true)
  var sweep_previous := previous.duplicate(true)
  sweep_previous.merge(blockers,true)
  sweep_previous.merge(blocker_previous,true)
  # Keep previous positions and test the whole step, including interpolation.
- for id in ["chandelier_guest","chatterbox","guest","crew","porter","dock_sailor"]:
+ for id in ["chandelier_guest","chatterbox","guest","crew","porter","dock_sailor","captain"]:
+  if not planned.has(id): continue
   var actor: Dictionary = planned[id].duplicate(true)
   var p := Rooms.point(actor.pos)
   if previous.has(id):

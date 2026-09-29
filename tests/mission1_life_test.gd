@@ -5,7 +5,7 @@ var failures: Array[String] = []
 func check(ok: bool, label: String) -> void:
  if not ok and not failures.has(label): failures.append(label)
 func _initialize() -> void:
- var run := Sim.new()
+ var run := Sim.new(false)
  # An NPC approaching a stationary player must walk around, never relocate them.
  var scene: Dictionary = run.s.actors.duplicate(true)
  scene.guest = {"room":"salon","pos":[525,500],"action":"walk"}
@@ -15,7 +15,7 @@ func _initialize() -> void:
  check(Sim.Crowd.swept_clear("salon",Vector2(525,500),Rooms.point(resolved.guest.pos),{"player":{"room":"salon","pos":[500,500]}},{}),"NPC avoids stationary player along whole step")
  check(Sim.Crowd.move_player("salon",Vector2(470,500),Vector2(80,0),{}, {"guest":{"room":"salon","pos":[500,500]}}).x <= 475,"player cannot tunnel through character")
  for deadline in [710,1710]:
-  var bag := Sim.new()
+  var bag := Sim.new(false)
   bag.s.pos = [145,390]
   if deadline > 800:
    check(bag.start("hide_bag"),"hide for late recovery")

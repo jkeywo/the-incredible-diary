@@ -6,16 +6,21 @@ six-Hour rescue mission; `opening.tscn` remains the earlier dock-only slice.
 
 ## Play
 
-- WASD / left stick moves Amelia. Walk into a labelled doorway to change screens.
+- New games begin with a frozen-clock tutorial. Follow the WASD / left-stick
+  prompt below Boy, approach the captain, and select **Report for duty**.
+  The captain's final instruction starts time and guest arrivals. Diary resets
+  skip the tutorial; Continue restores it exactly if unfinished.
+- WASD / left stick moves Boy. Walk into a labelled doorway to change screens.
 - Nearby actions appear in a radial wheel. Use its number, or right stick and RB.
 - Tab / Y opens the diary and pauses simulation time.
 - Hold F / LT to wait at 20x speed. Acceleration stops at the next Hour; release
   and press again to wait through another Hour.
-- H / X highlights available interactions. Escape / B interrupts an action or closes code entry.
+- H / X highlights available interactions. Escape / B interrupts an action,
+  closes code entry, or leaves the cabin-directions submenu.
 - Enter three digits using 1–6 or the controller wheel. Enter / the wheel's
   Confirm submits; Backspace / Clear clears all digits. Entry does not pause.
 - R / Back turns back the diary after the first death. A second press skips the
-  recorded rewind. Observations and learned procedures survive; physical state
+  recorded rewind. Learned procedures, drink preferences and cabin assignments survive; written observations and physical state
   and the three-digit code reset. The end-of-leg summary stays readable until
   Enter / A starts the next attempt.
 - Space opens the existing shared pause editor. Mission rules live in
@@ -26,6 +31,27 @@ The brass pocket watch is driven by simulation time. It shows Hour 1 at 1:00,
 then six complete Hours through 7:00, including the whole of Hour 6. Each Hour
 lasts 180 real seconds at normal speed. Diary and editor pauses stop its hands;
 waiting and recorded rewind change them with the simulation.
+
+## Optional hospitality and mischief
+
+The foyer refreshment tray supplies lemonade, sparkling water and tea. Ask a
+guest for their preference, collect one drink, then offer it. A wrong drink
+earns a complaint and remains carried; return it to the tray to choose another.
+Each guest accepts one correct drink and reacts to one wrong drink per loop.
+
+Inspect cabin nameplates to learn their occupants: Felix Harcourt (1, middle),
+Evelyn Vale (2, left), and Mabel Pritchard (3, right). Give cabin directions opens
+a choice of inspected cabin numbers. Wrong directions produce a visit to that
+door, a complaint, and a return to the guest's normal activity. They are offered
+only when there is enough time before the next appointment. Blocked detours
+return early. One wrong detour per guest per loop; correct directions remain
+available afterwards. These optional favours do not affect rescue outcomes or
+replace the poisoned drink. Luggage hiding still changes boarding time.
+
+Save schema 3 records frame indices separately from voyage ticks, including
+movement and speech while the tutorial clock is frozen. Schema 2 journals load
+with their original history and the tutorial completed. `hospitality.gd` owns
+guest names, preferences, errand outcomes and temporary routes.
 
 ## Implemented route (spoilers)
 

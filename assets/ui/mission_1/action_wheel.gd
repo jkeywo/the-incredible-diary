@@ -1,59 +1,103 @@
 @tool
 extends Control
-## Visual radial prompt. Gameplay supplies visible options and confirms one.
-
+## Two banks of four textured choices, with cyclic paging for longer menus.
 signal option_confirmed(index: int, label: String)
-
+const FRAME = preload("res://assets/ui/popup/nine_piece_style.gd")
+const BUTTON_SIZE := Vector2(224,48)
+var page := 0
+var buttons: Array[Button] = []
+var indices: Array[int] = []
 @export var options := PackedStringArray(["Inspect", "Talk", "Hide Bag"]):
-	set(value):
-		options = value
-		selected_index = mini(selected_index, maxi(0, options.size() - 1))
-		queue_redraw()
+ set(value):
+  if options == value: return
+  options = value.duplicate()
+  page = 0
+  selected_index = 0
+  if is_node_ready(): _rebuild()
 @export var selected_index := 0:
-	set(value):
-		selected_index = maxi(0, value)
-		queue_redraw()
+ set(value):
+  selected_index = clampi(value,0,maxi(0,indices.size()-1))
+  if is_node_ready(): _highlight()
 
+func _ready() -> void:
+ mouse_filter = Control.MOUSE_FILTER_IGNORE
+ size = Vector2(556,216)
+ _rebuild()
+
+func _rebuild() -> void:
+ for button in buttons:
+  remove_child(button)
+  button.queue_free()
+ buttons.clear()
+ indices.clear()
+ var paged := options.size()>8
+ var start := page*7 if paged else 0
+ var finish := mini(start+7,options.size()) if paged else options.size()
+ for index in range(start,finish): indices.append(index)
+ if paged: indices.append(-1)
+ var left_count := ceili(indices.size()/2.0)
+ for slot in indices.size():
+  var button := Button.new()
+  button.mouse_filter = Control.MOUSE_FILTER_STOP
+  button.custom_minimum_size = BUTTON_SIZE
+  button.size = BUTTON_SIZE
+  var right := slot >= left_count
+  var row := slot-left_count if right else slot
+  var rows := indices.size()-left_count if right else left_count
+  var y := (216-(rows*48+(rows-1)*8))/2.0+row*56
+  var inset := 14.0 if row == 0 or row == rows-1 else 0.0
+  button.position = Vector2(332-inset if right else inset,y)
+  button.add_theme_stylebox_override("normal",_frame())
+  button.add_theme_stylebox_override("hover",_frame())
+  button.add_theme_stylebox_override("pressed",_frame())
+  button.add_theme_stylebox_override("focus",StyleBoxEmpty.new())
+  button.add_theme_font_size_override("font_size",16)
+  for color in ["font_color","font_hover_color","font_pressed_color","font_focus_color"]:
+   button.add_theme_color_override(color,Color("fff1d6"))
+  var caption := "More…" if indices[slot]<0 else options[indices[slot]]
+  button.text = caption if caption == str(slot+1) else "%d  %s" % [slot+1,caption]
+  button.tooltip_text = "More…" if indices[slot]<0 else options[indices[slot]]
+  button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+  button.pressed.connect(func(): activate_slot(slot))
+  button.mouse_entered.connect(func(): selected_index = slot)
+  button.focus_entered.connect(func(): selected_index = slot)
+  add_child(button)
+  buttons.append(button)
+ selected_index = mini(selected_index,maxi(0,buttons.size()-1))
+ _highlight()
+
+func _frame() -> StyleBox:
+ var frame := FRAME.new()
+ frame.set_content_margin(SIDE_LEFT,16)
+ frame.set_content_margin(SIDE_RIGHT,16)
+ frame.set_content_margin(SIDE_TOP,8)
+ frame.set_content_margin(SIDE_BOTTOM,8)
+ return frame
+
+func _highlight() -> void:
+ for slot in buttons.size():
+  buttons[slot].self_modulate = Color(1.35,1.25,1.05) if slot == selected_index else Color.WHITE
+  buttons[slot].add_theme_color_override("font_color",Color("ffd578") if slot == selected_index else Color("fff1d6"))
+
+func activate_slot(slot: int) -> void:
+ if slot < 0 or slot >= indices.size(): return
+ selected_index = slot
+ var index := indices[slot]
+ if index < 0:
+  page = (page+1) % ceili(options.size()/7.0)
+  selected_index = 0
+  _rebuild()
+ else: option_confirmed.emit(index,options[index])
 
 func select_from_vector(direction: Vector2) -> void:
-	if direction.length_squared() < 0.16 or options.is_empty():
-		return
-	var angle := wrapf(direction.angle() + PI / 2.0, 0.0, TAU)
-	selected_index = int(round(angle / TAU * options.size())) % options.size()
-
+ if direction.length_squared()<0.16 or buttons.is_empty(): return
+ var best := -INF
+ for slot in buttons.size():
+  var vector := (buttons[slot].position+BUTTON_SIZE/2-size/2).normalized()
+  var score := vector.dot(direction.normalized())
+  if score > best:
+   best = score
+   selected_index = slot
 
 func confirm_selected() -> void:
-	if selected_index < options.size():
-		option_confirmed.emit(selected_index, options[selected_index])
-
-
-func _draw() -> void:
-	var center := size * 0.5
-	var outer := minf(size.x, size.y) * 0.48
-	var inner := outer * 0.36
-	if options.is_empty():
-		return
-	var font := ThemeDB.fallback_font
-	var count := options.size()
-	for index in range(count):
-		var start := -PI / 2.0 + (float(index) - 0.5) * TAU / count
-		var finish := -PI / 2.0 + (float(index) + 0.5) * TAU / count
-		var points := PackedVector2Array()
-		for step in range(15):
-			var angle := lerpf(start, finish, float(step) / 14.0)
-			points.append(center + Vector2.from_angle(angle) * outer)
-		for step in range(14, -1, -1):
-			var angle := lerpf(start, finish, float(step) / 14.0)
-			points.append(center + Vector2.from_angle(angle) * inner)
-		draw_colored_polygon(points, Color("b28239") if index == selected_index else Color("182941"))
-		draw_polyline(points + PackedVector2Array([points[0]]), Color("e3bd76"), 2.0)
-		var middle := (start + finish) * 0.5
-		var label_at := center + Vector2.from_angle(middle) * (inner + outer) * 0.5
-		var caption := options[index]
-		draw_string(font, label_at + Vector2(-48, 6), caption,
-			HORIZONTAL_ALIGNMENT_CENTER, 96, 15,
-			Color("142238") if index == selected_index else Color("fff1d0"))
-	draw_circle(center, inner - 2.0, Color("0b192d"))
-	draw_arc(center, inner - 2.0, 0.0, TAU, 40, Color("e3bd76"), 2.0)
-	draw_string(font, center + Vector2(-35, 6), "ACT", HORIZONTAL_ALIGNMENT_CENTER,
-		70, 19, Color("f2d99e"))
+ activate_slot(selected_index)

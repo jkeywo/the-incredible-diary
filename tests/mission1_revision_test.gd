@@ -7,7 +7,7 @@ func _initialize() -> void:
 func advance(run: RefCounted, target: int) -> void:
  while run.s.tick < target: run.step()
 func checks() -> void:
- var run := Sim.new()
+ var run := Sim.new(false)
  assert(Rooms.exits("cabins",false).size() == 1)
  assert(Rooms.exits("salon",false).map(func(d): return d.room) == ["passage","foyer"])
  assert(Rooms.can_stand("controls",Vector2(840,360)))
@@ -57,7 +57,7 @@ func checks() -> void:
  run.step()
  assert(run.start("wreckage"))
  advance(run,int(run.s.tick)+10)
- assert(run.s.message == "Broken glass and a snapped suspension pin.")
+ assert(run.s.dialogue.kind == "thought" and run.s.dialogue.text == "Broken glass and a snapped suspension pin.")
  assert(str(run.memory.notes).contains("03:19") and not str(run.memory.notes).contains("Loop"))
  run.reset()
  assert(run.memory.notes.is_empty())
@@ -68,6 +68,7 @@ func checks() -> void:
  run.restore_notebook()
  assert(run.memory.notes == ["01:01 — I saw the suitcase."])
  var game := Play.instantiate()
+ game.sim = preload("res://mission1/simulation.gd").new(false)
  game.configure({},false)
  root.add_child(game)
  game.set_physics_process(false)

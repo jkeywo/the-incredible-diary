@@ -4,7 +4,7 @@ const Save = preload("res://mission1/save.gd")
 const PATH := "res://build/mission1-test.journal"
 func _initialize() -> void:
  Save.clear(PATH)
- var run := Sim.new()
+ var run := Sim.new(false)
  var writer := Save.new()
  for i in 70: run.step(Vector2.LEFT)
  assert(writer.save_run(run,PATH).ok)
@@ -21,7 +21,7 @@ func _initialize() -> void:
  file.close()
  loaded = Save.load_saved(PATH)
  assert(loaded.ok and loaded.data.current.tick==75)
- var resumed := Sim.new()
+ var resumed := Sim.new(false)
  resumed.s = loaded.data.current
  resumed.history = loaded.data.history
  resumed.memory = loaded.data.memory

@@ -17,8 +17,8 @@ are not needed by Godot or the web export.
 | --- | --- |
 | `title_screen.tscn` | Project startup scene. Continue appears for a valid Mission 1 save; New warns before clearing that save; Test Level opens the foundation harness; Quit exits. New and Continue place `mission1/opening.tscn` beneath the book. The cover swipes aside, the feathered page interiors reveal the room, then the book frame enlarges and fades. Amelia is controllable only after `opened_to_game`. |
 | `open_diary.tscn` | Blank whole-screen spread with separate empty `LeftPageContent` and `RightPageContent` regions for diary entries. |
-| `speech_bubble.tscn` | Reusable cream-and-brass speech bubble. Set `bubble_size`, `speaker_name`, `message` and `tail_position`; text wraps when resized. |
-| `action_wheel.tscn` | Radial prompt. Supply discovered/available `options`, call `select_from_vector()` for right-stick highlighting, then `confirm_selected()`. It emits the chosen option; it does not queue actions. |
+| `speech_bubble.tscn` | Textured navy-and-brass speech/thought bubble. Set `bubble_size` and `tail_position`; call `present(line, elapsed_seconds)` for recorded typewriter progress. Speech has a pointed tail; thoughts have a cloud outline and trailing dots. Uses the existing popup texture assets. |
+| `action_wheel.tscn` | Two banks of up to four navy-and-brass textured buttons. More… pages lists longer than eight. Mouse, visible-slot number keys and right-stick selection share the same option mapping. |
 | `code_entry_panel.tscn` | Three code slots, six digits, separate Confirm and Clear options. Set `entered_digits` and `feedback`; selection emits an option for the simulation to handle. |
 | `mission_hud.tscn` | Analogue Hour face, progress towards the next Hour, optional timed-action bar and subtle diary cue. Supply recorded world time. |
 | `diary_notification.tscn` | Compact entry/death notice. Set only what the player knows; it contains no cause by default. |

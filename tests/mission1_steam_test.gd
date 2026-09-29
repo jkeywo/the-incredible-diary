@@ -1,7 +1,7 @@
 extends SceneTree
 const Sim = preload("res://mission1/simulation.gd")
 func _initialize() -> void:
- var run := Sim.new()
+ var run := Sim.new(false)
  run.s.room = "controls"
  run.s.pos = [350,300]
  run.s.tick = Sim.DEMO_START-1
@@ -25,7 +25,7 @@ func _initialize() -> void:
  run.s.tick = Sim.STEAM_FATAL-1
  run.step()
  assert(run.s.dead.has("chatterbox"))
- var late := Sim.new()
+ var late := Sim.new(false)
  late.s.tick = Sim.DEMO_END-95
  for i in 66: late.step()
  late.s.room = "controls"

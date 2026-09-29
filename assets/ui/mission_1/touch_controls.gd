@@ -2,8 +2,9 @@ extends Control
 ## Independent finger capture prevents one thumb from releasing the other.
 signal action_pressed(action: String)
 const FRAME = preload("res://assets/ui/popup/nine_piece_style.gd")
-const ACTIONS := ["diary","wait","rewind","highlight","cancel"]
-const LABELS := ["Diary","Wait","Rewind","Highlight","Cancel"]
+const ACTIONS := ["diary","wait","highlight","cancel"]
+const LABELS := ["Diary","Wait","Highlight","Cancel"]
+const GAME_SIZE := Vector2(1160,740)
 var active := false
 var gameplay_enabled := false
 var modal := false
@@ -15,6 +16,9 @@ var move_center := Vector2.ZERO
 var radius := 72.0
 var portrait := false
 var top_edge := 0.0
+var side_margin := 0.0
+var _resizing := false
+var _owns_layout := false
 
 static func supported() -> bool:
  if OS.has_feature("web"):
@@ -26,28 +30,64 @@ func _ready() -> void:
  mouse_filter = Control.MOUSE_FILTER_IGNORE
  active = supported()
  get_viewport().size_changed.connect(_resize)
+ get_node("/root/AudioSettings").controls_changed.connect(_resize)
  _resize()
 
 func _resize() -> void:
+ if _resizing: return
+ _resizing = true
  release_all()
- var view := get_viewport_rect().size
+ var view := GAME_SIZE
  size = view
- var window := DisplayServer.window_get_size()
+ var window := get_tree().root.size
  portrait = window.y>window.x
  if OS.has_feature("web"): portrait = bool(JavaScriptBridge.eval("matchMedia('(orientation: portrait)').matches"))
  radius = minf(110 if portrait else 72,view.x*0.14)
+ var available_margin := (float(window.x)*view.y/maxf(window.y,1)-view.x)/2
+ side_margin = available_margin if active and not portrait and available_margin >= radius*2+36 else 0.0
+ _apply_screen_layout()
  move_center = Vector2(radius+28,view.y-150)
  buttons.clear()
- var margin := radius*2+40
- var columns := 3 if portrait else ACTIONS.size()
- var width := (view.x-margin-20)/columns
- var height := 132.0 if portrait else 68.0
- var rows := 2 if portrait else 1
- var first_y := view.y-rows*(height+8)-12
+ var font := ThemeDB.fallback_font
+ var font_size := 36 if portrait else 18
+ var width := 0.0
+ for label in LABELS:
+  width = maxf(width,font.get_string_size(label,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x)
+ width = ceilf(width)+24
+ var height := maxf(44,ceilf(font.get_height(font_size))+16)
+ var first_x := view.x-2*width-8-12
+ var first_y := view.y-2*height-8-12
  top_edge = minf(move_center.y-radius,first_y)
  for i in ACTIONS.size():
-  buttons[ACTIONS[i]] = Rect2(margin+(i%columns)*width,first_y+floori(float(i)/columns)*(height+8),width-8,height)
+  buttons[ACTIONS[i]] = Rect2(first_x+(i%2)*(width+8),first_y+floori(float(i)/2)*(height+8),width,height)
+ if get_node("/root/AudioSettings").stick_on_right:
+  move_center.x = view.x-move_center.x
+  for action in ACTIONS:
+   buttons[action].position.x -= first_x-12
+ if side_margin > 0:
+  var right: bool = get_node("/root/AudioSettings").stick_on_right
+  move_center.x = view.x+side_margin/2 if right else -side_margin/2
+  var button_x := -side_margin/2-width/2 if right else view.x+side_margin/2-width/2
+  for i in ACTIONS.size():
+   buttons[ACTIONS[i]] = Rect2(button_x,view.y-12-4*height-3*8+i*(height+8),width,height)
+  top_edge = view.y-40
  queue_redraw()
+ _resizing = false
+
+func _apply_screen_layout() -> void:
+ if side_margin == 0 and not _owns_layout: return
+ _owns_layout = side_margin > 0
+ var window := get_tree().root
+ window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND if _owns_layout else Window.CONTENT_SCALE_ASPECT_KEEP
+ window.canvas_transform = Transform2D(0,Vector2(side_margin,0))
+ get_canvas_layer_node().offset.x = side_margin
+ get_node("/root/AudioSettings").offset.x = side_margin
+
+func _exit_tree() -> void:
+ _resizing = true
+ if _owns_layout:
+  side_margin = 0
+  _apply_screen_layout()
 
 func set_context(enabled: bool, blocked: bool) -> void:
  if gameplay_enabled != enabled or modal != blocked: release_all()
@@ -69,16 +109,17 @@ func _notification(what: int) -> void:
  if what == NOTIFICATION_APPLICATION_FOCUS_OUT: release_all()
 
 func _allowed(action: String) -> bool:
- return not modal or action in ["diary","rewind","cancel"]
+ return not modal or action in ["diary","cancel"]
 
 func _input(event: InputEvent) -> void:
  if not event is InputEventScreenTouch and not event is InputEventScreenDrag: return
  if not active:
   active = true
   visible = gameplay_enabled
+  _resize()
  if not gameplay_enabled or get_tree().paused: return
  var id: int = event.index
- var point: Vector2 = event.position
+ var point: Vector2 = get_global_transform_with_canvas().affine_inverse()*event.position
  if event is InputEventScreenTouch:
   if event.pressed:
    if not modal and point.distance_to(move_center) <= radius+18 and not fingers.values().has("move"):
@@ -110,6 +151,9 @@ func _vector(delta: Vector2) -> Vector2:
 
 func _draw() -> void:
  if not active or not gameplay_enabled: return
+ if side_margin > 0:
+  draw_rect(Rect2(-side_margin,0,side_margin,GAME_SIZE.y),Color("09121e"))
+  draw_rect(Rect2(GAME_SIZE.x,0,side_margin,GAME_SIZE.y),Color("09121e"))
  var font := ThemeDB.fallback_font
  if not modal:
   for item in [[move_center,movement,"Move"]]:

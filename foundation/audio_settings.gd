@@ -1,4 +1,6 @@
 extends CanvasLayer
+signal controls_changed
+const TouchControls = preload("res://assets/ui/mission_1/touch_controls.gd")
 const PopupSkin = preload("res://assets/ui/popup/popup_skin.gd")
 ## Global player preferences, separate from voyage saves and authored room levels.
 ## Future voice players should use the Dialogue bus.
@@ -14,12 +16,18 @@ var menu_status: Label
 var dialog: AcceptDialog
 var _was_paused := false
 var _opened := false
+var stick_on_right := false
+var touch_available := false
+var tabs: TabContainer
+var controls_tab: VBoxContainer
+var stick_side: OptionButton
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 110
 	load_settings()
+	touch_available = TouchControls.supported()
 	_build_ui()
 	get_tree().scene_changed.connect(close_settings)
 
@@ -32,6 +40,24 @@ func load_settings() -> void:
 		if not (value is float or value is int) or not is_finite(float(value)):
 			value = DEFAULTS[bus]
 		set_volume(bus, float(value))
+	var side: Variant = config.get_value("controls", "stick_on_right", false)
+	set_stick_on_right(side if side is bool else false)
+
+
+func set_stick_on_right(value: bool) -> void:
+	stick_on_right = value
+	controls_changed.emit()
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and not touch_available:
+		touch_available = true
+		_refresh_controls_tab()
+
+
+func _refresh_controls_tab() -> void:
+	tabs.set_tab_hidden(controls_tab.get_index(), not touch_available)
+	stick_side.select(1 if stick_on_right else 0)
 
 
 func set_volume(bus: String, percent: float) -> void:
@@ -47,6 +73,7 @@ func save_settings() -> void:
 	var config := ConfigFile.new()
 	for bus in DEFAULTS:
 		config.set_value("audio", bus, volumes[bus])
+	config.set_value("controls", "stick_on_right", stick_on_right)
 	if config.save(settings_path) != OK:
 		push_warning("Could not save audio preferences.")
 
@@ -59,6 +86,8 @@ func open_settings() -> void:
 	get_tree().paused = true
 	for bus in sliders:
 		sliders[bus].value = volumes[bus]
+	touch_available = touch_available or TouchControls.supported()
+	_refresh_controls_tab()
 	menu_status.hide()
 	var scene := get_tree().current_scene
 	main_menu_button.disabled = scene == null or (scene.scene_file_path == MAIN_MENU and not is_instance_valid(scene.get("_game_world")))
@@ -122,7 +151,7 @@ func _build_ui() -> void:
 	dialog.canceled.connect(close_settings)
 	add_child(dialog)
 	var content := PopupSkin.decorate(dialog)
-	var tabs := TabContainer.new()
+	tabs = TabContainer.new()
 	tabs.custom_minimum_size = Vector2(400, 240)
 	content.add_child(tabs)
 	var audio := VBoxContainer.new()
@@ -155,6 +184,24 @@ func _build_ui() -> void:
 			amount.text = "%d%%" % value
 			save_settings())
 		sliders[bus] = slider
+	controls_tab = VBoxContainer.new()
+	controls_tab.name = "Controls"
+	controls_tab.add_theme_constant_override("separation", 16)
+	tabs.add_child(controls_tab)
+	var stick_label := Label.new()
+	stick_label.text = "Movement joystick position"
+	controls_tab.add_child(stick_label)
+	stick_side = OptionButton.new()
+	stick_side.add_item("Left")
+	stick_side.add_item("Right")
+	stick_side.item_selected.connect(func(index: int):
+		set_stick_on_right(index == 1)
+		save_settings())
+	controls_tab.add_child(stick_side)
+	var hint := Label.new()
+	hint.text = "The buttons appear on the opposite side."
+	controls_tab.add_child(hint)
+	_refresh_controls_tab()
 	main_menu_button = Button.new()
 	main_menu_button.text = "Return to main menu"
 	main_menu_button.pressed.connect(return_to_main_menu)

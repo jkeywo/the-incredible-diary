@@ -26,7 +26,7 @@ These later user decisions supersede conflicting layout and diary details below.
 
 ### Mobile browser controls — clarified 29 September 2026
 
-Touch play uses one virtual movement joystick. Interactions are activated by tapping their option buttons directly, including More… and steam-panel digits, Clear and Commit; mouse clicks also activate these buttons. Separate touch buttons provide Diary, hold-to-Wait, Rewind, Highlight and Cancel. There is no selection joystick or Act button. Each finger is tracked independently, allowing movement and interaction together. Modal screens, focus loss and resizing release held controls. The mobile interface omits pause/editor controls.
+Touch play uses one virtual movement joystick. Interactions are activated by tapping their option buttons directly, including More… and steam-panel digits, Clear and Commit; mouse clicks also activate these buttons. Four compact touch buttons provide Diary, hold-to-Wait, Highlight and Cancel in a 2×2 grid at the bottom right. Rewind is available inside the diary. On touch devices, Settings includes a Controls tab with a saved Left/Right movement joystick preference; the button grid moves to the opposite side. When each side margin has room for the joystick and its touch area, the game stays centred at its fixed aspect ratio and the controls occupy those margins, with the four buttons in a vertical column. Narrow and portrait screens retain the overlaid joystick and 2×2 button grid. There is no selection joystick or Act button. Each finger is tracked independently, allowing movement and interaction together. Modal screens, focus loss and resizing release held controls. The mobile interface omits pause/editor controls.
 
 ### Opening audio — clarified 29 September 2026
 

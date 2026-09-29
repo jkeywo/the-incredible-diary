@@ -98,7 +98,7 @@ func _input(event: InputEvent) -> void:
   return
  if event.pressed:
   for slot in buttons.size():
-   if buttons[slot].get_global_rect().has_point(event.position):
+   if _touch_hits(buttons[slot],event.position):
     touches[event.index] = slot
     selected_index = slot
     get_viewport().set_input_as_handled()
@@ -106,8 +106,11 @@ func _input(event: InputEvent) -> void:
  elif touches.has(event.index):
   var slot: int = touches[event.index]
   touches.erase(event.index)
-  if not event.canceled and slot<buttons.size() and buttons[slot].get_global_rect().has_point(event.position): activate_slot(slot)
+  if not event.canceled and slot<buttons.size() and _touch_hits(buttons[slot],event.position): activate_slot(slot)
   get_viewport().set_input_as_handled()
+
+func _touch_hits(button: Button, point: Vector2) -> bool:
+ return Rect2(Vector2.ZERO,button.size).has_point(button.get_global_transform_with_canvas().affine_inverse()*point)
 
 func _notification(what: int) -> void:
  if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_VISIBILITY_CHANGED: touches.clear()

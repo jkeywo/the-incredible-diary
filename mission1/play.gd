@@ -180,7 +180,6 @@ func _touch_action(action: String) -> void:
  if not controls_enabled or get_tree().paused: return
  match action:
   "diary": _toggle_diary()
-  "rewind": _begin_reset()
   "cancel":
    if diary_open: _toggle_diary()
    else:
@@ -398,7 +397,7 @@ func _refresh_prompt(state: Dictionary) -> void:
  if touch_controls.active:
   movement_prompt.hide()
   help.text = "Use the left stick to reach the captain." if phase == "approach" and choices.is_empty() else "Tap an action to interact." if not choices.is_empty() else ""
-  if state.finished: help.text = "Tap Rewind to play again, or Diary to read your notes."
+  if state.finished: help.text = "Open Diary to read your notes or turn back the pages."
   carrying.position.y = touch_controls.top_edge-52
   message.position = Vector2(220,touch_controls.top_edge-28)
   if help.position.y > touch_controls.top_edge-64: help.position.y = touch_controls.top_edge-64

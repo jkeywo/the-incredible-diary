@@ -1,4 +1,7 @@
-* text=auto
+# Godot writes LF, including .import and .uid metadata. Override Windows autocrlf.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
 *.gd text eol=lf
 *.tscn text eol=lf
 *.godot text eol=lf

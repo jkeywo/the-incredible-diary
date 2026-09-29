@@ -16,6 +16,7 @@ const GithubProject = preload("res://foundation/github_project.gd")
 const GithubCommit = preload("res://foundation/github_commit.gd")
 const GithubSync = preload("res://foundation/github_sync.gd")
 const GithubConflict = preload("res://foundation/github_conflict.gd")
+const FloatingPanel = preload("res://foundation/floating_panel.gd")
 const CharacterSprite = preload("res://assets/characters/character_sprite.gd")
 const ValveSheet = preload("res://assets/props/valve_states.png")
 const ACTOR_ART := {"amelia": "player", "chatterbox": "matron", "guest": "rake"}
@@ -35,6 +36,17 @@ var status_label: Label
 var state_label: Label
 var inspector_label: Label
 var canvas: Control
+var hud: VBoxContainer
+var source_tabs: TabContainer
+var editor_overlay: Control
+var panel_layer: Control
+var panel_dock: HBoxContainer
+var legacy_controls: HFlowContainer
+var editor_menus: Dictionary = {}
+var menu_actions: Dictionary = {}
+var floating_panels: Dictionary = {}
+var minimised_buttons: Dictionary = {}
+var next_menu_id := 1
 var queued_interaction := ""
 var queued_cancel := false
 var queued_dialogue_id := ""
@@ -78,7 +90,7 @@ var github_repository: FoundationGithubRepository
 var github_writer: FoundationGithubCommit
 var github_sync: FoundationGithubSync
 var github_conflict: FoundationGithubConflict
-var github_panel: PopupPanel
+var github_panel: FoundationFloatingPanel
 var github_token_edit: LineEdit
 var github_repo_picker: OptionButton
 var github_branch_picker: OptionButton
@@ -288,15 +300,20 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reset_loop"):
-		_reset_pressed()
+		if rewinding or (session.paused and editor_overlay.visible):
+			_reset_pressed()
 		return
 	if rewinding: return
 	if event.is_action_pressed("pause_game"):
 		if session.paused: _resume(false)
 		else: _pause()
 		_refresh()
-	if session.paused and event.is_action_pressed("step_tick"):
+		return
+	if session.paused and editor_overlay.visible and event.is_action_pressed("step_tick"):
 		_step_tick()
+		return
+	if session.paused:
+		return
 	if event.is_action_pressed("interaction_one") or event.is_action_pressed("interaction_two") or event.is_action_pressed("wheel_confirm"):
 		if not simulation.state.dialogue.is_empty():
 			queued_dialogue_advance = true
@@ -316,28 +333,57 @@ func _build_ui() -> void:
 	background.color = Color("15232d")
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
-	var page_scroll := ScrollContainer.new()
-	page_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(page_scroll)
-	var column := VBoxContainer.new()
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_theme_constant_override("separation", 12)
-	page_scroll.add_child(column)
-	var title := Label.new()
-	title.text = "AMELIA / TWO-ROOM FOUNDATION"
-	title.add_theme_font_size_override("font_size", 26)
-	column.add_child(title)
-	state_label = Label.new()
-	column.add_child(state_label)
 	canvas = Control.new()
 	canvas.mouse_filter = Control.MOUSE_FILTER_STOP
 	canvas.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	canvas.custom_minimum_size = Vector2(900, 350)
-	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	canvas.draw.connect(_draw_world)
 	canvas.gui_input.connect(_on_canvas_input)
-	column.add_child(canvas)
+	add_child(canvas)
+	var column := VBoxContainer.new()
+	column.visible = false
+	add_child(column)
+	hud = VBoxContainer.new()
+	hud.position = Vector2(12, 8)
+	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(hud)
+	state_label = Label.new()
+	state_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(state_label)
+	status_label = Label.new()
+	status_label.text = "WASD / left stick moves Amelia. 1–2 / right stick + RB chooses a local action."
+	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(status_label)
+	editor_overlay = Control.new()
+	editor_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	editor_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	editor_overlay.visible = session.paused
+	add_child(editor_overlay)
+	var menu_background := PanelContainer.new()
+	menu_background.anchor_right = 1.0
+	menu_background.offset_right = 0.0
+	menu_background.custom_minimum_size.y = 38
+	editor_overlay.add_child(menu_background)
+	var menu_row := HBoxContainer.new()
+	menu_row.add_theme_constant_override("separation", 10)
+	menu_background.add_child(menu_row)
+	for caption in ["Run", "Edit", "Room", "Actors", "Storylets", "History", "Project", "View"]:
+		_create_menu(menu_row, caption)
+	panel_layer = Control.new()
+	panel_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	editor_overlay.add_child(panel_layer)
+	var dock_background := PanelContainer.new()
+	dock_background.anchor_top = 1.0
+	dock_background.anchor_bottom = 1.0
+	dock_background.anchor_right = 1.0
+	dock_background.offset_top = -38.0
+	dock_background.offset_bottom = 0.0
+	editor_overlay.add_child(dock_background)
+	panel_dock = HBoxContainer.new()
+	dock_background.add_child(panel_dock)
 	var controls := HFlowContainer.new()
+	legacy_controls = controls
 	column.add_child(controls)
 	_button(controls, "Pause / resume (Space)", _toggle_pause)
 	_button(controls, "Single tick (.)", _step_tick)
@@ -483,23 +529,147 @@ func _build_ui() -> void:
 	storylet_scene_editor.visible = false
 	column.add_child(storylet_scene_editor)
 	_build_github_panel()
-	status_label = Label.new()
-	status_label.text = "WASD / left stick moves Amelia. 1–2 / right stick + RB chooses a local action."
-	column.add_child(status_label)
-	column.move_child(status_label, 2)
+	_reflow_editor_controls(column, controls, inspector_scroll)
 
 func _button(parent: Node, caption: String, action: Callable) -> void:
+	if parent == legacy_controls:
+		_menu_action(_menu_for_action(caption), caption, action)
+		return
 	var button := Button.new()
 	button.text = caption
 	button.pressed.connect(action)
 	parent.add_child(button)
 
+func _create_menu(parent: HBoxContainer, caption: String) -> void:
+	var button := MenuButton.new()
+	button.text = caption
+	parent.add_child(button)
+	var popup := button.get_popup()
+	popup.id_pressed.connect(func(id: int):
+		if session.paused and editor_overlay.visible and menu_actions.has(id):
+			menu_actions[id].call())
+	editor_menus[caption] = popup
+
+func _menu_action(group: String, caption: String, action: Callable) -> void:
+	var id := next_menu_id
+	next_menu_id += 1
+	menu_actions[id] = action
+	(editor_menus[group] as PopupMenu).add_item(caption, id)
+
+func _menu_for_action(caption: String) -> String:
+	match caption:
+		"Pause / resume (Space)", "Single tick (.)", "Next event", "Return to live", "Resume from here", "Retry save", "Rewind / skip (R)": return "Run"
+		"Undo edit", "Redo edit", "Retry draft save", "Allow recovered draft": return "Edit"
+		"Import room background", "New room", "Draw walkable", "Move walkable", "Erase walkable", "Connect door", "Move door endpoint", "Remove door", "Place interaction": return "Room"
+		"Place actor", "Schedule target": return "Actors"
+		"Save storylet": return "Storylets"
+		"GitHub project": return "Project"
+		_: return "View"
+
+func _make_panel(caption: String, initial_position: Vector2, initial_size: Vector2) -> FoundationFloatingPanel:
+	var panel: FoundationFloatingPanel = FloatingPanel.new()
+	panel.configure(caption, initial_size)
+	panel.position = initial_position
+	panel.visible = false
+	panel.closed.connect(func(): _close_panel(caption))
+	panel.minimised.connect(func(): _minimise_panel(caption))
+	panel_layer.add_child(panel)
+	panel_layer.resized.connect(panel.fit_to_parent)
+	panel.fit_to_parent()
+	floating_panels[caption] = panel
+	return panel
+
+func _open_panel(caption: String) -> void:
+	if not session.paused or not editor_overlay.visible or not floating_panels.has(caption):
+		return
+	if minimised_buttons.has(caption):
+		minimised_buttons[caption].queue_free()
+		minimised_buttons.erase(caption)
+	var panel: FoundationFloatingPanel = floating_panels[caption]
+	panel.fit_to_parent()
+	panel.visible = true
+	panel.move_to_front()
+
+func _close_panel(caption: String) -> void:
+	if floating_panels.has(caption):
+		floating_panels[caption].hide()
+	if minimised_buttons.has(caption):
+		minimised_buttons[caption].queue_free()
+		minimised_buttons.erase(caption)
+
+func _minimise_panel(caption: String) -> void:
+	if not floating_panels.has(caption) or minimised_buttons.has(caption):
+		return
+	floating_panels[caption].hide()
+	var restore := Button.new()
+	restore.text = caption
+	restore.tooltip_text = "Restore %s" % caption
+	restore.pressed.connect(func(): _open_panel(caption))
+	panel_dock.add_child(restore)
+	minimised_buttons[caption] = restore
+
+func _field(parent: VBoxContainer, caption: String, field: Control) -> void:
+	var label := Label.new()
+	label.text = caption
+	parent.add_child(label)
+	field.reparent(parent)
+	field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+func _panel_body(panel: FoundationFloatingPanel) -> VBoxContainer:
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_right", 8)
+	panel.body.add_child(margin)
+	var content := VBoxContainer.new()
+	margin.add_child(content)
+	return content
+
+func _reflow_editor_controls(column: VBoxContainer, _controls: HFlowContainer, inspector_scroll: ScrollContainer) -> void:
+	var history := _panel_body(_make_panel("History", Vector2(60, 64), Vector2(460, 300)))
+	scrubber.reparent(history)
+	inspector_scroll.reparent(history)
+	inspector_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_menu_action("History", "Show history and diagnostics", func(): _open_panel("History"))
+	var source_panel := _make_panel("Source editors", Vector2(150, 90), Vector2(590, 430))
+	source_tabs = TabContainer.new()
+	source_tabs.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	source_panel.body.add_child(source_tabs)
+	for source in [source_editor, scenario_source_editor, storylet_scene_editor]:
+		source.reparent(source_tabs)
+		source.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		source.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	source_editor.name = "Dialogue"
+	scenario_source_editor.name = "Scenario"
+	storylet_scene_editor.name = "Scene"
+	_menu_action("Edit", "Show source editors", func(): _open_panel("Source editors"))
+	var interaction := _panel_body(_make_panel("Interaction settings", Vector2(220, 130), Vector2(330, 380)))
+	_field(interaction, "Label", interaction_label_edit)
+	_field(interaction, "Duration", interaction_duration_edit)
+	_field(interaction, "Effect", interaction_effect_edit)
+	_field(interaction, "Delay", interaction_effect_ticks_edit)
+	_menu_action("Room", "Show interaction settings", func(): _open_panel("Interaction settings"))
+	var actors := _panel_body(_make_panel("Actor and schedule", Vector2(280, 100), Vector2(370, 440)))
+	_field(actors, "Actor ID", actor_id_edit)
+	_field(actors, "Sprite", actor_sprite_edit)
+	_field(actors, "Commitment ID", commitment_id_edit)
+	_field(actors, "Speed", commitment_speed_edit)
+	_field(actors, "Scheduled tick", schedule_timeline)
+	_menu_action("Actors", "Show actor and schedule", func(): _open_panel("Actor and schedule"))
+	var storylets := _panel_body(_make_panel("Storylet conditions", Vector2(340, 76), Vector2(370, 480)))
+	_field(storylets, "Storylet ID", storylet_id_edit)
+	_field(storylets, "Scene ID", scene_id_edit)
+	_field(storylets, "Required actor IDs", required_actor_edit)
+	_field(storylets, "From tick", storylet_start_edit)
+	_field(storylets, "Through tick", storylet_end_edit)
+	_field(storylets, "Valve state", storylet_flag_edit)
+	_menu_action("Storylets", "Show storylet conditions", func(): _open_panel("Storylet conditions"))
+	column.queue_free()
+	legacy_controls = null
+
 func _build_github_panel() -> void:
-	github_panel = PopupPanel.new()
-	github_panel.title = "GitHub project"
-	add_child(github_panel)
-	var rows := VBoxContainer.new()
-	github_panel.add_child(rows)
+	github_panel = _make_panel("GitHub project", Vector2(180, 100), Vector2(650, 310))
+	var rows := _panel_body(github_panel)
 	var token_row := HFlowContainer.new()
 	rows.add_child(token_row)
 	github_token_edit = LineEdit.new()
@@ -548,9 +718,9 @@ func _build_github_panel() -> void:
 
 func _toggle_github_panel() -> void:
 	if github_panel.visible:
-		github_panel.hide()
+		_close_panel("GitHub project")
 		return
-	github_panel.popup_centered(Vector2i(630, 210))
+	_open_panel("GitHub project")
 	if not github_api.access_token.is_empty() and github_repo_picker.item_count <= 1:
 		_github_list_repositories()
 
@@ -779,6 +949,8 @@ func _other_room() -> void:
 	_refresh()
 
 func _on_scrub(value: float) -> void:
+	if not session.paused or not editor_overlay.visible:
+		return
 	session.view_tick(int(value))
 	_refresh()
 
@@ -791,6 +963,8 @@ func _resume_from_here() -> void:
 	_refresh()
 
 func _draw_world() -> void:
+	var world_scale := _world_scale()
+	canvas.draw_set_transform((canvas.size - Vector2(900, 350) * world_scale) * 0.5, 0.0, Vector2.ONE * world_scale)
 	var shown := _shown_state()
 	var before := simulation.inspect_at(int(shown.tick) - 1) if shown.tick > 0 else {}
 	canvas.draw_rect(Rect2(20, 20, 880, 310), Color("293c48") if inspected_room == "service" else Color("38434a"))
@@ -947,13 +1121,16 @@ func _local_choices() -> Array[Dictionary]:
 
 func _pause() -> void:
 	session.pause()
+	hud.position = Vector2(12, 44)
+	editor_overlay.show()
 	_show_source(document.source_draft)
 	_show_scenario_source(document.scenario_draft)
 	_sync_storylet_scene_source()
 	source_editor.visible = true
 	scenario_source_editor.visible = true
 	storylet_scene_editor.visible = true
-	status_label.text = "Paused. Edit the Dialogue Manager scene, then resume to validate and apply."
+	source_tabs.current_tab = 0
+	status_label.text = "Paused. Open tools from the menus; resume validates and applies the draft."
 
 func _resume(from_history: bool) -> void:
 	if not session.paused:
@@ -965,6 +1142,8 @@ func _resume(from_history: bool) -> void:
 		return
 	_save()
 	geometry_mode = ""
+	hud.position = Vector2(12, 8)
+	editor_overlay.hide()
 	source_editor.visible = false
 	scenario_source_editor.visible = false
 	storylet_scene_editor.visible = false
@@ -1165,7 +1344,22 @@ func _set_geometry_mode(mode: String) -> void:
 func _canvas_point(local: Vector2) -> Vector2:
 	var room := _room_in(document.content, inspected_room)
 	var bounds: Array = room.get("bounds", [0, 0, 440, 280])
-	return Vector2(float(bounds[0]) + clampf((local.x - 20.0) / 880.0, 0.0, 1.0) * float(bounds[2]), float(bounds[1]) + clampf((local.y - 20.0) / 280.0, 0.0, 1.0) * float(bounds[3]))
+	var scale := _world_scale()
+	var offset := (canvas.size - Vector2(900, 350) * scale) * 0.5 if is_instance_valid(canvas) else Vector2.ZERO
+	var game_point := (local - offset) / scale
+	return Vector2(float(bounds[0]) + clampf((game_point.x - 20.0) / 880.0, 0.0, 1.0) * float(bounds[2]), float(bounds[1]) + clampf((game_point.y - 20.0) / 280.0, 0.0, 1.0) * float(bounds[3]))
+
+func _world_scale() -> float:
+	if not is_instance_valid(canvas):
+		return 1.0
+	return maxf(0.01, minf(canvas.size.x / 900.0, canvas.size.y / 350.0))
+
+func _canvas_contains_world(local: Vector2) -> bool:
+	if not is_instance_valid(canvas):
+		return true
+	var scale := _world_scale()
+	var offset := (canvas.size - Vector2(900, 350) * scale) * 0.5
+	return Rect2(offset, Vector2(900, 350) * scale).has_point(local)
 
 func _world_to_canvas(room: Dictionary, point: Vector2) -> Vector2:
 	var bounds: Array = room.get("bounds", [0, 0, 440, 280])
@@ -1185,6 +1379,8 @@ func _on_canvas_input(event: InputEvent) -> void:
 	if not session.paused or rewinding or geometry_mode.is_empty():
 		return
 	if not event is InputEventMouseButton or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if not _canvas_contains_world(event.position):
 		return
 	var point := _canvas_point(event.position)
 	var room := _room_in(document.content, inspected_room)

@@ -408,6 +408,8 @@ This supersedes the probe's provisional behaviour of restarting the scene cursor
 
 Pausing opens the integrated editor interface. Editing, including authoring undo/redo, is only possible while paused. Resuming exits the editing interface and runs the simulation after validating and applying changes. There is no editing-while-running mode or separate pause-on-first-edit behaviour; the user's clarification supersedes that proposed distinction.
 
+**Editor layout — confirmed 29 September 2026:** Space reveals the editor only while paused; editor hotkeys do nothing while it is hidden. Put editor actions in dropdown menus. Forms, source views, history inspection and GitHub project controls belong in floating panels that can be dragged, resized, minimised to a bottom dock, restored and closed. The game uses the full viewport when the editor is hidden. The browser build has a small four-corner fullscreen toggle at the upper right on the title screen and in play.
+
 **Stepping — confirmed:** provide separate controls for advancing one simulation tick and advancing to the next meaningful event, such as an NPC arrival, conversation start or action completion. Each step ends paused with the editor showing the updated state. The exact event categories and simulation tick rate remain implementation details to specify. Stepping executes the simulation, so pending edits must pass the same validation/application gate as resuming; script errors block advancement.
 
 ### Visual and source authoring — confirmed

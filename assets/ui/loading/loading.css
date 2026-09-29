@@ -1,0 +1,69 @@
+html, body, #canvas { margin: 0; padding: 0; border: 0; }
+body { background: #0b1723; color: #eedbb5; overflow: hidden; touch-action: none; }
+#canvas { display: block; }
+#canvas:focus { outline: none; }
+#status { position: fixed; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px; box-sizing: border-box;
+  padding: 36px 24px 92px; background: radial-gradient(ellipse at 50% 43%, #233b49, #0b1723 72%);
+  font-family: Georgia, 'Times New Roman', serif; text-align: center; }
+#status::before { content: ''; position: absolute; inset: 18px; border: 1px solid #967442;
+  outline: 1px solid #473e2f; outline-offset: -6px; pointer-events: none; }
+.eyebrow { margin: 0; color: #c8a669; text-transform: uppercase; letter-spacing: .3em; font-size: 11px; }
+h1 { margin: 0; font-size: clamp(22px, 4vw, 36px); font-weight: normal;
+  letter-spacing: .12em; text-transform: uppercase; }
+.diary { position: relative; width: min(360px, 75vw); aspect-ratio: 3 / 2;
+  margin-top: 48px; perspective: 850px; filter: drop-shadow(0 16px 15px #0007); }
+.book-half { position: absolute; top: 15%; width: 50%; height: 100%; overflow: hidden; }
+.book-half img { position: absolute; left: 0; width: 200%; height: 100%; }
+.book-half.left { left: 0; transform-origin: right center; transform: skewY(28deg) scaleX(.78); }
+.book-half.right { right: 0; transform-origin: left center; transform: skewY(-28deg) scaleX(.78); }
+.book-half.right img { left: auto; right: 0; }
+@property --fan-x { syntax: '<number>'; initial-value: .78; inherits: false; }
+@property --fan-y { syntax: '<number>'; initial-value: -.415; inherits: false; }
+.leaf { position: absolute; left: 50%; top: 24%; width: 45%; height: 70%;
+  transform-origin: left center; border-radius: 1% 5% 5% 1%;
+  background: linear-gradient(90deg, #bb9860, #e5c993 7%, #f6e5bd 45%, #ead2a5);
+  border: 1px solid #b89a65; box-sizing: border-box;
+  transform: matrix(var(--fan-x), var(--fan-y), 0, 1, 0, 0);
+  animation: riffle .42s linear infinite; }
+.leaf::after { content: ''; position: absolute; inset: 16% 15%; opacity: .25;
+  background: repeating-linear-gradient(transparent 0 11px, #987d50 12px, transparent 13px); }
+.leaf.second { animation-delay: -.14s; }
+.leaf.third { animation-delay: -.28s; }
+@keyframes riffle {
+  0% { --fan-x: .78; --fan-y: -.415; opacity: 0; }
+  8% { opacity: 1; }
+  25% { --fan-x: .5; --fan-y: -.55; }
+  50% { --fan-x: .015; --fan-y: -.65; }
+  75% { --fan-x: -.5; --fan-y: -.55; }
+  92% { opacity: 1; }
+  100% { --fan-x: -.78; --fan-y: -.415; opacity: 0; }
+}
+.loading-label { margin: 0; font-style: italic; font-size: 16px; color: #dcc99f; }
+.bar-frame { width: min(330px, 72vw); padding: 5px; border: 1px solid #bb9655;
+  box-shadow: 0 0 0 3px #0b1723, 0 0 0 4px #655235; position: relative; }
+.bar-frame::before, .bar-frame::after { content: '◆'; position: absolute; top: -2px;
+  color: #e3bd76; font-size: 18px; }
+.bar-frame::before { left: -17px; } .bar-frame::after { right: -17px; }
+#status-progress { display: block; appearance: none; -webkit-appearance: none;
+  width: 100%; height: 9px; border: 0; background: #07131f; color: #c6a15e; }
+#status-progress::-webkit-progress-bar { background: #07131f; }
+#status-progress::-webkit-progress-value { background: linear-gradient(#f0d699, #b58943); }
+#status-progress::-moz-progress-bar { background: linear-gradient(#f0d699, #b58943); }
+#status-progress:indeterminate { opacity: .65; }
+.credit { position: absolute; right: 34px; bottom: 30px; display: flex; align-items: center;
+  gap: 9px; font: 10px Georgia, serif; letter-spacing: .13em; text-transform: uppercase; color: #bca77e; }
+.credit img { width: 38px; height: 38px; }
+#status-notice { display: none; max-width: 560px; max-height: 30vh; overflow: auto;
+  border: 1px solid #b38b55; padding: 16px; background: #251e22; color: #f3dfc0;
+  font: 14px/1.5 sans-serif; white-space: normal; z-index: 1; }
+#status.failed .leaf { animation-play-state: paused; }
+#status.failed .bar-frame { display: none; }
+noscript { position: fixed; z-index: 3; top: 24px; left: 24px; right: 24px; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .leaf { animation: none; display: none; } }
+@media (max-height: 540px) {
+  #status { gap: 10px; padding-bottom: 55px; }
+  .diary { width: min(230px, 44vh); margin-top: 24px; }
+  .eyebrow { display: none; }
+  .credit { bottom: 28px; }
+}

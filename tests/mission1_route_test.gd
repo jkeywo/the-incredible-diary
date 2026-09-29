@@ -3,6 +3,23 @@ const Sim = preload("res://mission1/simulation.gd")
 func advance(run: RefCounted, target: int) -> void:
  while run.s.tick < target: run.step()
 func _initialize() -> void:
+ # Departure queries share the actual conditional journey stages.
+ var routes = Sim.Routines
+ assert(routes.next_commitment("chandelier_guest",159,800,9000,{}) == 160)
+ assert(routes.next_commitment("chandelier_guest",160,800,9000,{}) == 850)
+ assert(routes.next_commitment("chandelier_guest",3500,800,9000,{}) == 3500)
+ var cabin_duration: int = routes.duration(routes.path("docks",Vector2(390,430),"cabins",Vector2(580,315)))
+ for found in [100,720,950,1720]:
+  var boarding: int = found+80
+  var flags := {"bag_found":true,"bag_found_tick":found}
+  var start: int = maxi(found,boarding-routes.duration(routes.path("docks",Vector2(390,430),"docks",Vector2(580,105))))
+  var arrival: int = start+cabin_duration
+  var final_departure: int = 9000-routes.duration(routes.path("cabins",Vector2(580,315),"salon",Vector2(800,330)))-60
+  var expected: int = maxi(arrival+50,1000) if arrival < 1080 else final_departure
+  assert(routes.next_commitment("guest",start,boarding,9000,flags) == expected)
+  if arrival < 1080:
+   assert(routes.next_commitment("guest",expected,boarding,9000,flags) == 1380)
+  assert(routes.next_commitment("guest",final_departure,boarding,9000,flags) == final_departure)
  var run := Sim.new(false)
  run.s.pos = [145,390]
  advance(run, 60)

@@ -107,8 +107,21 @@ static func track(tick: int, room: String, origin: Vector2, stages: Array, actio
  return pose
 
 static func passenger(id: String, tick: int, boarding: int, arrival: int, flags: Dictionary) -> Dictionary:
+ var plan := _passenger_plan(id, tick, boarding, arrival, flags)
+ return track(tick, "docks", plan.origin, plan.stages, plan.action, plan.facing)
+
+static func next_commitment(id: String, tick: int, boarding: int, arrival: int, flags: Dictionary) -> int:
+ var plan := _passenger_plan(id, tick, boarding, arrival, flags)
+ for stage in plan.stages:
+  if int(stage[0]) > tick: return int(stage[0])
+ return tick
+
+static func _plan(origin: Vector2, stages: Array, action := "idle", facing := "down") -> Dictionary:
+ return {"origin":origin, "stages":stages, "action":action, "facing":facing}
+
+static func _passenger_plan(id: String, tick: int, boarding: int, arrival: int, flags: Dictionary) -> Dictionary:
  if id == "chandelier_guest":
-  return track(tick,"docks",Vector2(720,440),[
+  return _plan(Vector2(720,440),[
    [160,"cabins",[225,315],"idle"],
    [850,"foyer",[495,365],"talk","left"],
    [1450,"salon",[735,345],"talk","right"],
@@ -116,16 +129,16 @@ static func passenger(id: String, tick: int, boarding: int, arrival: int, flags:
    [3500,"foyer",[Rooms.CHANDELIER_FLOOR.x,Rooms.CHANDELIER_FLOOR.y],"idle"]],"talk","right")
  if id == "chatterbox":
   var to_steam := path("cabins",Vector2(935,315),"controls",Vector2(840,360))
-  return track(tick,"docks",Vector2(765,440),[
+  return _plan(Vector2(765,440),[
    [320,"cabins",[935,315],"idle"],
    [980,"cabins",[700,530],"talk","right"],
    [1500,"salon",[780,345],"talk","left"],
    [2600,"cabins",[935,315],"idle"],
    [5400-duration(to_steam)-60,"controls",[840,360],"idle"]],"talk","left")
  if id == "crew":
-  return track(tick,"docks",Vector2(640,430),[[60,"controls",[310,305],"idle"]])
+  return _plan(Vector2(640,430),[[60,"controls",[310,305],"idle"]])
  if id == "porter":
-  return track(tick,"docks",Vector2(670,475),[[460,"foyer",[450,365],"idle"]])
+  return _plan(Vector2(670,475),[[460,"foyer",[450,365],"idle"]])
  # The luggage owner waits for recovery, then boards and visits their cabin.
  var dock_leg := path("docks",Vector2(390,430),"docks",Vector2(580,105))
  var start := maxi(int(flags.get("bag_found_tick",boarding-80)),boarding-duration(dock_leg))
@@ -137,4 +150,4 @@ static func passenger(id: String, tick: int, boarding: int, arrival: int, flags:
   stages.append([1380,"cabins",[580,315],"idle"])
  var salon_leg := path("cabins",Vector2(580,315),"salon",Vector2(800,330))
  stages.append([arrival-duration(salon_leg)-60,"salon",[800,330],"hold_drink" if tick >= arrival else "idle"])
- return track(tick,"docks",Vector2(390,430),stages,"talk" if not flags.get("bag_found",false) else "idle","right")
+ return _plan(Vector2(390,430),stages,"talk" if not flags.get("bag_found",false) else "idle","right")

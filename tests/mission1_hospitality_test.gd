@@ -144,7 +144,7 @@ func checks() -> void:
   baseline.s = diverted.s.duplicate(true)
   baseline.memory = diverted.memory.duplicate(true)
   baseline.history = diverted.history.duplicate(true)
-  var deadline := Duties.next_anchor(diverted,item[0])
+  var deadline := Sim.Routines.next_commitment(item[0], int(diverted.s.tick), diverted.boarding_time(), diverted.party_arrival(), diverted.s.flags)
   assert(diverted.start("directions:"+item[0]))
   assert(diverted.start("direct:%s:%s" % [item[0],item[2]]))
   diverted.s.room = "passage"

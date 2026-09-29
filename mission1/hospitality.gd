@@ -31,20 +31,6 @@ static func busy(run, id: String) -> bool:
  if id == "chatterbox" and (run.flag("chat_delay") or run.flag("trapped")): return true
  return id == "chandelier_guest" and run.s.tick >= 3500
 
-static func next_anchor(run, id: String) -> int:
- var anchors: Array = []
- match id:
-  "chandelier_guest": anchors = [160,850,1450,2600,3500]
-  "chatterbox":
-   var trip := Routes.path("cabins",Vector2(935,315),"controls",Vector2(840,360))
-   anchors = [320,980,1500,2600,5400-Routes.duration(trip)-60]
-  "guest":
-   var trip := Routes.path("cabins",Vector2(580,315),"salon",Vector2(800,330))
-   anchors = [1000,1380,run.party_arrival()-Routes.duration(trip)-60]
- for anchor in anchors:
-  if int(anchor) > int(run.s.tick): return int(anchor)
- return int(run.s.tick)
-
 static func detour_plan(run, id: String, door: String) -> Dictionary:
  if busy(run,id) or not run.s.hospitality.detours.is_empty(): return {}
  var actor: Dictionary = run.s.actors[id]
@@ -52,7 +38,7 @@ static func detour_plan(run, id: String, door: String) -> Dictionary:
  var target := Vector2(Rooms.CABIN_DOORS[door],465)
  var outward := Routes.path(actor.room,Rooms.point(actor.pos),"cabins",target)
  var returning := Routes.path("cabins",target,actor.room,Rooms.point(actor.pos))
- var deadline: int = next_anchor(run,id)
+ var deadline: int = Routes.next_commitment(id, int(run.s.tick), run.boarding_time(), run.party_arrival(), run.s.flags)
  if int(run.s.tick)+Routes.duration(outward)+REACTION_TICKS+Routes.duration(returning)+MARGIN >= deadline: return {}
  return {"door":door,"phase":"outward","home":actor.duplicate(true),"deadline":deadline,"react_until":0}
 

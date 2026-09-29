@@ -23,9 +23,7 @@ var conflict_handoff: Dictionary = {}
 var pending_conflict_local: Dictionary = {}
 var recovery_conflict := false
 var revision := 0
-var source_group_open := false
-var scenario_group_open := false
-var scene_group_open := ""
+var _active_edit_group := ""
 
 func _init(initial_content: Dictionary) -> void:
 	content = initial_content.duplicate(true)
@@ -37,25 +35,14 @@ func _init(initial_content: Dictionary) -> void:
 func set_source(source: String, label: String = "Edit scene source") -> void:
 	if source == source_draft:
 		return
-	finish_scenario_group()
-	finish_scene_group()
-	if not source_group_open:
-		_record(label, _snapshot())
-	source_group_open = true
+	_begin_edit_group("source", label)
 	source_draft = source
 	_changed()
-
-func finish_source_group() -> void:
-	source_group_open = false
 
 func set_scenario_source(source: String) -> void:
 	if source == scenario_draft:
 		return
-	finish_source_group()
-	finish_scene_group()
-	if not scenario_group_open:
-		_record("Edit scenario source", _snapshot())
-	scenario_group_open = true
+	_begin_edit_group("scenario", "Edit scenario source")
 	scenario_draft = source
 	var parser := JSON.new()
 	if parser.parse(source) != OK or not parser.data is Dictionary:
@@ -76,17 +63,10 @@ func set_scenario_source(source: String) -> void:
 			scenario_error = ""
 	_changed()
 
-func finish_scenario_group() -> void:
-	scenario_group_open = false
-
 func set_scene_source(scene_id: String, source: String) -> void:
 	if scene_id.is_empty() or scene_drafts.get(scene_id, "") == source:
 		return
-	finish_source_group()
-	finish_scenario_group()
-	if scene_group_open != scene_id:
-		_record("Edit scene %s" % scene_id, _snapshot())
-	scene_group_open = scene_id
+	_begin_edit_group("scene:" + scene_id, "Edit scene %s" % scene_id)
 	scene_drafts[scene_id] = source
 	var actor_ids: Array[String] = []
 	for actor in content.actors:
@@ -103,9 +83,6 @@ func set_scene_source(scene_id: String, source: String) -> void:
 		scene_errors[scene_id] = "; ".join(errors)
 	_changed()
 
-func finish_scene_group() -> void:
-	scene_group_open = ""
-
 func _sync_scene_drafts() -> void:
 	for scene_id in content.get("scenes", {}):
 		if not scene_errors.has(scene_id):
@@ -114,9 +91,7 @@ func _sync_scene_drafts() -> void:
 func replace_content(next_content: Dictionary, label: String) -> void:
 	if next_content == content:
 		return
-	finish_source_group()
-	finish_scenario_group()
-	finish_scene_group()
+	finish_edit_group()
 	_record(label, _snapshot())
 	var source_was_unmodified := source_draft == str(content.get("dialogue", ""))
 	content = next_content.duplicate(true)
@@ -128,9 +103,7 @@ func replace_content(next_content: Dictionary, label: String) -> void:
 	_changed()
 
 func stage_invalid_merge(merged_candidate: Dictionary, errors: Array, valid_local: Dictionary) -> void:
-	finish_source_group()
-	finish_scenario_group()
-	finish_scene_group()
+	finish_edit_group()
 	_record("Inspect invalid integrated project", _snapshot())
 	scenario_draft = JSON.stringify(merged_candidate, "\t")
 	pending_conflict_local = valid_local.duplicate(true)
@@ -140,26 +113,27 @@ func stage_invalid_merge(merged_candidate: Dictionary, errors: Array, valid_loca
 	scenario_error = "; ".join(messages)
 	_changed()
 
+func _begin_edit_group(key: String, label: String) -> void:
+	if _active_edit_group != key:
+		_record(label, _snapshot())
+	_active_edit_group = key
+
+func finish_edit_group(key: String = "") -> void:
+	if key.is_empty() or key == _active_edit_group:
+		_active_edit_group = ""
+
 func undo() -> String:
-	if undo_stack.is_empty():
-		return ""
-	finish_source_group()
-	finish_scenario_group()
-	finish_scene_group()
-	var operation: Dictionary = undo_stack.pop_back()
-	redo_stack.append({"label": operation.label, "state": _snapshot()})
-	_restore(operation.state)
-	_changed()
-	return str(operation.label)
+	return _transfer_edit(undo_stack, redo_stack)
 
 func redo() -> String:
-	if redo_stack.is_empty():
+	return _transfer_edit(redo_stack, undo_stack)
+
+func _transfer_edit(source: Array[Dictionary], destination: Array[Dictionary]) -> String:
+	if source.is_empty():
 		return ""
-	finish_source_group()
-	finish_scenario_group()
-	finish_scene_group()
-	var operation: Dictionary = redo_stack.pop_back()
-	undo_stack.append({"label": operation.label, "state": _snapshot()})
+	finish_edit_group()
+	var operation: Dictionary = source.pop_back()
+	destination.append({"label": operation.label, "state": _snapshot()})
 	_restore(operation.state)
 	_changed()
 	return str(operation.label)
@@ -190,9 +164,7 @@ func validate() -> Array[String]:
 func apply_to(simulation: FoundationRun, from_tick: int = -1) -> Dictionary:
 	if recovery_conflict:
 		return {"ok": false, "reason": "Recovered draft differs from the saved run; review it and choose Allow recovered draft before continuing", "restart": false}
-	finish_source_group()
-	finish_scenario_group()
-	finish_scene_group()
+	finish_edit_group()
 	var proposed := candidate()
 	var errors := validate()
 	if not errors.is_empty():
@@ -212,9 +184,7 @@ func apply_to(simulation: FoundationRun, from_tick: int = -1) -> Dictionary:
 func change_head(next_head: String) -> void:
 	if next_head == baseline_head:
 		return
-	finish_source_group()
-	finish_scenario_group()
-	finish_scene_group()
+	finish_edit_group()
 	baseline_head = next_head
 	conflict_handoff.clear()
 	pending_conflict_local.clear()
@@ -245,9 +215,7 @@ func record_conflict_handoff(details: Dictionary) -> void:
 func reconcile_runtime(runtime_content: Dictionary) -> bool:
 	if applied_content == runtime_content:
 		return false
-	finish_source_group()
-	finish_scenario_group()
-	finish_scene_group()
+	finish_edit_group()
 	undo_stack.clear()
 	redo_stack.clear()
 	applied_content = runtime_content.duplicate(true)
@@ -292,9 +260,7 @@ func restore(data: Dictionary) -> bool:
 	pending_conflict_local = data.get("pending_conflict_local", {}).duplicate(true)
 	recovery_conflict = bool(data.get("recovery_conflict", false))
 	revision = int(data.get("revision", 0))
-	source_group_open = false
-	scenario_group_open = false
-	scene_group_open = ""
+	finish_edit_group()
 	return true
 
 func _snapshot() -> Dictionary:

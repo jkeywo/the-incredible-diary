@@ -541,13 +541,13 @@ func _build_ui() -> void:
 	scenario_source_editor = CodeEdit.new()
 	scenario_source_editor.text = document.scenario_draft
 	scenario_source_editor.text_changed.connect(_on_scenario_source_changed)
-	scenario_source_editor.focus_exited.connect(func(): document.finish_scenario_group())
+	scenario_source_editor.focus_exited.connect(func(): document.finish_edit_group("scenario"))
 	scenario_source_editor.custom_minimum_size.y = 150
 	scenario_source_editor.visible = false
 	column.add_child(scenario_source_editor)
 	storylet_scene_editor = CodeEdit.new()
 	storylet_scene_editor.text_changed.connect(_on_storylet_scene_changed)
-	storylet_scene_editor.focus_exited.connect(func(): document.finish_scene_group())
+	storylet_scene_editor.focus_exited.connect(func(): document.finish_edit_group(str(storylet_scene_editor.get_meta("edit_group", "scene:"))))
 	storylet_scene_editor.custom_minimum_size.y = 100
 	storylet_scene_editor.visible = false
 	column.add_child(storylet_scene_editor)
@@ -1234,6 +1234,7 @@ func _on_storylet_scene_changed() -> void:
 	if scene_id.is_empty():
 		status_label.text = "Enter a scene ID before editing its source."
 		return
+	storylet_scene_editor.set_meta("edit_group", "scene:" + scene_id)
 	document.set_scene_source(scene_id, storylet_scene_editor.text)
 	if document.scene_errors.has(scene_id):
 		status_label.text = "Scene %s: %s" % [scene_id, document.scene_errors[scene_id]]
@@ -1283,10 +1284,10 @@ func _on_scenario_source_changed() -> void:
 
 func _on_source_text_changed() -> void:
 	if session.paused and not suppress_source_signal:
-		session.set_draft(source_editor.text)
+		document.set_source(source_editor.text)
 
 func _on_source_focus_exited() -> void:
-	document.finish_source_group()
+	document.finish_edit_group("source")
 	if is_instance_valid(authoring_timer) and authoring_timer.time_left > 0.0:
 		authoring_timer.stop()
 		_save_authoring()

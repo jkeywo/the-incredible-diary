@@ -1,5 +1,6 @@
 @tool
 extends "res://assets/props/mission_1/stateful_prop.gd"
+const Depth = preload("res://mission1/render_depth.gd")
 
 var accents: Node2D
 
@@ -27,7 +28,7 @@ func _on_spiking_finished() -> void:
 func show_at(state: Dictionary, fraction := 0.0) -> void:
  var Rooms = preload("res://mission1/rooms.gd")
  position = Rooms.point(state.flags.get("glass_drop",[Rooms.BAR_GUEST.x+28,Rooms.BAR_GUEST.y+8])) if state.dead.has("guest") or state.flags.get("spilled",false) else Rooms.BAR_GLASS
- z_index = 0 if state.dead.has("guest") or state.flags.get("spilled",false) else 2
+ Depth.assign(self,Depth.ENTITY if state.dead.has("guest") or state.flags.get("spilled",false) else Depth.OVERHEAD)
  var elapsed := int(state.frame)-int(state.flags.spike_frame) if state.flags.has("spike_frame") else int(state.tick)-int(state.flags.get("spike_tick",-100))
  var spiking: bool = state.flags.has("spike_tick") and elapsed >= 0 and elapsed < 7 and not state.flags.get("spilled",false)
  set_state("spilled" if state.flags.get("spilled",false) else "empty" if state.dead.has("guest") else "spiked" if state.flags.get("spiked",false) else "full")

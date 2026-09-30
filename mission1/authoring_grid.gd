@@ -12,6 +12,11 @@ static func contains(room: Dictionary, point: Vector2) -> bool:
 	var dimensions: Array = room.get("size", [1175, 700])
 	var origin: Array = room.get("origin", [0,0])
 	if point.x < origin[0] or point.y < origin[1] or point.x >= dimensions[0] or point.y >= dimensions[1]: return false
+	if room.has("floor_regions"):
+		var on_floor := false
+		for box in room.floor_regions:
+			if Rect2(box[0],box[1],box[2],box[3]).has_point(point): on_floor = true; break
+		if not on_floor: return false
 	return not room.get("blocked", {}).has(key(cell(point)))
 
 static func migrate(floors: Array, dimensions := Vector2i(1175, 700)) -> Dictionary:
@@ -26,6 +31,7 @@ static func migrate(floors: Array, dimensions := Vector2i(1175, 700)) -> Diction
 	return blocked
 
 static func stroke(room: Dictionary, start: Vector2, finish: Vector2, blocked: bool) -> void:
+	room.erase("floor_regions") # Painting explicitly replaces the stock precise floor.
 	var count := maxi(1, ceili(start.distance_to(finish) / (CELL * 0.2)))
 	for i in range(count + 1):
 		var point := start.lerp(finish, float(i) / count)

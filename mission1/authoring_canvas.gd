@@ -136,5 +136,9 @@ func _draw() -> void:
 			if not texture_cache.has(prop_path) and ResourceLoader.exists(prop_path): texture_cache[prop_path] = load(prop_path)
 			var prop_texture: Texture2D = texture_cache.get(prop_path)
 			if prop_texture != null: draw_texture_rect_region(prop_texture,Rect2(point-Vector2(20,35),Vector2(40,35)),Rect2(0,0,mini(prop_texture.get_width(),56),mini(prop_texture.get_height(),48)))
+		if selected:
+			draw_line(point-Vector2(22,0),point+Vector2(22,0),Color("ffcf60"),2)
+			draw_line(point-Vector2(0,8),point+Vector2(0,8),Color("ffcf60"),2)
+			draw_string(ThemeDB.fallback_font,point+Vector2(15,18),"Ground anchor",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color("ffcf60"))
 		if selected or zoom >= 0.65: draw_string(ThemeDB.fallback_font,point+Vector2(15,-3),str(id),HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color.WHITE)
 	draw_set_transform(Vector2.ZERO)

@@ -1,5 +1,6 @@
 @tool
 extends "res://assets/props/mission_1/stateful_prop.gd"
+const Depth = preload("res://mission1/render_depth.gd")
 ## The origin stays on the floor; the intact fixture falls from overhead.
 const HANG_HEIGHT := 150.0
 var accents: Node2D
@@ -20,7 +21,7 @@ func show_at(warning: bool, progress: float, impact_seconds: float, time: float)
  if landed: offset.y = -cell_size.y
  scale = Vector2.ONE
  rotation = sin(time*16.0)*0.018 if warning and progress<0.0 else 0.0
- z_index = 0 if landed else 2
+ Depth.assign(self,Depth.ENTITY if landed else Depth.OVERHEAD,true)
  var dust: AnimatedSprite2D = $Dust
  dust.pause()
  dust.visible = landed and impact_seconds < 0.8

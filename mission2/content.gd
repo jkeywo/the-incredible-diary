@@ -8,7 +8,7 @@ const CREW_DOORS := {"crew_cabin_left":205.0,"crew_cabin_middle":580.0,"crew_cab
 
 static func seed() -> Dictionary:
 	var data := Content.seed({})
-	data.version = "mission2-layout-4"
+	data.version = "mission2-layout-8"
 	data.settings.mission = 2
 	data.rooms.erase("docks")
 	data.connections = data.connections.filter(func(door): return door.a != "docks" and door.b != "docks")
@@ -19,7 +19,8 @@ static func seed() -> Dictionary:
 	data.rooms.passage.title = "Service corridor · crew cabins"
 	data.rooms.passage.scene = "07_crew_cabins"
 	data.rooms.salon.scene = "09_salon_open"
-	data.rooms.passage.blocked = Grid.migrate([[40,410,1080,135],[130,235,220,70],[490,235,240,70],[870,235,220,70],[175,290,65,140],[550,290,65,140],[925,290,65,140],[675,530,90,150]])
+	data.rooms.passage.floor_regions = [[40,415,1060,125],[0,375,45,100],[40,410,55,65],[130,235,220,65],[490,235,240,65],[870,235,220,65],[190,290,30,140],[565,290,30,140],[945,290,30,140],[675,530,90,150]]
+	data.rooms.passage.blocked = Grid.migrate(data.rooms.passage.floor_regions)
 	data.rooms.foredeck = {"title":"Foredeck","scene":"08_foredeck","background_asset":"","size":[1175,700],"blocked":Grid.migrate([[170,260,840,340],[330,210,570,100],[975,365,85,100]])}
 	for door in data.connections:
 		if door.a == "passage" and door.b == "controls":
@@ -69,7 +70,7 @@ static func seed() -> Dictionary:
 			var p: Array = place[1].duplicate()
 			# Offset shared destinations so people have room to stand.
 			p[0] += (index % 3 - 1) * 30
-			p[1] += (index % 2) * 30
+			p[1] += (index % 2) * (15 if str(routes[id][hour]).begins_with("crew") else 30)
 			commitments.append({"tick":hour*1800+(index*13 if hour > 0 else 0),"room":place[0],"position":p,"action":"idle","facing":"down"})
 		data.instances[id].room = commitments[0].room
 		data.instances[id].position = commitments[0].position.duplicate()

@@ -817,3 +817,24 @@ Salon floor. Foredeck deckchairs use the reduced size.
 Mission 2 is at sea. Remove docks from its room graph and schedules. Trying the
 former foyer-to-docks exit keeps Amelia aboard and prompts: “We're at sea. I
 don't want to go overboard.” The dock sailor visits the Salon instead.
+
+The service corridor terminates at a solid right-hand bulkhead in both variants;
+the bottom stairs still reach the steam room. The foyer service doorway moves
+left with an inward-projecting side wall, retaining its side-on orientation.
+Its threshold is at (860,195), with transition and arrival
+areas aligned to the new door and clear of the watch.
+
+The foyer/steam-room thresholds sit on the side rugs at (1075,505) and
+(85,620), with arrivals clear of the trigger boxes. Interaction highlights keep
+sprite detail and outline only the silhouette. Props fade only for overlapping
+characters whose ground anchors are behind the prop anchor, using the same
+layer and anchor rules as drawing. See [Rendering depth](render-depth.md).
+
+Service corridor collision follows precise floor boundaries, including narrow
+walkable cabin thresholds that exclude the door jambs and wall bases. Interaction
+button backgrounds fade to half opacity when they cover any visible character;
+their labels remain opaque.
+
+Crew cabin door leaves and lower frame jambs share the characters' Y sorting at
+the threshold. Only the upper arch renders overhead. The sweeping janitor uses
+the same stylized pixel art proportions and shading as the player.

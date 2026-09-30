@@ -15,6 +15,7 @@ func _ready() -> void:
 func set_state(value: String) -> bool:
  current_state = value
  var plume := get_node("SteamPlume") as AnimatedSprite2D
+ preload("res://mission1/render_depth.gd").assign(plume,preload("res://mission1/render_depth.gd").EFFECT)
  if value == "active":
   if not plume.visible: plume.call("play_effect")
  else: plume.call("stop_effect")

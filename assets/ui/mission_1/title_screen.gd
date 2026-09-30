@@ -57,6 +57,8 @@ func is_pause_editor_available() -> bool:
 
 
 func _ready() -> void:
+	var depth = preload("res://mission1/render_depth.gd")
+	depth.assign($Backdrop,depth.SHELL_BACKGROUND)
 	level_loader = LevelLoader.new()
 	add_child(level_loader)
 	level_loader.prepared.connect(_level_prepared)

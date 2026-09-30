@@ -17,6 +17,7 @@ func _initialize() -> void:
  for i in 11: sim.step()
  assert(sim.flag("bag_lead"))
  assert(not Rooms.can_stand("controls", Vector2(590,420)))
+ assert(not Rooms.can_stand("passage", Vector2(1120,480)))
  for room in Rooms.ROOMS:
   for door in Rooms.exits(room, true):
    assert(Rooms.can_stand(room, Rooms.point(door.point)))

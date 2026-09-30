@@ -1,4 +1,5 @@
 extends Sprite2D
+const Depth = preload("res://mission1/render_depth.gd")
 ## The background supplies the open doorway; this leaf fills it when closed.
 var current_state := "closed"
 
@@ -10,7 +11,7 @@ func _ready() -> void:
 	centered = false
 	offset = Vector2(-region_rect.size.x/2,-region_rect.size.y)
 	scale = Vector2(50,126)/region_rect.size
-	z_index = 3
+	Depth.assign(self,Depth.ENTITY,true)
 	set_state(current_state)
 
 func set_state(value: String) -> bool:

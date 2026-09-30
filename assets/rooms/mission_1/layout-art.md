@@ -5,6 +5,8 @@ remain available; scenes use the revised siblings scaled to the 1160 × 740 view
 
 | Asset | Final prompt specification |
 | --- | --- |
+| `02_foyer_side_door.png` | Built-in imagegen edit: bring the upper-right side wall and doorway alcove inward to the left, preserving its original side-on orientation. Keep the entire door and rug left of the watch; preserve stairs, plants, mosaic and all other entrances. Follow-up edit: extend the lower right wall continuously upward to fill the former rug/gap, retaining the lower steam-room doorway. |
+| `07_crew_cabins_dead_end.png` | Built-in imagegen edit: cap only the rightmost corridor end with a solid navy/brass bulkhead. Preserve all three cabins, doorframe positions, left entrance and bottom steam-room stairs. Shared by both corridor variants. |
 | `04_controls_revised.png` | Edit the controls/steam background; preserve the left half, machinery and central divider. Put the right compartment's exit in the top wall right of the boiler; close the former right exit. Keep the camera, palette and empty floor. |
 | `05_salon_revised.png` | Edit the salon; add a lower-left doorway at the former plant, preserve the bar, shell floor design, upper tables and bottom central doorway, and close the right-side route. |
 | `05_salon_closed.png` | Close the left foredeck doorway with a matching solid door and remove the sunlight streaming onto the floor for Mission 1. |

@@ -73,7 +73,11 @@ static func _inside(room: String, origin: Vector2, target: Vector2, flags: Dicti
   if origin.y < 235 or target.y < 235: result.append(waypoint(room,Vector2(580,280)))
   if target.x < 170: result.append(waypoint(room,Vector2(190,390)))
  elif room == "foyer":
-  if origin.y < 230 or target.y < 230: result.append(waypoint(room,Vector2(580,260)))
+  # The side-door alcoves no longer share the staircase's approach corridor.
+  var grid = preload("res://mission1/authoring_grid.gd")
+  var geometry := {"blocked":grid.migrate(Rooms.ROOMS.foyer.floor)}
+  for p in grid.path(geometry,origin,target): result.append(waypoint(room,p))
+  return result
  elif room == "salon":
   if origin.y > 585 or target.y > 585: result.append(waypoint(room,Vector2(580,550)))
  result.append(waypoint(room,target))

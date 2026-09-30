@@ -35,6 +35,7 @@ func checks() -> void:
 		if is_instance_valid(title._game_world): break
 		await process_frame
 	assert(is_instance_valid(title._game_world))
+	assert(title.get_node("Backdrop").z_index < title._game_world.room_slot.z_index)
 	assert(not title._game_world.controls_enabled)
 	await create_timer(1.9).timeout
 	assert(title._game_world.controls_enabled)
@@ -49,6 +50,9 @@ func checks() -> void:
 		await process_frame
 	game._refresh()
 	assert(game.shown_room == "salon")
+	if "--screenshots" in OS.get_cmdline_user_args():
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png("res://build/title-room-background-fixed.png")
 	assert(JSON.stringify(game.sim.history) == history)
 	assert(not Plan.neighbours("docks").any(func(path): return "05_party_salon" in path))
 	var stream := root.get_node("ResourceStream")

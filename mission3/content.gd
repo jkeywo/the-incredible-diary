@@ -6,7 +6,7 @@ const SAVE_PATH := "user://mission3.journal"
 
 static func seed() -> Dictionary:
 	var data := Previous.seed()
-	data.version = "mission3-layout-2"
+	data.version = "mission3-layout-6"
 	data.settings.mission = 3
 	for id in ["chandelier","janitor"]:
 		data.instances.erase(id)

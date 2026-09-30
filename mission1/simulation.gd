@@ -847,9 +847,22 @@ func restore_record(record: Dictionary) -> void:
  s = record.current.duplicate(true)
  memory = record.memory.duplicate(true)
  history = record.history.duplicate(true)
+ # Update stock Mission 1 geometry without replacing schedules or prior history.
+ if authored_content.get("version","") in ["mission1-layout-2","mission1-layout-3","mission1-layout-4","mission1-layout-5"]:
+  content_versions[authored_content.version] = authored_content.duplicate(true)
+  var layout := preload("res://mission1/authoring_content.gd").seed(s.actors)
+  for room in ["foyer","passage","controls"]: authored_content.rooms[room] = layout.rooms[room].duplicate(true)
+  for index in authored_content.connections.size():
+   var door: Dictionary = authored_content.connections[index]
+   if door.a == "foyer" and door.b in ["passage","controls"]:
+    authored_content.connections[index] = layout.connections[3 if door.b == "passage" else 2].duplicate(true)
+  authored_content.version = layout.version
+  content_versions[layout.version] = authored_content.duplicate(true)
+  s.content_version = layout.version
+  record_current_frame()
  # Upgrade only the untouched first exploration seed. Edited authoring documents
  # keep their own version, and all earlier recorded frames remain unchanged.
- if authored_content.get("version","") in ["mission2-layout-1","mission2-layout-2","mission2-layout-3"]:
+ if authored_content.get("version","") in ["mission2-layout-1","mission2-layout-2","mission2-layout-3","mission2-layout-4","mission2-layout-5","mission2-layout-6","mission2-layout-7"]:
   var old_version: String = authored_content.version
   content_versions[authored_content.version] = authored_content.duplicate(true)
   authored_content = preload("res://mission2/content.gd").seed()
@@ -867,7 +880,7 @@ func restore_record(record: Dictionary) -> void:
   s.content_version = authored_content.version
   Authored.update(self)
   record_current_frame()
- if authored_content.get("version","") == "mission3-layout-1":
+ if authored_content.get("version","") in ["mission3-layout-1","mission3-layout-2","mission3-layout-3","mission3-layout-4","mission3-layout-5"]:
   content_versions[authored_content.version] = authored_content.duplicate(true)
   authored_content = preload("res://mission3/content.gd").seed()
   content_versions[authored_content.version] = authored_content.duplicate(true)
@@ -879,8 +892,35 @@ func restore_record(record: Dictionary) -> void:
   Authored.update(self)
   # Keep every recorded old-layout frame available for scrubbing.
   history.append(s.duplicate(true))
+ if authored_content.get("version","") != record.get("authored_content",{}).get("version",""):
+  # Keep occupants clear of the new corridor end wall after a stock-layout upgrade.
+  if s.room == "passage" and float(s.pos[0]) > 1090: s.pos[0] = 1080
+  if s.room == "foyer" and float(s.pos[0]) > 895 and float(s.pos[1]) < 250: s.pos = [850,260]
+  for actor in s.actors.values():
+   if actor.room == "passage" and float(actor.pos[0]) > 1090: actor.pos[0] = 1080
+   if actor.room == "foyer" and float(actor.pos[0]) > 895 and float(actor.pos[1]) < 250: actor.pos = [850,260]
+  if s.room == "passage": s.pos = _corridor_floor_position(s.pos)
+  for actor in s.actors.values():
+   if actor.room == "passage": actor.pos = _corridor_floor_position(actor.pos)
+  record_current_frame()
  events.clear()
  restore_notebook()
+
+func _corridor_floor_position(position: Array) -> Array:
+ var room: Dictionary = authored_content.rooms.passage
+ var point := Rooms.point(position)
+ if preload("res://mission1/authoring_grid.gd").contains(room,point): return position
+ var nearest := point
+ var distance := INF
+ for box in room.get("floor_regions",[]):
+  # Recover into a cabin or hallway, clear of closed door leaves.
+  if box[2] < 100: continue
+  var floor_area := Rect2(box[0],box[1],box[2],box[3]).grow(-12)
+  var candidate := point.clamp(floor_area.position,floor_area.end)
+  if point.distance_squared_to(candidate) < distance:
+   nearest = candidate
+   distance = point.distance_squared_to(candidate)
+ return [nearest.x,nearest.y]
 
 func record_current_frame() -> void:
  history[-1] = s.duplicate(true)

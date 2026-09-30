@@ -68,8 +68,12 @@ func checks() -> void:
  game.sim.step()
  game._refresh()
  assert(game.ending.active() and not game.diary.visible)
+ if not game.cut_fade_phase.is_empty():
+  game._advance_cut_fade(game.CUT_FADE_SECONDS)
+  game._advance_cut_fade(game.CUT_FADE_SECONDS)
  game.ending.advance(8.0)
  game._refresh()
+ game.diary_presentation.advance(0.3)
  assert(game.diary.visible and game.diary_reset.visible and not game.diary_next.visible)
  assert(game.diary_text.text.contains("5:30") and game.diary_menu.visible)
  await capture("defeat")
@@ -77,6 +81,9 @@ func checks() -> void:
  game.ending.clear()
  game.end_presented = false
  game._refresh()
+ if not game.cut_fade_phase.is_empty():
+  game._advance_cut_fade(game.CUT_FADE_SECONDS)
+  game._advance_cut_fade(game.CUT_FADE_SECONDS)
  game.ending.advance(8.0)
  game._refresh()
  assert(game.diary_next.visible and not game.diary_reset.visible)

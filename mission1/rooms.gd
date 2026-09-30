@@ -10,10 +10,10 @@ const STEAM_EXIT := Rect2(970,240,110,100)
 const LUGGAGE := Vector2(145,390)
 const ROOMS := {
  "docks": {"title": "The docks", "scene": "01_docks", "floor": [[170,235,820,440],[125,325,90,140],[525,90,110,160]]},
- "foyer": {"title": "Grand foyer", "scene": "02_foyer", "floor": [[155,230,850,445],[505,115,150,130],[95,190,100,100],[965,190,100,100]]},
+ "foyer": {"title": "Grand foyer", "scene": "02_foyer", "floor": [[155,250,850,425],[155,230,740,25],[505,115,150,130],[95,190,100,100],[765,165,115,90],[990,455,110,100]]},
  "cabins": {"title": "Cabin corridor", "scene": "03_cabin_corridor", "floor": [[-40,445,1145,165],[185,340,80,115],[90,240,250,125],[535,340,80,115],[440,240,250,125],[895,340,80,115],[800,240,265,125]]},
- "controls": {"title": "Steam room", "scene": "04_controls_and_steam", "floor": [[110,265,440,400],[640,265,440,400]]},
- "passage": {"title": "Service corridor", "scene": "06_service_passage", "floor": [[40,410,1080,135],[675,530,90,150]]},
+ "controls": {"title": "Steam room", "scene": "04_controls_and_steam", "floor": [[110,265,440,400],[60,565,65,105],[640,265,440,400]]},
+ "passage": {"title": "Service corridor", "scene": "06_service_passage", "floor": [[40,415,1060,125],[0,375,45,100],[40,410,55,65],[675,530,90,150]]},
  "salon": {"title": "Salon", "scene": "05_party_salon", "floor": [[190,195,805,350],[40,480,955,105],[525,530,110,155]]}
 }
 # Cabins end at the foyer. The salon stair is open from the start.
@@ -21,8 +21,8 @@ const CABIN_DOORS := {"cabin_left":225.0, "cabin_middle":580.0, "cabin_right":93
 const DOORS := [
  {"a":"docks", "ap":[580,105], "b":"foyer", "bp":[580,650]},
  {"a":"foyer", "ap":[175,460], "b":"cabins", "bp":[1080,530]},
- {"a":"foyer", "ap":[980,460], "b":"controls", "bp":[140,635]},
- {"a":"foyer", "ap":[1015,230], "b":"passage", "bp":[60,480]},
+ {"a":"foyer", "ap":[1075,505], "b":"controls", "bp":[85,620]},
+ {"a":"foyer", "ap":[860,195], "b":"passage", "bp":[25,405]},
  {"a":"passage", "ap":[720,650], "b":"controls", "bp":[1015,270]},
  {"a":"foyer", "ap":[580,140], "b":"salon", "bp":[580,650]}
 ]
@@ -108,13 +108,14 @@ static func exit_bounds(room: String, p: Vector2) -> Rect2:
  match room:
   "docks": return Rect2(525,90,110,35)
   "foyer":
-   if p.x > 1000: return Rect2(990,190,75,85)
+   if p.x > 1000 and p.y > 400: return Rect2(1060,455,35,100)
+   if p.x > 800 and p.y < 300: return Rect2(845,165,35,55)
    if p.y < 200: return Rect2(505,115,150,40)
    if p.y > 600: return Rect2(505,630,150,45)
    return Rect2(155 if p.x < 500 else 975,405,30,110)
   "cabins": return Rect2(1075,445,30,165)
-  "controls": return Rect2(p.x-45,240,90,50) if p.y < 400 else Rect2(p.x-40,610,80,55)
-  "passage": return Rect2(675,630,90,50) if p.y > 550 else Rect2(p.x-20,405,40,110)
+  "controls": return Rect2(p.x-45,240,90,50) if p.y < 400 else Rect2(60,570,45,95)
+  "passage": return Rect2(675,630,90,50) if p.y > 550 else Rect2(0,375,45,60)
   "salon":
    if p.y > 600: return Rect2(525,630,110,55)
    return Rect2(945,480,50,105)
@@ -124,10 +125,17 @@ static func arrival_point(room: String, p: Vector2) -> Array:
  var inward := Vector2.ZERO
  match room:
   "docks": inward = Vector2(0,70)
-  "foyer": inward = Vector2(0,65) if p.y < 200 else Vector2(0,-65) if p.y > 600 else Vector2(60 if p.x < 500 else -60,0)
+  "foyer":
+   if p.x > 1000 and p.y > 400: return [1025,520]
+   if p.x > 800 and p.y < 300: return [805,225]
+   inward = Vector2(0,65) if p.y < 200 else Vector2(0,-65) if p.y > 600 else Vector2(60 if p.x < 500 else -60,0)
   "cabins": inward = Vector2(-70,0)
-  "controls": inward = Vector2(0,75 if p.y < 400 else -75)
-  "passage": inward = Vector2(0,-75) if p.y > 550 else Vector2(65 if p.x < 500 else -65,0)
+  "controls":
+   if p.y > 400: return [155,615]
+   inward = Vector2(0,75)
+  "passage":
+   if p.y <= 550: return [90,455]
+   inward = Vector2(0,-75)
   "salon": inward = Vector2(0,-65) if p.y > 600 else Vector2(-65,0)
  return [p.x+inward.x,p.y+inward.y]
 

@@ -2,6 +2,7 @@ extends SceneTree
 const Sim = preload("res://mission1/simulation.gd")
 const Content = preload("res://mission1/authoring_content.gd")
 const Save = preload("res://mission1/save.gd")
+const Grid = preload("res://mission1/authoring_grid.gd")
 
 func _initialize() -> void:
  var run := Sim.new(false)
@@ -13,6 +14,14 @@ func _initialize() -> void:
  for id in run.s.actors:
   assert(run.authored_content.schedules[id].commitments.size() == 6)
  assert(not run.authored_content.rooms.has("docks"))
+ for point in [Vector2(245,390),Vector2(300,410),Vector2(230,350),Vector2(550,350),Vector2(990,350)]:
+  assert(not Grid.contains(run.authored_content.rooms.passage,point),str(point))
+ for x in [205,580,960]:
+  assert(Grid.contains(run.authored_content.rooms.passage,Vector2(x,390)))
+  assert(not Grid.contains(Content.seed({}).rooms.passage,Vector2(x,390)))
+ assert(not preload("res://mission1/authoring_grid.gd").contains(run.authored_content.rooms.passage,Vector2(1120,480)))
+ var corridor_door: Dictionary = run.authored_content.connections.filter(func(d): return d.a == "foyer" and d.b == "passage")[0]
+ assert(corridor_door.ap == [860,195] and corridor_door.a_bounds[0]+corridor_door.a_bounds[2] < 1000)
  assert(run.options().is_empty())
  run.s.pos = [205,320]
  for i in 6: run.step(Vector2.DOWN)
@@ -20,6 +29,10 @@ func _initialize() -> void:
  assert(run.start("crew_cabin_left"))
  for i in 12: run.step()
  assert(run.flag("crew_cabin_left"))
+ run.s.pos = [205,370]
+ for i in 4: run.step(Vector2.RIGHT)
+ assert(float(run.s.pos[0]) < 220)
+ run.s.pos = [205,320]
  for i in 8: run.step(Vector2.DOWN)
  assert(float(run.s.pos[1]) > 410)
  assert(run.start("crew_cabin_left"))
@@ -77,15 +90,17 @@ func _initialize() -> void:
  var previous: Dictionary = old.history[0].duplicate(true)
  var upgraded := Sim.new(false)
  upgraded.restore_record({"current":old.s,"memory":old.memory,"history":old.history,"authored_content":old.authored_content,"content_versions":old.content_versions})
- assert(upgraded.authored_content.version == "mission2-layout-4")
+ assert(upgraded.authored_content.version == "mission2-layout-8")
  assert(upgraded.history[0] == previous)
  assert(upgraded.content_versions.has("mission2-layout-1"))
  for id in preload("res://mission2/content.gd").CREW_DOORS: assert(upgraded.flag(id))
  old.authored_content.version = "mission2-layout-2"
+ old.s.pos = [245,390]
  old.s.prop_states.chandelier = "intact"
  upgraded.restore_record({"current":old.s,"memory":old.memory,"history":old.history,"authored_content":old.authored_content,"content_versions":old.content_versions})
  assert(upgraded.s.prop_states.chandelier == "fallen")
  assert(upgraded.authored_content.instances.has("janitor"))
+ assert(Grid.contains(upgraded.authored_content.rooms.passage,Sim.Rooms.point(upgraded.s.pos)))
  assert(upgraded.history[0] == previous)
  for id in preload("res://mission2/content.gd").CREW_DOORS: assert(not upgraded.flag(id))
  # The new top doorway is blocked in both geometry systems until pressure stops.

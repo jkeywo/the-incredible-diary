@@ -7,7 +7,7 @@ const Dialogue = preload("res://foundation/dialogue.gd")
 const SKINS := {"amelia":"player", "guest":"rake", "chandelier_guest":"glamorous", "chatterbox":"matron", "crew":"sailor", "porter":"ex_army", "dock_sailor":"sailor", "captain":"captain"}
 
 static func seed(actors: Dictionary) -> Dictionary:
-	var data := {"kind":"mission1", "schema":1, "version":"mission1-layout-2", "dialogue":"", "assets":{}, "scenes":{}, "storylets":[], "actors":[], "rooms":{}, "templates":{}, "instances":{}, "schedules":{}, "connections":Rooms.DOORS.duplicate(true), "settings":{"cell_size":25}, "timings":{"creak":4080, "fall":4160, "trap":5500, "steam_fatal":6000, "poison":7650, "end":8100, "demo_start":1850, "demo_end":2300}}
+	var data := {"kind":"mission1", "schema":1, "version":"mission1-layout-6", "dialogue":"", "assets":{}, "scenes":{}, "storylets":[], "actors":[], "rooms":{}, "templates":{}, "instances":{}, "schedules":{}, "connections":Rooms.DOORS.duplicate(true), "settings":{"cell_size":25}, "timings":{"creak":4080, "fall":4160, "trap":5500, "steam_fatal":6000, "poison":7650, "end":8100, "demo_start":1850, "demo_end":2300}}
 	data.scenes = preload("res://mission1/authoring_dialogues.gd").SCENES.duplicate(true)
 	data.texts = preload("res://mission1/authoring_dialogues.gd").TEXTS.duplicate(true)
 	for index in data.connections.size():
@@ -21,6 +21,7 @@ static func seed(actors: Dictionary) -> Dictionary:
 	for id in Rooms.ROOMS:
 		var original: Dictionary = Rooms.ROOMS[id]
 		data.rooms[id] = {"title":original.title, "scene":original.scene, "background_asset":"", "size":[1175,700], "blocked":Grid.migrate(original.floor)}
+	data.rooms.passage.floor_regions = Rooms.ROOMS.passage.floor.duplicate(true)
 	data.rooms.cabins.origin = [-50,0]
 	for y in range(17,25):
 		for x in [-2,-1]: data.rooms.cabins.blocked.erase(Grid.key(Vector2i(x,y)))

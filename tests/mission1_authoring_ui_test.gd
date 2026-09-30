@@ -29,6 +29,15 @@ func run() -> void:
 	var placed_count: int = editor.document.content.instances.size()
 	editor.map_click(Vector2(500,500))
 	check(editor.document.content.instances.size() == placed_count,"Next click selects without adding a duplicate")
+	editor.navigate("instances",id)
+	for child in editor.inspector.get_children():
+		if child is SpinBox and child.prefix == "Y":
+			child.value = 525
+			break
+	check(Vector2(editor.document.content.instances[id].position[0],editor.document.content.instances[id].position[1]) == Vector2(500,525),"Ground anchor control updates the authored position")
+	check(game.sim.history == recorded,"Ground anchor edits leave history unchanged")
+	editor.document.undo()
+	check(Vector2(editor.document.content.instances[id].position[0],editor.document.content.instances[id].position[1]) == Vector2(500,500),"Ground anchor edits are undoable")
 	editor.tree.grab_focus()
 	var delete_key := InputEventKey.new()
 	delete_key.keycode = KEY_DELETE

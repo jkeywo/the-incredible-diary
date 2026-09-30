@@ -30,6 +30,7 @@ func set_state(next_state: String) -> bool:
 	if not state_names.has(next_state):
 		push_warning("Unknown prop state: " + next_state)
 		return false
+	if current_state == next_state: return true
 	current_state = next_state
 	return true
 

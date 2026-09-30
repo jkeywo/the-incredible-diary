@@ -379,7 +379,19 @@ func _inspect() -> void:
 		for story in document.content.storylets:
 			if story.get("participants",[]).has(selected_id):
 				_button(inspector,"Storylet: " + str(story.id),navigate.bind("storylets",str(story.id)))
-		_button(inspector,"Move: click map",func(): tool = "Move")
+		_label("Ground anchor (feet / floor contact; controls depth)")
+		for axis in 2:
+			var anchor := SpinBox.new()
+			anchor.prefix = "X" if axis == 0 else "Y"
+			anchor.min_value = -10000
+			anchor.max_value = 10000
+			anchor.value = value.position[axis]
+			inspector.add_child(anchor)
+			anchor.value_changed.connect(func(coordinate):
+				var next := document.content.duplicate(true)
+				next.instances[selected_id].position[axis] = coordinate
+				document.replace_content(next,"Move ground anchor"))
+		_button(inspector,"Move ground anchor: click map",func(): tool = "Move")
 		for field in resolved:
 			if field in ["id","room","position"]: continue
 			_label(str(field) + (" (override)" if value.overrides.has(field) else " (inherited)"))

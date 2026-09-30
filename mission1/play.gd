@@ -1,4 +1,5 @@
 extends Node2D
+const Depth = preload("res://mission1/render_depth.gd")
 ## Mission 1 presentation; all consequential state lives in the deterministic simulation.
 const ContentPlan = preload("res://mission1/content_plan.gd")
 const LoadingDiary = preload("res://assets/ui/loading/level_wait.gd")
@@ -37,7 +38,6 @@ var entity_layer: Node2D
 var world_overlay: Node2D
 var actors := {}
 var props := {}
-var prop_images := {}
 var opening_audio_fade := 1.0
 var room_audio: Node
 var sounds: Node
@@ -112,6 +112,7 @@ func _ready() -> void:
   character_ticket = get_node("/root/ResourceStream").request_resources(ContentPlan.level_characters(),false,2)
  texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
  room_slot = Node2D.new()
+ Depth.assign(room_slot,Depth.BACKGROUND)
  add_child(room_slot)
  entity_layer = Node2D.new()
  entity_layer.y_sort_enabled = true
@@ -124,7 +125,7 @@ func _ready() -> void:
  sounds = EventAudio.new()
  add_child(sounds)
  world_overlay = Node2D.new()
- world_overlay.z_index = 10
+ Depth.assign(world_overlay,Depth.OVERLAY)
  add_child(world_overlay)
  world_overlay.draw.connect(_draw_world_markers)
  _build_hud()
@@ -522,8 +523,8 @@ func _refresh(direction := Vector2.INF) -> void:
   choices.append({"label":"Commit"})
   choices.append({"label":"Clear"})
   message.text = ""
- _sync_props(state)
  _sync_authored_props(state)
+ _sync_props(state)
  _sync_prop_occlusion()
  _sync_highlights()
  sim.s = live
@@ -538,6 +539,11 @@ func _refresh(direction := Vector2.INF) -> void:
  if touch_controls.active:
   wheel.position.y = minf(wheel.position.y,touch_controls.top_edge-20-wheel.size.y)
  wheel.options = labels
+ var covered_characters: Array[Rect2] = []
+ for actor in actors.values():
+  if actor.visible and not actor is PendingCharacter:
+   covered_characters.append(actor.get_global_transform_with_canvas()*Rect2(Vector2(-12,-46),Vector2(24,46)))
+ wheel.set_character_bounds(covered_characters)
  if help.visible and not choices.is_empty():
   help.position = Vector2(clampf(anchor.x-help.size.x/2,12,1148-help.size.x),minf(wheel.position.y+wheel.size.y+8,635))
   if touch_controls.active: help.position.y = minf(help.position.y,touch_controls.top_edge-64)
@@ -770,6 +776,7 @@ func _ensure_actor(id: String) -> void:
   actor = preload("res://assets/characters/generic/generic_animated_character.tscn").instantiate()
   actor.character_id = skin
  entity_layer.add_child(actor)
+ Depth.assign(actor)
  actors[id] = actor
 
 func _prepare_visible(state: Dictionary) -> bool:
@@ -850,6 +857,11 @@ func _show_room(id: String) -> void:
  else:
   room = load(("res://assets/rooms/mission_1/%s.tscn" % definition.scene).simplify_path()).instantiate() as Node2D
  room_slot.add_child(room)
+ if room.has_method("attach_depth_entities"):
+  var index := 0
+  for entity in room.attach_depth_entities(entity_layer):
+   props["corridor_depth_"+str(index)] = entity
+   index += 1
  if room.has_method("set_motion_time"): room.animate_bobbing = false
  if room.has_node("RoomAudioSettings"): room_audio.set_room(room.get_node("RoomAudioSettings"), int(sim.s.tick)*100, opening_audio_fade)
  opening_audio_fade = 1.0
@@ -873,13 +885,13 @@ func _show_room(id: String) -> void:
    props.code_panel.add_child(digits)
    _prop("steam_vent", Vector2(940,290))
    var smoke := preload("res://assets/effects/mission_1/room_steam.gd").new()
-   smoke.z_index = 8
+   Depth.assign(smoke,Depth.EFFECT)
    entity_layer.add_child(smoke)
    props.room_steam = smoke
   "salon":
    _prop("drink", Rooms.BAR_GLASS)
    props.drink.scale = Vector2(0.38,0.38)
-   props.drink.z_index = 2
+   Depth.assign(props.drink,Depth.OVERHEAD)
    # Reuse the existing pillar pixels as a foreground mask for the hidden arm.
    var pillar := Sprite2D.new()
    pillar.texture = load("res://assets/rooms/mission_1/05_party_salon.png")
@@ -887,7 +899,9 @@ func _show_room(id: String) -> void:
    pillar.region_enabled = true
    pillar.region_rect = Rect2(935,0,50,133)
    pillar.position = Vector2(935,0)
-   pillar.z_index = 3
+   Depth.assign(pillar,Depth.OVERHEAD,true)
+   pillar.position.y = Rooms.BAR_GUEST.y
+   pillar.offset.y = -Rooms.BAR_GUEST.y
    entity_layer.add_child(pillar)
    props.bar_pillar = pillar
   "cabins":
@@ -914,6 +928,7 @@ func _prop(id: String, p: Vector2, key := "") -> void:
  var prop := load("res://assets/props/mission_1/%s.tscn" % id).instantiate() as Node2D
  prop.position = p
  entity_layer.add_child(prop)
+ Depth.assign(prop,prop.z_index,id not in ["janitor","drink"])
  props[instance_key] = prop
 
 func _effect_fraction() -> float:
@@ -967,6 +982,8 @@ func _sync_props(state: Dictionary) -> void:
  room_slot.position = world_offset
  entity_layer.position = world_offset
  world_overlay.position = world_offset
+ # Animated prop states can change atlas regions between full UI refreshes.
+ _sync_outline_frames()
 
 func _events() -> void:
  for event in sim.events:
@@ -1169,9 +1186,13 @@ func _sync_highlights() -> void:
     entity.material.shader = preload("res://assets/ui/mission_1/entity_outline.gdshader")
    if not entity.material is ShaderMaterial: continue
    entity.material.set_shader_parameter("interaction_outline",targets.has(id))
-   if entity is Sprite2D:
-    entity.material.set_shader_parameter("frame_origin",entity.region_rect.position if entity.region_enabled else Vector2.ZERO)
-    entity.material.set_shader_parameter("outline_frame_size",entity.region_rect.size if entity.region_enabled else entity.texture.get_size())
+ _sync_outline_frames()
+
+func _sync_outline_frames() -> void:
+ for entity in props.values():
+  if not entity is Sprite2D or entity.texture == null or not entity.material is ShaderMaterial: continue
+  entity.material.set_shader_parameter("frame_origin",entity.region_rect.position if entity.region_enabled else Vector2.ZERO)
+  entity.material.set_shader_parameter("outline_frame_size",entity.region_rect.size if entity.region_enabled else entity.texture.get_size())
 
 func _place_bubble(anchor: Vector2) -> void:
  var player_rect := Rect2(actors.amelia.position-Vector2(20,55),Vector2(40,60)).grow(6)
@@ -1191,32 +1212,7 @@ func _place_bubble(anchor: Vector2) -> void:
  bubble.background_opacity = 0.5 if Rect2(chosen,bubble.size).intersects(player_rect) else 1.0
 
 func _sync_prop_occlusion() -> void:
- for prop in props.values():
-  if not prop is Sprite2D or not prop.visible or prop.texture == null: continue
-  var bounds: Rect2 = prop.get_rect()
-  if bounds.size.y*prop.scale.y < 80: continue
-  var obscures := false
-  for actor in actors.values():
-   if actor is PendingCharacter: continue
-   if not actor.visible: continue
-   if prop.z_index < actor.z_index or (prop.z_index == actor.z_index and prop.position.y < actor.position.y): continue
-   var character_bounds := Rect2(actor.position-Vector2(12,46),Vector2(24,44))
-   var overlap: Rect2 = (prop.transform*bounds).intersection(character_bounds)
-   if not overlap.has_area(): continue
-   var texture_id: int = prop.texture.get_instance_id()
-   if not prop_images.has(texture_id): prop_images[texture_id] = prop.texture.get_image()
-   var pixels: Image = prop_images[texture_id]
-   var region: Vector2 = prop.region_rect.position if prop.region_enabled else Vector2.ZERO
-   for y in range(int(overlap.position.y),int(overlap.end.y)+1,4):
-    for x in range(int(overlap.position.x),int(overlap.end.x)+1,4):
-     var local: Vector2 = prop.transform.affine_inverse()*Vector2(x,y)
-     var uv: Vector2 = local-bounds.position+region
-     if uv.x>=0 and uv.y>=0 and uv.x<pixels.get_width() and uv.y<pixels.get_height() and pixels.get_pixel(int(uv.x),int(uv.y)).a>0.2:
-      obscures = true
-      break
-    if obscures: break
-   if obscures: break
-  prop.self_modulate.a = 0.5 if obscures else 1.0
+ for prop in props.values(): Depth.sync_fade(prop,actors.values())
 
 func toggle_pause_editor() -> void:
  if authoring_editor == null:

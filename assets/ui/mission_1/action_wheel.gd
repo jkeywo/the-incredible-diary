@@ -8,6 +8,7 @@ var touches: Dictionary = {}
 var page := 0
 var buttons: Array[Button] = []
 var indices: Array[int] = []
+var character_bounds: Array[Rect2] = []
 @export var options := PackedStringArray(["Inspect", "Talk", "Hide Bag"]):
  set(value):
   if options == value: return
@@ -68,6 +69,22 @@ func _rebuild() -> void:
   buttons.append(button)
  selected_index = mini(selected_index,maxi(0,buttons.size()-1))
  _highlight()
+ _fade_backgrounds()
+
+func set_character_bounds(rects: Array[Rect2]) -> void:
+ character_bounds = rects
+ _fade_backgrounds()
+
+func _fade_backgrounds() -> void:
+ for button in buttons:
+  var area: Rect2 = button.get_global_transform_with_canvas()*Rect2(Vector2.ZERO,button.size)
+  var covered := false
+  for rect in character_bounds:
+   if area.intersects(rect): covered = true; break
+  for state in ["normal","hover","pressed"]:
+   var style := button.get_theme_stylebox(state)
+   style.set("tint",Color(1,1,1,0.5 if covered else 1.0))
+   style.emit_changed()
 
 func _frame() -> StyleBox:
  var frame := FRAME.new()

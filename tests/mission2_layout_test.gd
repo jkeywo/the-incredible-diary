@@ -12,6 +12,7 @@ func _initialize() -> void:
  assert(run.s.actors.size() == 14 and run.s.actors.has("captain"))
  for id in run.s.actors:
   assert(run.authored_content.schedules[id].commitments.size() == 6)
+ assert(not run.authored_content.rooms.has("docks"))
  assert(run.options().is_empty())
  run.s.pos = [205,320]
  for i in 6: run.step(Vector2.DOWN)
@@ -26,6 +27,11 @@ func _initialize() -> void:
  assert(not run.flag("crew_cabin_left"))
  for i in 8: run.step(Vector2.UP)
  assert(float(run.s.pos[1]) >= 410)
+ run.s.room = "foyer"
+ run.s.pos = [580,635]
+ for i in 10: run.step(Vector2.DOWN)
+ assert(run.s.room == "foyer")
+ assert(run.s.dialogue.text == "We're at sea. I don't want to go overboard.")
  var first_leg := Sim.new(false)
  for room in ["foyer","salon","passage"]:
   var door: Dictionary = Sim.Rooms.locked_doors(room)[0]
@@ -52,6 +58,7 @@ func _initialize() -> void:
  assert(run.s.tick == 10800 and run.s.finished)
  assert(run.s.dead.is_empty() and run.s.safe.is_empty())
  assert(not run.flag("trapped") and not run.flag("chandelier_fallen") and not run.flag("spiked"))
+ for id in visited: assert(not visited[id].has("docks"))
  for id in visited: assert(visited[id].size() >= 3,id+" did not travel: "+str(run.s.actors[id]))
  const PATH := "res://build/mission2-test.journal"
  Save.clear(PATH)
@@ -70,7 +77,7 @@ func _initialize() -> void:
  var previous: Dictionary = old.history[0].duplicate(true)
  var upgraded := Sim.new(false)
  upgraded.restore_record({"current":old.s,"memory":old.memory,"history":old.history,"authored_content":old.authored_content,"content_versions":old.content_versions})
- assert(upgraded.authored_content.version == "mission2-layout-3")
+ assert(upgraded.authored_content.version == "mission2-layout-4")
  assert(upgraded.history[0] == previous)
  assert(upgraded.content_versions.has("mission2-layout-1"))
  for id in preload("res://mission2/content.gd").CREW_DOORS: assert(upgraded.flag(id))

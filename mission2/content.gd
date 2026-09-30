@@ -8,8 +8,10 @@ const CREW_DOORS := {"crew_cabin_left":205.0,"crew_cabin_middle":580.0,"crew_cab
 
 static func seed() -> Dictionary:
 	var data := Content.seed({})
-	data.version = "mission2-layout-3"
+	data.version = "mission2-layout-4"
 	data.settings.mission = 2
+	data.rooms.erase("docks")
+	data.connections = data.connections.filter(func(door): return door.a != "docks" and door.b != "docks")
 	data.timings.end = END
 	data.storylets = []
 	data.scenes = {}
@@ -43,7 +45,7 @@ static func seed() -> Dictionary:
 		"cabin1":["cabins",[225,315]],"cabin2":["cabins",[580,315]],"cabin3":["cabins",[935,315]],
 		"crew1":["passage",[205,275]],"crew2":["passage",[580,275]],"crew3":["passage",[955,275]],
 		"foyer":["foyer",[740,490]],"salon":["salon",[700,390]],"foredeck":["foredeck",[600,390]],
-		"engine":["controls",[310,340]],"steam":["controls",[840,400]],"docks":["docks",[750,470]]}
+		"engine":["controls",[310,340]],"steam":["controls",[840,400]]}
 	var routes := {
 		"guest":["cabin2","salon","foredeck","foyer","salon","cabin2"],
 		"chandelier_guest":["cabin1","foredeck","salon","cabin1","foyer","salon"],
@@ -51,7 +53,7 @@ static func seed() -> Dictionary:
 		"captain":["foredeck","foyer","engine","salon","foredeck","foyer"],
 		"crew":["engine","steam","crew2","engine","steam","crew2"],
 		"porter":["foyer","cabin2","salon","foyer","cabin1","crew3"],
-		"dock_sailor":["crew3","docks","foredeck","steam","crew3","foyer"],
+		"dock_sailor":["crew3","salon","foredeck","steam","crew3","foyer"],
 		"incidental_sailor_1":["crew2","steam","foredeck","crew2","engine","salon"],
 		"incidental_sailor_2":["crew3","foredeck","engine","steam","crew3","foyer"],
 		"incidental_sailor_3":["steam","crew2","foyer","foredeck","steam","crew2"],

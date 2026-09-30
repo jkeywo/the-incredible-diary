@@ -795,3 +795,7 @@ leaves, with brass frames rendered above characters. The steam outlet sits
 slightly left of the northern doorway and blows across it, so steam blocks the
 exit. Mission 1's foredeck door is visibly closed with no sunlight patch on the
 Salon floor. Foredeck deckchairs use the reduced size.
+
+Mission 2 is at sea. Remove docks from its room graph and schedules. Trying the
+former foyer-to-docks exit keeps Amelia aboard and prompts: “We're at sea. I
+don't want to go overboard.” The dock sailor visits the Salon instead.

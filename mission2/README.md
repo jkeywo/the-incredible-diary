@@ -9,8 +9,8 @@ Mission 1's journal remains separate.
 Amelia starts in the left crew cabin. Open its door to enter the service
 corridor. All three crew doors can be opened and closed; scheduled characters
 open them as needed. Brass doorframes render above characters. The foredeck is accessible.
-The upper-left foyer door remains locked. Docks remain accessible as requested
-in the layout diagram.
+The upper-left foyer door remains locked. The ship is at sea: the former dock
+exit stays aboard and says, “We're at sea. I don't want to go overboard.”
 
 The foyer retains the smashed chandelier from Mission 1. A janitor in blue
 overalls stands beside it sweeping throughout the six-hour visit. His animation
@@ -35,7 +35,7 @@ doors; later departures are staggered slightly to reduce doorway congestion.
 | Captain | Foredeck | Foyer | Controls | Salon | Foredeck | Foyer |
 | Engineer | Controls | Steam room | Crew cabin | Controls | Steam room | Crew cabin |
 | Porter | Foyer | Passenger cabins | Salon | Foyer | Passenger cabins | Crew cabin |
-| Dock sailor | Crew cabin | Docks | Foredeck | Steam room | Crew cabin | Foyer |
+| Dock sailor | Crew cabin | Salon | Foredeck | Steam room | Crew cabin | Foyer |
 
 The three incidental sailors and four incidental guests also have six authored
 appointments each. All schedules are in [content.gd](content.gd) and are editable

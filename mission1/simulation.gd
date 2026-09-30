@@ -312,10 +312,11 @@ func _reset_exploration_content() -> void:
 func _locked_door_feedback(p: Vector2) -> void:
  for door in Rooms.locked_doors(s.room,exploration()):
   if door.bounds.has_point(p):
-   s.message = "The door is locked."
+   var text: String = door.get("message","The door is locked.")
+   s.message = text
    var key: String = s.room+str(door.point)
    if s.get("locked_door","") != key or int(s.get("locked_notice_until",0)) <= int(s.frame):
-    Conversations.say(self,"amelia","The door is locked.","thought")
+    Conversations.say(self,"amelia",text,"thought")
     s.locked_door = key
     s.locked_notice_until = int(s.frame)+35
 
@@ -837,7 +838,7 @@ func restore_record(record: Dictionary) -> void:
  history = record.history.duplicate(true)
  # Upgrade only the untouched first exploration seed. Edited authoring documents
  # keep their own version, and all earlier recorded frames remain unchanged.
- if authored_content.get("version","") in ["mission2-layout-1","mission2-layout-2"]:
+ if authored_content.get("version","") in ["mission2-layout-1","mission2-layout-2","mission2-layout-3"]:
   var old_version: String = authored_content.version
   content_versions[authored_content.version] = authored_content.duplicate(true)
   authored_content = preload("res://mission2/content.gd").seed()
@@ -845,6 +846,13 @@ func restore_record(record: Dictionary) -> void:
   if old_version == "mission2-layout-1":
    for id in preload("res://mission2/content.gd").CREW_DOORS: s.flags[id] = true
   s.get_or_add("prop_states",{}).chandelier = "fallen"
+  if s.room == "docks":
+   s.room = "foyer"
+   s.pos = [580,580]
+  for actor in s.actors.values():
+   if actor.room == "docks":
+    actor.room = "foyer"
+    actor.pos = [650,550]
   s.content_version = authored_content.version
   Authored.update(self)
   record_current_frame()

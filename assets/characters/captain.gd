@@ -4,13 +4,18 @@ extends AnimatedSprite2D
 const Grounding = preload("res://assets/characters/grounding.gd")
 var character_id := "captain"
 static var cached: SpriteFrames
+var grief: Node2D
 func _ready() -> void:
  texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
  Grounding.install(self)
  if cached == null: cached = make_frames()
  sprite_frames = cached
+ grief = preload("res://assets/characters/captain_grief.gd").new()
+ add_child(grief)
  play_action("idle","down")
 func play_action(action: String, direction := "down") -> void:
+ if is_instance_valid(grief): grief.visible = action == "grief"
+ self_modulate.a = 0.0 if action == "grief" else 1.0
  var clip := (action if action in ["idle","walk","talk"] else "idle")+"_"+direction
  if animation != clip or not is_playing(): play(clip)
  Grounding.sync(self)

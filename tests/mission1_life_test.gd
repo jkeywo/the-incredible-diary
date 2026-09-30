@@ -39,7 +39,10 @@ func _initialize() -> void:
    check(Rooms.can_stand(actor.room,p,run.s.flags),id+" stays on floor")
    seen[id+":"+actor.room] = true
    if not previous.has(id):
-    check(actor.room == "cabins" and p.x < 80,"spawn in closet")
+    if id == "captain":
+     check(run.s.tick >= Sim.END-Sim.Departure.LEAD_TICKS and p.distance_to(Sim.Departure.CAPTAIN_ENTRANCES[actor.room]) < 15,"captain enters at 5:25")
+    else:
+     check(actor.room == "cabins" and p.x < 80,"spawn in closet")
     continue
    if actor.room == previous[id].room:
     check(p.distance_to(Rooms.point(previous[id].pos)) <= 10.01,id+" no same-room teleport at "+str(run.s.tick))

@@ -19,12 +19,16 @@ static func room_paths(id: String, content: Dictionary = {}) -> Array:
 	for prop in PROPS.get(id,[]): paths.append("res://assets/props/mission_1/%s.tscn" % prop)
 	return paths
 
+static func skin_for(id: String) -> String:
+	return SKINS.get(id,Sim.Routines.INCIDENTAL_SKINS.get(id,Sim.Departure.skin(id)))
+
 static func character_paths(id: String, appearance := "") -> Array:
-	var skin: String = appearance if not appearance.is_empty() else SKINS.get(id,Sim.Routines.INCIDENTAL_SKINS.get(id,""))
+	var skin: String = appearance if not appearance.is_empty() else skin_for(id)
 	if skin == "captain": return ["res://assets/characters/source/captain.png"]
 	if skin in ["sailor","guest_male_jacket","guest_male_waistcoat","guest_female_dress","guest_female_coat"]:
 		var paths: Array = ["res://assets/characters/generic/%s_sprites.png" % skin,"res://assets/characters/generic/%s_sprites_mask.png" % skin]
 		if skin == "sailor": paths.append_array(["res://assets/characters/actions/sailor_actions.png","res://assets/characters/actions/sailor_actions_mask.png"])
+		else: paths.append_array(["res://assets/characters/generic/%s_wave.png" % skin,"res://assets/characters/generic/%s_wave_mask.png" % skin])
 		return paths
 	var paths: Array = ["res://assets/characters/%s_sprites.png" % skin]
 	if skin == "player": paths.append_array(["res://assets/characters/player_walk.png","res://assets/characters/actions/amelia_actions.png"])

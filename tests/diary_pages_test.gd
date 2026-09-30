@@ -98,8 +98,19 @@ func checks() -> void:
 	var pages_text: String = " ".join(game.diary_pages.pages)
 	for i in 75: assert(pages_text.contains("Entry %d." % i))
 	game._turn_diary(-1000)
-	assert(game.diary_pages.spread == 0 and game.diary_reset.visible and not game.diary_close.visible)
+	assert(game.diary_pages.spread == 0 and game.diary_reset.visible and game.diary_close.visible)
 	assert(game.diary_right_text.visible and not game.diary_instructions.visible)
+	assert(game.diary_close.text == "X" and game.diary_close.position == Vector2(970,65))
+	assert(game.diary_reset.get_parent() == game.diary_text.get_parent())
+	assert(game.diary_reset.get_index() < game.diary_text.get_index())
+	assert(game.diary_presentation.page_flip.elapsed == 0.0)
+	var flip = game.diary_presentation.page_flip
+	assert(flip.frames.size() == 8 and flip.direction == -1)
+	game.diary_presentation.advance(0.24)
+	assert(flip.frame_index() == 3)
+	await capture("turn-back")
+	game.diary_presentation.advance(0.5)
+	assert(flip.elapsed == flip.DURATION)
 	await capture("first")
 	for spread in range(game.diary_pages.last_spread()+1):
 		game.diary_pages.spread = spread
@@ -130,6 +141,9 @@ func checks() -> void:
 	game._refresh()
 	await capture("magic")
 	game.sim.s.finished = true
+	game._refresh()
+	assert(game.ending.active() and not game.diary_open)
+	game.ending.advance(8.0)
 	game._refresh()
 	game.diary_presentation.advance(0.2)
 	await process_frame

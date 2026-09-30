@@ -120,6 +120,23 @@ func _refresh() -> void:
 				mask_atlas.region = region
 				paired_action_masks.append(mask_atlas)
 			_mask_frames[action] = paired_action_masks
+	else:
+		var wave_sheet := load("res://assets/characters/generic/%s_wave.png" % character_id) as Texture2D
+		var wave_mask := load("res://assets/characters/generic/%s_wave_mask.png" % character_id) as Texture2D
+		frames.add_animation("wave")
+		frames.set_animation_speed("wave",7.0)
+		frames.set_animation_loop("wave",true)
+		var masks: Array[AtlasTexture] = []
+		for column in [0,1,2,3,4,3,2,1]:
+			var texture := AtlasTexture.new()
+			texture.atlas = wave_sheet
+			texture.region = Rect2(column*32,0,32,48)
+			frames.add_frame("wave",texture)
+			var mask := AtlasTexture.new()
+			mask.atlas = wave_mask
+			mask.region = texture.region
+			masks.append(mask)
+		_mask_frames.wave = masks
 	sprite_frames = frames
 	var shader_material := ShaderMaterial.new()
 	shader_material.shader = RECOLOR_SHADER
@@ -153,6 +170,13 @@ func _sync_mask() -> void:
 	var paired_masks: Array = _mask_frames[animation]
 	if frame >= 0 and frame < paired_masks.size():
 		(material as ShaderMaterial).set_shader_parameter("recolor_mask", paired_masks[frame])
+
+
+func present_wave(seconds: float, spectator: int) -> void:
+	# Cutscene time freezes with focus/pause; individual phases avoid synchrony.
+	var phase := seconds*(6.0+float(spectator%3)*0.7)+float(spectator)*1.7
+	set_frame_and_progress(int(phase)%sprite_frames.get_frame_count("wave"),fposmod(phase,1.0))
+	pause()
 
 
 func _update_colors() -> void:

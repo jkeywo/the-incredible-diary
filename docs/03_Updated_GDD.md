@@ -29,7 +29,7 @@ These later user decisions supersede conflicting layout and diary details below.
 - If Boy retrieves the luggage, the searching sailor automatically thanks him on a later close approach, once per loop. Automatic sailor recovery does not earn thanks.
 - All refreshment errands take place in the Salon. Drinks come from its bar. Each guest can be asked once per loop; learned preferences survive resets.
 - Cabin reading shares the door prop and remains available with the door open. No separate nameplate or occupant text is drawn in the world; reading produces a thought and learns the occupant.
-- Cabin directions are available only in the Foyer, before the guest finds their cabin or receives correct directions. Wrong directions retain the existing detour and deadline rules.
+- Cabin directions are available only in the Foyer, before the guest finds their cabin or receives correct directions. Every cabin number is offered as an ordinary choice. Guests visit the named door, complain there if it is wrong, then go to their own cabin.
 - Room transitions use rectangles spanning the doorway width. Permanent destination labels and circles are removed; Highlight reveals the rectangles.
 - A short chime sounds at each voyage-hour boundary, including during accelerated waiting. Loading and rewind do not replay chimes.
 - The poisoned glass sits at the right edge of the Salon bar at background-glassware scale. A smaller hand emerges behind a pillar before pickup. The existing spiking-to-drinking rescue interval is retained.
@@ -67,6 +67,36 @@ Conversations play out as alternating spoken lines in textured bubbles above the
 
 Passengers appear on the docks during Hour 1, board after their prerequisites, visit cabins and hold conversations before taking their places for significant events. They walk through connected rooms at a constant speed. Characters have solid foot-level collision with each other and Amelia; recorded history includes their resolved positions. Closed cabin doors block movement and passengers open doors on their routes. The missing suitcase starts in the clear aisle left of the luggage stacks. Stationary animations keep the feet planted while the upper body moves, with the visible soles aligned to the floor and a contact shadow.
 
+### Diary and opening presence — clarified 30 September 2026
+
+Diary spreads visibly flip when navigating. A simple X in the top right closes
+the diary from any spread during play. The first spread’s rewind button sits at
+the top left before the body text; the final spread retains its rewind action.
+The dock sailor and steam operator are already present during the tutorial,
+with their positions preserved when the voyage clock starts.
+
+### Mission ending — clarified 30 September 2026
+
+At 5:30, play freezes for a short cutscene before the diary opens. If everyone
+survived, cut to the docks and show the ship floating off to the left, leaving
+the pier fixed. Boy must be aboard: if he is still on the docks, play that same
+departure but report **Mission failed — you missed the boat**. This does not
+complete the mission or unlock the next diary power.
+
+At 5:25, if everyone is alive, ten spectators begin entering through the docks'
+lower-right entrance and walk to spaced positions along the waterfront, facing
+the ship. They reuse the incidental guest models and remain for the departure,
+including when Boy misses the boat. If there is a body, the captain instead
+enters its room at 5:25 and walks over before the cutscene begins. These walks
+are ordinary simulation movement, included in saves and recorded history.
+
+If anyone died, cut to the captain beside a body, choosing the Foyer first,
+otherwise the Salon, otherwise the steam room. He holds his head in his hands
+and says the voyage will have to be cancelled. Open the failure diary after
+the line. The cinematic camera and poses do not alter recorded voyage history.
+The cutscene keeps all actors already in the selected room visible, including
+Boy if he is there, and uses their recorded positions.
+
 ## 1. Identity and intended experience
 
 ### Dock tutorial and optional hospitality — agreed 29 September 2026
@@ -101,16 +131,12 @@ delivery per loop. After rejection only the requested drink can be offered to
 that guest. Refreshments do not replace the poisoned glass or change schedules.
 
 Cabin directions offer cabin numbers without requiring nameplate inspection.
-Unread nameplates are marked as guesses; choosing one does not learn its occupant.
-Existing wrong-direction limits and deadline checks still apply. Correct directions receive
-thanks. Wrong directions make the guest visit the named door, read its plate,
-complain about the mismatch, and return without entering the wrong cabin.
-Directions are offered only in the Foyer before cabin discovery. Detours remain
-available outside critical scenes, with sufficient
-time for travel, reaction and return before the next commitment. One wrong
-detour per guest per loop is allowed, followed by correct directions. Blocked
-detours return early; scheduled commitments take priority. No stacked detours,
-checklist or reward system. Existing luggage hiding/retrieval retains its
+Choosing a number does not learn its occupant. Correct directions receive thanks
+and a walk to that cabin. Wrong directions make the guest visit the named door,
+read its plate, complain about the mismatch, then walk to their own cabin.
+Directions are offered in the Foyer before cabin discovery; all three numbers
+are available without a separate guessing action or deadline filter. Each guest
+can follow one set of directions at a time. There is no checklist or reward system. Existing luggage hiding/retrieval retains its
 boarding consequences.
 
 Recorded-frame indices advance independently of voyage ticks during the
@@ -733,3 +759,11 @@ Previous/Next, keyboard Left/Right or Page Up/Page Down, and controller LB/RB
 turn spreads. Observations retain the existing current-voyage witness rules.
 
 Show “Turn back to the start” on the first spread as well as the last when the log spans multiple spreads. Reuse one visible button; a single-spread diary shows it only once.
+
+### Sprite animation polish — 30 September 2026
+
+Diary page turns use painted sprites showing a curling leaf crossing the spine,
+in both navigation directions. The ten spectators who arrive at 5:25 wave at
+the departing ship during the 5:30 cutscene, using new rear-facing animations
+for the incidental guest models. Give their waves varied timing and preserve
+the other actors in view. Cutscene poses do not alter recorded voyage history.

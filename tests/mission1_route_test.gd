@@ -51,11 +51,16 @@ func _initialize() -> void:
  advance(run, Sim.END)
  assert(run.s.finished and run.s.dead.is_empty() and run.s.safe.size() == 3 and run.memory.completed)
  assert(run.summary().contains("EVERYONE SURVIVED"))
+ for i in 10:
+  var spectator: Dictionary = run.s.actors["sendoff_guest_%d" % (i+1)]
+  assert(spectator.room == "docks" and Sim.Rooms.point(spectator.pos).distance_to(Sim.Departure.SPECTATOR_POSITIONS[i]) < 15)
  var fail := Sim.new(false)
  fail.s.flags.bag_hidden = true
  assert(fail.party_arrival() == 3*Sim.HOUR+450)
  advance(fail, Sim.END)
  assert(fail.s.dead.size() == 3 and not fail.memory.completed)
+ assert(fail.s.actors.captain.room == "foyer")
+ assert(Sim.Rooms.point(fail.s.actors.captain.pos).distance_to(Sim.Departure.captain_target(fail.s.actors.chandelier_guest)) < 15)
  assert(not fail.summary().contains("poison"))
  var early := Sim.new(false)
  assert(early.party_arrival() == Sim.CREAK-30)

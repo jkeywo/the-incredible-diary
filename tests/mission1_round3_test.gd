@@ -67,10 +67,17 @@ func checks() -> void:
  game.sim.s.dead = ["chandelier_guest"]
  game.sim.step()
  game._refresh()
+ assert(game.ending.active() and not game.diary.visible)
+ game.ending.advance(8.0)
+ game._refresh()
  assert(game.diary.visible and game.diary_reset.visible and not game.diary_next.visible)
  assert(game.diary_text.text.contains("5:30") and game.diary_menu.visible)
  await capture("defeat")
  game.sim.s.dead.clear()
+ game.ending.clear()
+ game.end_presented = false
+ game._refresh()
+ game.ending.advance(8.0)
  game._refresh()
  assert(game.diary_next.visible and not game.diary_reset.visible)
  assert(game.diary_next.text == "Turn the Page")

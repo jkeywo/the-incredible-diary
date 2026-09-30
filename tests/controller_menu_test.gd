@@ -37,6 +37,13 @@ func checks() -> void:
 	assert(title.preview.position.y >= title.continue_button.position.y+title.continue_button.size.y)
 	assert(title.get_node("Menu/NewButton").position.y >= title.preview.position.y+title.preview.size.y)
 	assert(title.preview.text.contains("Voyage complete") and not title.preview.text.contains("Salon"))
+	run.s.flags.missed_boat = true
+	assert(Save.new().save_run(run,PATH).ok)
+	title._refresh_continue()
+	assert(title.preview.text.contains("Mission failed") and title.preview.text.contains("missed the boat"))
+	run.s.flags.missed_boat = false
+	assert(Save.new().save_run(run,PATH).ok)
+	title._refresh_continue()
 	assert(root.gui_get_focus_owner() == title.continue_button)
 	axis(root,JOY_AXIS_LEFT_Y,0.2)
 	assert(root.gui_get_focus_owner() == title.continue_button)

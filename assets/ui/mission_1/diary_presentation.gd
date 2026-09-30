@@ -5,10 +5,16 @@ var target: Control
 var phase := "closed"
 var amount := 0.0
 var wanted := false
+var page_flip: Control
 
 func setup(control: Control) -> void:
 	target = control
+	page_flip = preload("res://assets/ui/mission_1/diary_page_flip.gd").new()
+	target.add_child(page_flip)
 	apply()
+
+func turn_page(direction: int) -> void:
+	page_flip.turn(direction)
 
 func set_open(value: bool) -> void:
 	wanted = value
@@ -17,11 +23,14 @@ func set_open(value: bool) -> void:
 
 func clear() -> void:
 	wanted = false
+	page_flip.elapsed = page_flip.DURATION
+	page_flip.queue_redraw()
 	amount = 0.0
 	phase = "closed"
 	apply()
 
 func advance(delta: float) -> void:
+	page_flip.advance(delta)
 	if phase not in ["opening","closing"]: return
 	amount = move_toward(amount,1.0 if wanted else 0.0,delta/(0.18 if wanted else 0.12))
 	if amount == 1.0: phase = "open"

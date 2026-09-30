@@ -30,3 +30,16 @@ The title scene starts the project and opens the current six-Hour Mission 1
 rescue simulation, including the dock tutorial. The voyage journal retains the
 current leg's recorded history. The diary pauses simulation time; interactions
 and code entry through the action wheel leave it running, as specified in the GDD.
+
+## Page-turn sprites
+
+`source/page_turn.png` is an eight-frame transparent atlas (4 × 2 cells,
+384 × 512 each), generated with built-in imagegen using `diary_open.png` as
+the reference. `diary_page_flip.gd` registers each painted leaf to the spine,
+foreshortens its raised tip, and plays the sequence over 0.64 seconds. Previous
+page mirrors the same sequence. The settling leaf fades into the open book.
+
+Prompt: one warm ivory parchment leaf turning right to left; eight stages from
+flat right, through a lifting curled edge and upright leaf, to flat left;
+consistent hinge, grain, golden edges and shaded underside; transparent
+background, no desk, book, text or grid. Match the supplied antique diary art.

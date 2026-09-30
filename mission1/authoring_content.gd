@@ -36,6 +36,9 @@ static func seed(actors: Dictionary) -> Dictionary:
 		var template: Dictionary = data.templates.character.duplicate(true)
 		template.name = {"amelia":"Boy","guest":"Mr. Felix Harcourt","chandelier_guest":"Miss Evelyn Vale","chatterbox":"Mrs. Mabel Pritchard","crew":"Sailor","dock_sailor":"Sailor","captain":"Captain","porter":"Porter"}.get(id,"Sailor" if str(id).contains("sailor") else "Guest" if str(id).begins_with("incidental") else str(id).capitalize())
 		template.appearance = SKINS.get(id, {"incidental_guest_1":"guest_male_jacket","incidental_guest_2":"guest_female_dress","incidental_guest_3":"guest_female_coat","incidental_guest_4":"guest_male_waistcoat"}.get(id,"sailor"))
+		if str(id).begins_with("sendoff_guest_"):
+			template.name = "Guest"
+			template.appearance = preload("res://mission1/departure.gd").skin(id)
 		data.templates[id] = template
 		data.instances[id] = {"template":str(id), "room":roster[id].room, "position":roster[id].pos.duplicate(), "overrides":{}, "builtin":true}
 		data.actors.append({"id":id})

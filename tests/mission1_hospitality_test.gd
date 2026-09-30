@@ -34,7 +34,8 @@ func checks() -> void:
  var run := Sim.new()
  for i in 30: run.step(Vector2.LEFT)
  assert(run.s.tick == 0 and run.s.frame == 30 and run.history.size() == 31)
- assert(run.s.actors.keys() == ["captain"] and run.s.flags.size() == 1)
+ assert(run.s.actors.has("captain") and run.s.actors.has("dock_sailor") and run.s.actors.has("crew"))
+ var starting_sailors := {"dock_sailor":run.s.actors.dock_sailor.duplicate(true),"crew":run.s.actors.crew.duplicate(true)}
  assert(run.s.pos != [580.0,490.0])
  round_trip(run)
  run.s.pos = [610,310]
@@ -45,6 +46,7 @@ func checks() -> void:
   if not run.tutorial_active(): break
   run.step()
  assert(not run.tutorial_active() and run.s.tick == 0)
+ for id in starting_sailors: assert(run.s.actors[id] == starting_sailors[id])
  assert(str(run.memory.notes).contains("Boy:") and not str(run.memory.notes).contains("Amelia"))
  var frozen_frames: int = run.s.frame
  round_trip(run)
@@ -104,14 +106,14 @@ func checks() -> void:
  assert(run.memory.preferences.size() == 3 and run.memory.cabins.size() == 3)
  assert(run.s.hospitality.outcomes.is_empty() and run.s.hospitality.carried == "")
 
- # Unread cabin numbers are guesses; directions do not require nameplate knowledge.
+ # Every cabin number is available without nameplate knowledge.
  run = Sim.new(false)
  while run.s.actors.chandelier_guest.room != "foyer": run.step()
  near_guest(run,"chandelier_guest")
  assert(run.memory.cabins.is_empty())
  assert(run.start("directions:chandelier_guest"))
  var guesses := run.options().filter(func(option): return option.id.begins_with("direct:"))
- assert(guesses.size() == 3 and guesses.all(func(option): return option.label.ends_with("(guess)")))
+ assert(guesses.size() == 3 and guesses.all(func(option): return option.label in ["Cabin 1","Cabin 2","Cabin 3"]))
  assert(run.start("direct:chandelier_guest:cabin_middle"))
  assert(run.memory.cabins.is_empty())
  assert(run.s.hospitality.detours.has("chandelier_guest"))
@@ -119,12 +121,18 @@ func checks() -> void:
  run.s.room = "cabins"
  run.s.pos = [400,560]
  var reached := false
+ var reached_own := false
+ var complained := false
  for i in 450:
   run.step()
   var actor: Dictionary = run.s.actors.chandelier_guest
   if actor.room == "cabins" and Sim.Rooms.point(actor.pos).distance_to(Vector2(580,465)) < 12: reached = true
+  if actor.room == "cabins" and Sim.Rooms.point(actor.pos).distance_to(Vector2(Sim.Rooms.CABIN_DOORS.cabin_left,315)) < 35: reached_own = true
+  if run.s.dialogue.get("text","").contains("How curious"): complained = true
   if run.s.hospitality.detours.is_empty(): break
  assert(reached and run.s.hospitality.detours.is_empty())
+ assert(run.s.hospitality.outcomes.chandelier_guest.found_cabin)
+ assert(reached_own and complained)
  # A known cabin suppresses directions even when the guest is back in the foyer.
  for i in 900: run.step()
  run.s.actors.chandelier_guest.room = "foyer"
@@ -148,7 +156,7 @@ func checks() -> void:
  assert(fresh.memory.cabins.is_empty())
  assert(not fresh.start("directions:chandelier_guest"))
 
- # Blocked wrong directions abandon the detour without relocating the guest.
+ # A temporary obstruction does not cancel the promised journey.
  var stalled := Sim.new(false)
  stalled.memory.cabins = ["cabin_middle"]
  while stalled.s.actors.chandelier_guest.room != "foyer": stalled.step()
@@ -160,8 +168,8 @@ func checks() -> void:
  for i in 20:
   stalled.s.tick += 1
   Duties.update(stalled)
- assert(trip.phase == "return" and stalled.s.actors.chandelier_guest == pose)
- assert(Duties.detour_plan(stalled,"chatterbox","cabin_left").is_empty())
+ assert(trip.phase == "outward" and stalled.s.actors.chandelier_guest == pose)
+
 
  # Legacy journals are migrated without inventing historical actor positions.
  var old := Sim.new(false)

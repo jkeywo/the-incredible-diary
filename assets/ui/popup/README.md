@@ -18,6 +18,12 @@ three are presentation components, not additional live screens in Mission 1.
 Speech bubbles keep their own shape. The in-game diary uses
 `assets/ui/mission_1/open_diary.tscn` and its existing `diary_open.png`.
 
+The diary's Next, Previous, X and action buttons use these nine panel sprites
+through `assets/ui/mission_1/diary_buttons.gd`. Their labels use the bundled
+Lora serif at weight 600, with textured normal, hover, pressed and disabled
+states and a separate keyboard/controller focus outline. Its theme is local
+to diary buttons. The font's OFL license is included in both exports.
+
 ## Source and packing
 
 Generated with the built-in imagegen tool. Original outputs are in `source/`.

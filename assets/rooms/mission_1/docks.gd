@@ -19,6 +19,11 @@ const SHIP_BASE := Vector2(-20.0, -90.0)
 @onready var water: Sprite2D = $Water
 @onready var ship: Sprite2D = $Ship
 var _motion_time := 0.0
+var departure_time := 0.0
+
+func set_departure_time(seconds: float) -> void:
+	departure_time = maxf(0.0,seconds)
+	_apply_motion()
 
 
 func _ready() -> void:
@@ -46,6 +51,7 @@ func _apply_motion() -> void:
 		sin(ship_phase + 0.35) * ship_horizontal_range,
 		sin(ship_phase) * ship_vertical_range
 	)
+	ship.position.x -= 1400.0 * pow(clampf(departure_time/5.5,0.0,1.0),1.6)
 	water.position = WATER_BASE + Vector2(
 		sin(water_phase + 1.1) * water_horizontal_range,
 		sin(water_phase + 0.6) * water_vertical_range

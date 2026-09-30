@@ -42,12 +42,10 @@ Each guest accepts one correct drink and reacts to one wrong drink per loop.
 
 Inspect cabin nameplates to learn their occupants: Felix Harcourt (1, middle),
 Evelyn Vale (2, left), and Mabel Pritchard (3, right). Give cabin directions opens
-a choice of cabin numbers, with unread nameplates marked as guesses. Wrong directions produce a visit to that
-door, a complaint, and a return to the guest's normal activity. They are offered
-only in the Foyer before the guest discovers their cabin, and when there is
-enough time before the next appointment. Blocked detours
-return early. One wrong detour per guest per loop; correct directions remain
-available afterwards. These optional favours do not affect rescue outcomes or
+all three cabin numbers without separate guessing labels. Guests walk to the named
+door. If it is wrong, they complain there and continue to their own cabin.
+Directions are offered in the Foyer before cabin discovery, without filtering
+individual numbers by knowledge or a travel deadline. Refreshments do not
 replace the poisoned drink. Luggage hiding still changes boarding time.
 
 Save schema 3 records frame indices separately from voyage ticks, including
@@ -266,6 +264,11 @@ pause state and focus. Controller events are consumed by the active menu.
 
 ### The diary's magic and pages
 
+Page navigation plays an eight-frame painted paper-curl sprite animation in
+either direction. During departure, the ten spectators wave using new clips
+for the four incidental guest models. Their wave timing follows the cutscene
+clock, including focus/pause, without changing recorded simulation history.
+
 Seeing the first body in a playthrough queues Amelia's thought about the diary
 shaking, followed by the input-specific Open diary prompt. The thought waits
 behind current dialogue and persists across Continue and subsequent loops.
@@ -279,3 +282,17 @@ The pager measures the display font and balances the final text pages to reserve
 the final right page without inserting an empty spread.
 
 Diary discovery is once per playthrough, retained across loops and Continue. Amelia notices the diary shaking on first seeing a body; the Open diary prompt leads to a sparkling “Turn back to the start” button. The diary does not explain rewind in advance.
+
+### Ending cutscene
+
+At 5:30 the camera cuts to the departing ship if everyone survived, or the
+captain mourning a body (Foyer, Salon, then steam room priority). The diary
+opens after the short sequence. Remaining on the docks is a missed-boat
+failure even with all passengers alive; completion and the next power remain
+locked. Camera cuts and the captain’s staged pose leave recorded history intact.
+
+At 5:25 the captain enters the chosen casualty room and walks to the body. With
+everyone alive, ten spectators instead enter at the lower-right docks entrance
+and walk to waterfront positions, using the four incidental guest models.
+These arrivals are recorded and resume through saves. The cutscene retains all
+actors in its room, including Boy when present, at their actual final positions.

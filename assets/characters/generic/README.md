@@ -26,6 +26,25 @@ light/dark shading while changing those regions. See `palette_preview.png`:
 each row shows the default four directions on the left and one recoloured
 example on the right.
 
+## Departure waves
+
+The four guest models have a rear-facing `wave` clip. Each `*_wave.png` and
+`*_wave_mask.png` contains five 32 × 48 poses; playback goes forward and back
+through eight frames. The departure cutscene sets the ten spectators to wave
+and seeks each clip using cutscene time, with varied phase and speed. Pausing
+or losing focus freezes the waves. These poses never enter the saved history.
+
+`source/guest_waves.png` was generated with built-in imagegen, referencing all
+four existing guest sprite sheets. Prompt: a transparent 6-column, 4-row pixel
+art atlas, one row per existing teal-jacket man, teal-dress woman, purple-coat
+woman and orange-waistcoat man; full bodies facing away, right arms raised and
+waving farewell; stationary heads, bodies and feet; consistent clothing and
+proportions, no labels or background. The first column used the opposite arm,
+so the packer selects the remaining five consistent poses. Run
+`tools/pack_guest_wave_art.gd` with headless Godot to repack the small
+sprites and aligned recolour masks. It crops, resizes and registers the art at
+the feet without repainting the source.
+
 The sailor also has Mission 1 clips `handle_baggage`, `demonstrate`,
 `restore_steam` and `raise_alarm` from `../actions/`. The large four-facing
 imagegen originals are retained in `source/`. Run

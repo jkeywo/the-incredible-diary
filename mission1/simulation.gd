@@ -8,6 +8,7 @@ const Hospitality = preload("res://mission1/hospitality.gd")
 const Reactions = preload("res://mission1/reactions.gd")
 const Operator = preload("res://mission1/operator.gd")
 const Hints = preload("res://mission1/tutorial_hints.gd")
+const Departure = preload("res://mission1/departure.gd")
 const CAPTAIN := Vector2(650,280)
 const BRIEFING := [["captain","Boy! Report for duty."],["amelia","Yes, Captain."],["captain","Explore the ship and make sure our guests are comfortable. Help with their luggage, bring refreshments, and show them to their cabins."],["amelia","Very good, Captain."],["captain","Passengers are coming aboard. Get to it."]]
 const Authored = preload("res://mission1/authoring_runtime.gd")
@@ -76,6 +77,7 @@ func tutorial_active() -> bool:
 func display_name(id: String) -> String:
  var entity := preload("res://mission1/authoring_content.gd").resolve(authored_content,id)
  if not entity.is_empty(): return str(entity.get("name",id))
+ if id.begins_with("sendoff_guest_"): return "Guest"
  if id.begins_with("incidental_"): return "Sailor" if id.contains("sailor") else "Guest"
  if Hospitality.GUESTS.has(id): return Hospitality.GUESTS[id].name
  return {"amelia":"Boy","captain":"Captain","crew":"Sailor","dock_sailor":"Sailor","porter":"Porter"}.get(id,id)
@@ -251,8 +253,9 @@ func _authored_step(direction := Vector2.ZERO, cancel := false) -> void:
  Conversations.update(self)
  if s.tick >= timing("end", END):
   s.finished = true
-  memory.completed = bool(memory.completed) or s.dead.is_empty()
-  if s.dead.is_empty(): memory.location_rewriting = true
+  s.flags.missed_boat = s.dead.is_empty() and s.room == "docks"
+  memory.completed = bool(memory.completed) or succeeded()
+  if succeeded(): memory.location_rewriting = true
   events.append({"kind":"end", "text":"The unmooring party has ended."})
  Authored.update(self)
  history.append(s.duplicate(true))
@@ -380,7 +383,7 @@ func _observe() -> void:
    s.flags.sailor_thanked = true
    Conversations.say(self,"dock_sailor","You found the bag! Thank you, Boy. Saved me a search.","speech","sailor_thanks")
  for id in positions:
-  if id.begins_with("incidental_"): continue
+  if id.begins_with("incidental_") or id.begins_with("sendoff_guest_"): continue
   var actor: Dictionary = positions[id]
   if actor.room == s.room:
    var name := display_name(id)
@@ -478,7 +481,9 @@ func _authored_actor_positions() -> Dictionary:
 func _planned_actors() -> Dictionary:
  var result := {}
  if tutorial_active():
-  return {"captain":{"room":"docks","pos":[CAPTAIN.x,CAPTAIN.y],"action":"talk" if s.tutorial == "briefing" else "idle","facing":"down"}}
+  return {"captain":{"room":"docks","pos":[CAPTAIN.x,CAPTAIN.y],"action":"talk" if s.tutorial == "briefing" else "idle","facing":"down"},
+   "dock_sailor":dock_sailor_position(),
+   "crew":Routines.passenger("crew",0,boarding_time(),party_arrival(),s.flags)}
  var t := int(s.tick)
  for id in ["guest","chandelier_guest","chatterbox","crew","porter"]:
   result[id] = Routines.passenger(id,t,boarding_time(),party_arrival(),s.flags)
@@ -553,6 +558,7 @@ func _planned_actors() -> Dictionary:
  reserve_groups(result)
  Hospitality.apply_routes(self,result)
  Reactions.apply_routes(self,result)
+ Departure.apply(self,result)
  return result
 
 func _escape_path() -> Array:
@@ -609,13 +615,18 @@ func _party_schedule() -> void:
  if flag("spiked") and s.tick >= drink and not s.safe.has("guest") and not s.dead.has("guest"):
   _death("guest", "The guest drank, then collapsed beside the poisoned glass.", "salon")
 
+func succeeded() -> bool:
+ return s.dead.is_empty() and not flag("missed_boat")
+
 func summary() -> String:
  var lines: Array[String] = []
  var names := {}
  for id in Hospitality.GUESTS: names[id] = display_name(id)
  for id in names:
   lines.append("%s: %s" % [names[id], "died" if s.dead.has(id) else "survived"])
- if s.dead.is_empty():
+ if flag("missed_boat"):
+  return "MISSED THE BOAT · MISSION FAILED\nEveryone survived, but you were still on the docks when the ship sailed. Turn back the pages and get aboard before 5:30."
+ if succeeded():
   return "EVERYONE SURVIVED · ALL ABOARD COMPLETE\n" + " · ".join(lines) + "\nThe next page reveals a new gift: location rewriting."
  return "THE PARTY HAS ENDED\n" + " · ".join(lines) + "\nYour diary records what you witnessed on this voyage. Turn back the pages to try again."
 

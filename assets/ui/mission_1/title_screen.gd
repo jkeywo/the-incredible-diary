@@ -90,6 +90,7 @@ func _refresh_continue() -> void:
 			var room_name: String = _preview_content.get("rooms",Rooms.ROOMS).get(str(state.get("room","docks")),Rooms.ROOMS.docks).title
 			var detail := Simulation.observation_time(int(state.get("tick",0)))
 			if state.get("finished",false): room_name = "Voyage complete" if state.get("dead",[]).is_empty() else "Voyage ended"
+			if state.get("finished",false) and state.get("flags",{}).get("missed_boat",false): room_name = "Mission failed — missed the boat"
 			preview.text = "All Aboard · %s\n%s" % [detail,room_name]
 	if not _opening:
 		_preview_state = loaded.data.current if loaded.ok else Simulation.new().s

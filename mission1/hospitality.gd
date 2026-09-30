@@ -1,7 +1,6 @@
 extends RefCounted
-## Optional duties; route diversions must fit between authored commitments.
+## Optional duties and recorded journeys to the cabin named by Boy.
 const Rooms = preload("res://mission1/rooms.gd")
-const Routes = preload("res://mission1/routines.gd")
 const Speech = preload("res://mission1/conversations.gd")
 const STATION := Vector2(865,205)
 const DRINKS := {"lemonade":"Lemonade", "water":"Sparkling water", "tea":"Tea"}
@@ -11,7 +10,6 @@ const GUESTS := {
  "chatterbox":{"name":"Mrs. Mabel Pritchard", "door":"cabin_right", "number":3, "drink":"tea", "request":"A proper cup of tea, please, Boy.", "thanks":"Lovely. A proper cup of tea. Thank you, Boy.", "wrong":"Tea, Boy. A proper cup of tea."}
 }
 const REACTION_TICKS := 90
-const MARGIN := 140
 
 static func defaults(run) -> void:
  if not run.memory.has("cabins"): run.memory.cabins = []
@@ -32,15 +30,10 @@ static func busy(run, id: String) -> bool:
  return id == "chandelier_guest" and run.s.tick >= 3500
 
 static func detour_plan(run, id: String, door: String) -> Dictionary:
- if busy(run,id) or not run.s.hospitality.detours.is_empty(): return {}
+ if busy(run,id) or run.s.hospitality.detours.has(id): return {}
  var actor: Dictionary = run.s.actors[id]
  if actor.room != "foyer": return {}
- var target := Vector2(Rooms.CABIN_DOORS[door],465)
- var outward := Routes.path(actor.room,Rooms.point(actor.pos),"cabins",target)
- var returning := Routes.path("cabins",target,actor.room,Rooms.point(actor.pos))
- var deadline: int = Routes.next_commitment(id, int(run.s.tick), run.boarding_time(), run.party_arrival(), run.s.flags)
- if int(run.s.tick)+Routes.duration(outward)+REACTION_TICKS+Routes.duration(returning)+MARGIN >= deadline: return {}
- return {"door":door,"phase":"outward","home":actor.duplicate(true),"deadline":deadline,"react_until":0}
+ return {"door":door,"phase":"outward","home":actor.duplicate(true),"react_until":0}
 
 static func options(run, result: Array[Dictionary], local: bool) -> void:
  defaults(run)
@@ -50,12 +43,8 @@ static func options(run, result: Array[Dictionary], local: bool) -> void:
   if not run.s.actors.has(id) or busy(run,id) or not can_direct(run,id): return
   var actor: Dictionary = run.s.actors[id]
   for door in Rooms.CABIN_DOORS:
-   var correct: bool = GUESTS[id].door == door
-   var outcome: Dictionary = state.outcomes.get(id,{})
-   if correct or (not outcome.get("wrong_cabin",false) and not detour_plan(run,id,door).is_empty()):
-    var label := "Cabin %d" % GUESTS[owner(door)].number
-    if not run.memory.cabins.has(door): label += " (guess)"
-    run._option(result,"direct:%s:%s" % [id,door],label,actor.room,Rooms.point(actor.pos),local,true)
+   var label := "Cabin %d" % GUESTS[owner(door)].number
+   run._option(result,"direct:%s:%s" % [id,door],label,actor.room,Rooms.point(actor.pos),local,true)
   run._option(result,"duties_back","Back",actor.room,Rooms.point(actor.pos),local,true)
   return
  for door in Rooms.CABIN_DOORS:
@@ -77,7 +66,7 @@ static func options(run, result: Array[Dictionary], local: bool) -> void:
 static func can_direct(run, id: String) -> bool:
  var actor: Dictionary = run.s.actors.get(id,{})
  var outcome: Dictionary = run.s.hospitality.outcomes.get(id,{})
- return actor.get("room","") == "foyer" and not outcome.get("found_cabin",false) and not outcome.get("directed",false)
+ return actor.get("room","") == "foyer" and not outcome.get("found_cabin",false) and not outcome.get("directed",false) and not run.s.hospitality.detours.has(id)
 
 static func reply(run, id: String, text: String) -> void:
  Speech.say(run,id,text,"speech","duty_%s_%d" % [id,run.s.frame])
@@ -116,14 +105,14 @@ static func complete(run, action: String) -> bool:
    else:
     state.menu = ""
     var door: String = parts[2]
+    var plan := detour_plan(run,id,door)
+    if plan.is_empty(): return true
+    state.detours[id] = plan
     if GUESTS[id].door == door:
      outcome.directed = true
      reply(run,id,"Cabin %d. Thank you, Boy." % GUESTS[id].number)
     else:
-     var plan := detour_plan(run,id,door)
-     if plan.is_empty(): return true
      outcome.wrong_cabin = true
-     state.detours[id] = plan
      reply(run,id,"Cabin %d, you say? Very well, Boy." % GUESTS[owner(door)].number)
   _: return false
  return true
@@ -142,18 +131,15 @@ static func update(run) -> void:
  for id in state.detours.keys():
   var trip: Dictionary = state.detours[id]
   var actor: Dictionary = run.s.actors[id]
-  var home: Dictionary = trip.home
-  if int(run.s.tick) >= int(trip.deadline):
+  if run.s.dead.has(id) or run.s.safe.has(id):
    state.detours.erase(id)
    continue
-  var previous: Dictionary = trip.get("last",actor)
-  var stalled: bool = previous.room == actor.room and Rooms.point(previous.pos).distance_to(Rooms.point(actor.pos)) < 1.0
-  trip.stalled = int(trip.get("stalled",0))+1 if stalled and trip.phase == "outward" else 0
-  trip.last = actor.duplicate(true)
-  var return_ticks := Routes.duration(Routes.path(actor.room,Rooms.point(actor.pos),home.room,Rooms.point(home.pos),false))
-  if busy(run,id) or int(trip.stalled)>=20 or int(run.s.tick)+return_ticks+MARGIN >= int(trip.deadline): trip.phase = "return"
   var door: String = trip.door
   if trip.phase == "outward" and actor.room == "cabins" and Rooms.point(actor.pos).distance_to(Vector2(Rooms.CABIN_DOORS[door],465)) < 12:
+   if door == GUESTS[id].door:
+    trip.phase = "correct"
+    continue
+   if not run.s.dialogue.is_empty(): continue
    trip.phase = "reaction"
    trip.react_until = int(run.s.tick)+REACTION_TICKS
    var name: String = GUESTS[owner(door)].name
@@ -162,14 +148,15 @@ static func update(run) -> void:
     "chandelier_guest":"%s? How curious, Boy. I seem to have become somebody else.",
     "chatterbox":"The plate says %s! Read the names properly next time, Boy."
    }[id] % name
-   if run.s.dialogue.is_empty(): reply(run,id,complaint)
-  if trip.phase == "reaction" and int(run.s.tick) >= int(trip.react_until): trip.phase = "return"
-  if trip.phase == "return" and actor.room == home.room and Rooms.point(actor.pos).distance_to(Rooms.point(home.pos)) < 12:
+   reply(run,id,complaint)
+  if trip.phase == "reaction" and int(run.s.tick) >= int(trip.react_until): trip.phase = "correct"
+  if trip.phase in ["correct","return"] and state.outcomes.get(id,{}).get("found_cabin",false):
    state.detours.erase(id)
 
 static func apply_routes(run, planned: Dictionary) -> void:
  for id in run.s.get("hospitality",{}).get("detours",{}):
+  if run.s.dead.has(id) or run.s.safe.has(id): continue
   var trip: Dictionary = run.s.hospitality.detours[id]
-  if trip.phase == "return": planned[id] = trip.home.duplicate(true)
+  if trip.phase in ["correct","return"]: planned[id] = {"room":"cabins","pos":[Rooms.CABIN_DOORS[GUESTS[id].door],315],"action":"idle"}
   else:
    planned[id] = {"room":"cabins","pos":[Rooms.CABIN_DOORS[trip.door],465],"action":"talk" if trip.phase == "reaction" else "idle","facing":"up"}

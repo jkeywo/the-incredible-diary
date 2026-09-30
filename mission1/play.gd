@@ -73,6 +73,7 @@ var diary_reset: Button
 var diary_next: Button
 var diary_menu: Button
 var end_presented := false
+var ending: Control
 var bubble_identity := ""
 var bubble_offset := Vector2.ZERO
 var diary_text: RichTextLabel
@@ -147,6 +148,8 @@ func _build_hud() -> void:
  hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
  layer.add_child(hud)
+ ending = preload("res://assets/ui/mission_1/ending_sequence.gd").new()
+ layer.add_child(ending)
  watch = Watch.new()
  watch.position = Vector2(1010, 36)
  hud.add_child(watch)
@@ -226,14 +229,20 @@ func _build_hud() -> void:
  diary_space = space
  space.size_flags_vertical = Control.SIZE_EXPAND_FILL
  right_page.add_child(space)
- right_page.theme = preload("res://assets/ui/popup/popup_skin.gd").make_theme()
+ right_page.theme = preload("res://assets/ui/mission_1/diary_buttons.gd").make_theme()
  var close := Button.new()
  diary_close = close
- close.text = "Close diary (Tab / Y)"
+ close.text = "X"
+ close.tooltip_text = "Close diary (Tab / Y)"
+ close.position = Vector2(970,65)
+ close.size = Vector2(44,40)
+ close.theme = right_page.theme
+ preload("res://assets/ui/mission_1/diary_buttons.gd").square(close)
  close.pressed.connect(_toggle_diary)
- right_page.add_child(close)
+ diary.add_child(close)
  var reset := Button.new()
  diary_reset = reset
+ reset.theme = right_page.theme
  reset.text = "Turn back to the start (R)"
  reset.pressed.connect(_begin_reset)
  right_page.add_child(reset)
@@ -265,12 +274,8 @@ func _build_hud() -> void:
  diary_following_page.pressed.connect(func(): _turn_diary(1))
  page_navigation.add_child(diary_following_page)
  for page_button in [diary_previous_page,diary_following_page]:
-  page_button.add_theme_font_size_override("font_size",16)
-  for style_name in ["normal","hover","pressed","focus"]:
-   var style: StyleBox = page_navigation.theme.get_stylebox(style_name,"Button").duplicate()
-   style.set_content_margin(SIDE_TOP,4)
-   style.set_content_margin(SIDE_BOTTOM,4)
-   page_button.add_theme_stylebox_override(style_name,style)
+  page_button.add_theme_font_size_override("font_size",18)
+  page_button.custom_minimum_size = Vector2(124,44)
  diary_navigation = preload("res://foundation/controller_menu.gd").new()
  diary_navigation.available = func(): return [diary_previous_page,diary_following_page,diary_close,diary_reset,diary_next,diary_menu]
  diary_navigation.enabled = func(): return diary_open and diary_presentation.wanted and not get_tree().paused
@@ -334,6 +339,16 @@ func _process(delta: float) -> void:
  time_presentation.rewinding = rewind_index >= 0
  time_presentation.rewind_progress = 1.0-float(rewind_index)/maxf(1.0,rewind_start) if rewind_index >= 0 else 0.0
  if not application_focused: return
+ if ending.active():
+  if get_tree().paused: return
+  # The cutscene waits for its cast as well as its destination room.
+  for id in ending.state.actors:
+   if ending.state.actors[id].room != ending.state.room: continue
+   _ensure_actor(id)
+   if actors[id] is PendingCharacter: return
+  ending.advance(delta)
+  _refresh()
+  return
  diary_presentation.advance(delta)
  time_presentation.advance(delta)
  if time_presentation.finish_remaining > 0.0: return
@@ -389,6 +404,7 @@ func _physics_process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
  if stream_resources and not _prepare_visible(_display_state()): return
  if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0: return
+ if ending.active(): return
  if event is InputEventJoypadButton or event is InputEventJoypadMotion: using_controller = true
  elif event is InputEventKey or event is InputEventMouseButton: using_controller = false
  var key: int = event.physical_keycode if event is InputEventKey and event.pressed and not event.echo else 0
@@ -398,7 +414,7 @@ func _unhandled_input(event: InputEvent) -> void:
  elif key == KEY_R:
   _begin_reset()
  elif sim.s.finished and (key == KEY_ENTER or button == JOY_BUTTON_A):
-  if sim.s.dead.is_empty(): _return_to_menu()
+  if sim.succeeded(): _return_to_menu()
   else: _begin_reset()
  elif button == JOY_BUTTON_B and diary_open:
   _toggle_diary()
@@ -443,7 +459,7 @@ func _refresh(direction := Vector2.INF) -> void:
  if direction == Vector2.INF:
   direction = _movement_input() if rewind_index < 0 else Vector2.ZERO
  touch_controls.set_context(controls_enabled,diary_open or rewind_index>=0 or sim.s.finished)
- var state: Dictionary = sim.history[rewind_index] if rewind_index >= 0 else sim.s
+ var state: Dictionary = _display_state()
  if stream_resources and not _prepare_visible(state): return
  _ensure_actor("amelia")
  if shown_room != state.room: _show_room(state.room)
@@ -453,7 +469,8 @@ func _refresh(direction := Vector2.INF) -> void:
  notice.text = state.get("notice", "") if int(state.tick) < int(state.get("notice_until",0)) else ""
  room_audio.set_game_time(int(state.tick)*100)
  actors.amelia.position = _display_position(state, "amelia", Rooms.point(state.pos))
- var player_action := "walk" if direction.length_squared()>0.01 else "idle"
+ actors.amelia.visible = rewind_index >= 0 or state.room == sim.s.room
+ var player_action := "walk" if direction.length_squared()>0.01 and not state.finished else "idle"
  if state.get("tutorial", "done") == "briefing": player_action = "idle"
  if not state.action.is_empty(): player_action = {"hide_bag":"hide_bag", "shove":"shove", "bump":"bump"}.get(state.action.id,"idle")
  actors.amelia.play_action(player_action, state.facing)
@@ -469,6 +486,11 @@ func _refresh(direction := Vector2.INF) -> void:
   actors[id].visible = true
   actors[id].position = _display_position(state, id, Rooms.point(info.pos))
   actors[id].play_action(info.action, info.get("facing",_actor_facing(id, info)))
+  if not ending.state.is_empty() and rewind_index < 0 and info.action == "wave" and actors[id].has_method("present_wave"):
+   actors[id].present_wave(ending.elapsed,int(str(id).trim_prefix("sendoff_guest_")))
+  if not ending.state.is_empty() and rewind_index < 0 and state.dead.has(id) and not actors[id] is PendingCharacter:
+   actors[id].set_frame_and_progress(actors[id].sprite_frames.get_frame_count(actors[id].animation)-1,0.0)
+   actors[id].pause()
  choices = sim.options()
  if state.code_open:
   choices = []
@@ -499,7 +521,14 @@ func _refresh(direction := Vector2.INF) -> void:
  world_overlay.queue_redraw()
  if room_slot.get_child_count() > 0 and room_slot.get_child(0).has_method("set_motion_time"):
   room_slot.get_child(0).set_motion_time(float(state.get("frame",state.tick))/10.0)
- if state.finished and rewind_index < 0:
+ hud.visible = not ending.active()
+ if room_slot.get_child_count() > 0:
+  var docks := room_slot.get_child(0)
+  if docks.has_method("set_departure_time"):
+   var departure: float = ending.elapsed if not ending.state.is_empty() and rewind_index < 0 and ending.departing else 0.0
+   docks.set_motion_time(float(state.get("frame",state.tick))/10.0+departure)
+   docks.set_departure_time(departure)
+ if state.finished and rewind_index < 0 and ending.done:
   diary_open = true
   if not end_presented:
    diary_seek_end = true
@@ -508,7 +537,7 @@ func _refresh(direction := Vector2.INF) -> void:
   help.hide()
   if not end_presented:
    end_presented = true
-   (diary_next if sim.s.dead.is_empty() else diary_reset).call_deferred("grab_focus")
+   (diary_next if sim.succeeded() else diary_reset).call_deferred("grab_focus")
  elif rewind_index >= 0:
   message.text = "The pages turn backwards…  R to skip"
  _refresh_bubble(state)
@@ -593,7 +622,7 @@ func _refresh_prompt(state: Dictionary) -> void:
 # Interpolate adjacent recorded ticks at a fixed rate, never chase the target
 # with lerp(delta), which produces visible acceleration and deceleration.
 func _display_position(state: Dictionary, id: String, current: Vector2) -> Vector2:
- if rewind_index >= 0 or diary_open or not controls_enabled or sim.history.size() < 2: return current
+ if state.finished or rewind_index >= 0 or diary_open or not controls_enabled or sim.history.size() < 2: return current
  var previous: Dictionary = sim.history[-2]
  if previous.room != state.room: return current
  var old: Vector2
@@ -617,6 +646,7 @@ func _actor_facing(id: String, info: Dictionary) -> String:
 
 func _draw_world_markers() -> void:
  if not controls_enabled: return
+ if sim.s.finished and rewind_index < 0: return
  var state: Dictionary = sim.history[rewind_index] if rewind_index >= 0 else sim.s
  for door in Rooms.exits(state.room,state.flags.get("shortcut",false)):
   world_overlay.draw_rect(door.bounds,Color(0.83,0.71,0.44,0.35 if highlight else 0.13))
@@ -627,7 +657,19 @@ func _draw_world_markers() -> void:
     world_overlay.draw_circle(Rooms.point(option.pos),12,Color("f8d87390"))
 
 func _display_state() -> Dictionary:
- return sim.history[rewind_index] if rewind_index >= 0 else sim.s
+ if rewind_index >= 0: return sim.history[rewind_index]
+ if sim.s.finished:
+  if ending.state.is_empty():
+   diary_open = false
+   diary_presentation.clear()
+   touch_controls.release_all()
+   ending.start(sim.s)
+   _persist()
+  return ending.state
+ if not ending.state.is_empty():
+  ending.clear()
+  end_presented = false
+ return sim.s
 
 func _refresh_character_art() -> void:
  if not character_ticket.is_empty() and not str(character_ticket.error).is_empty():
@@ -643,7 +685,7 @@ func _refresh_character_art() -> void:
  if changed: _refresh()
 
 func _ensure_actor(id: String) -> void:
- var skin: String = preload("res://mission1/authoring_content.gd").resolve(sim.authored_content,id).get("appearance",ContentPlan.SKINS.get(id,Simulation.Routines.INCIDENTAL_SKINS.get(id,"")))
+ var skin: String = preload("res://mission1/authoring_content.gd").resolve(sim.authored_content,id).get("appearance",ContentPlan.skin_for(id))
  if actors.has(id) and not actors[id] is PendingCharacter: return
  if stream_resources:
   var cache: Dictionary = get_node("/root/ResourceStream").resources
@@ -886,7 +928,7 @@ func _return_to_menu() -> void:
 
 func _refresh_diary() -> void:
  var ended: bool = sim.s.finished
- var victory: bool = ended and sim.s.dead.is_empty()
+ var victory: bool = ended and sim.succeeded()
  var text := "\n\n".join(sim.memory.notes)
  var outcome := "5:30 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n") if ended else ""
  if text+outcome != diary_cached_text or diary_pages.pages.is_empty():
@@ -904,7 +946,10 @@ func _refresh_diary() -> void:
  diary_instructions.visible = final_page and victory
  diary_space.visible = final_page
  diary_instructions.text = "Everyone survived. Now I can turn to the next page." if victory else ""
- diary_close.visible = final_page and not ended
+ diary_close.visible = not ended
+ var reset_parent: Node = diary_text.get_parent() if diary_pages.spread == 0 else diary_right_text.get_parent()
+ if diary_reset.get_parent() != reset_parent: diary_reset.reparent(reset_parent)
+ reset_parent.move_child(diary_reset,1 if diary_pages.spread == 0 else 4)
  diary_reset.visible = (diary_pages.spread == 0 or final_page) and not victory
  diary_reset.disabled = not sim.memory.reset and not ended
  diary_next.visible = final_page and victory
@@ -915,7 +960,9 @@ func _refresh_diary() -> void:
 
 func _turn_diary(direction: int) -> void:
  if not diary_open or not diary_presentation.wanted: return
+ var old_spread: int = diary_pages.spread
  diary_pages.turn(direction)
+ if old_spread != diary_pages.spread: diary_presentation.turn_page(direction)
  _refresh_diary()
  var focus := get_viewport().gui_get_focus_owner()
  if focus is BaseButton and (not focus.is_visible_in_tree() or focus.disabled):
@@ -924,6 +971,7 @@ func _turn_diary(direction: int) -> void:
 func _summary() -> String:
  return sim.summary()
 func _begin_reset() -> void:
+ if ending.active(): return
  if time_presentation.finish_remaining > 0.0: return
  if not sim.memory.reset and not sim.s.finished:
   sim.s.message = "The diary has no earlier pages to turn to yet."
@@ -932,6 +980,7 @@ func _begin_reset() -> void:
   _finish_reset()
   return
  diary_open = false
+ ending.clear()
  diary_presentation.clear()
  time_presentation.clear_announcements()
  rewind_accumulator = 0.0
@@ -956,6 +1005,7 @@ func _finish_reset() -> void:
   shown_room = ""
   _content_key = ""
  sim.reset()
+ ending.clear()
  end_presented = false
  accumulator = 0.0
  help.text = ""

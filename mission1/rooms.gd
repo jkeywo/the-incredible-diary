@@ -8,6 +8,7 @@ const CHANDELIER_SAFE := Vector2(730,430)
 const BAR_GLASS := Vector2(930,132)
 const BAR_GUEST := Vector2(950,215)
 const STEAM_EXIT := Rect2(970,240,110,100)
+const CODE_PANEL_BOUNDS := Rect2(-114,-26,228,36)
 const LUGGAGE := Vector2(145,390)
 const ROOMS := {
  "docks": {"title": Text.MISSION1_THE_DOCKS, "scene": "01_docks", "floor": [[170,235,820,440],[125,325,90,140],[525,90,110,160]]},
@@ -65,6 +66,7 @@ static func can_stand(room: String, p: Vector2, flags: Dictionary = {}) -> bool:
   return true
  if room == "foyer" and flags.get("chandelier_fallen",false) and WRECKAGE.has_point(p): return false
  if room == "controls" and steam_blocked(flags) and STEAM_EXIT.has_point(p): return false
+ if room == "controls" and Rect2(Vector2(350,280)+CODE_PANEL_BOUNDS.position,CODE_PANEL_BOUNDS.size).has_point(p): return false
  if room == "cabins":
   for id in CABIN_DOORS:
    if not flags.get(id, false) and door_bounds(id).has_point(p): return false

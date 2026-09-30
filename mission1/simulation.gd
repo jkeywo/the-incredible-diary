@@ -91,7 +91,7 @@ func display_name(id: String) -> String:
  if id.begins_with("sendoff_guest_"): return Text.MISSION1_GUEST
  if id.begins_with("incidental_"): return Text.MISSION1_SAILOR if id.contains("sailor") else Text.MISSION1_GUEST
  if Hospitality.GUESTS.has(id): return Hospitality.GUESTS[id].name
- return {"amelia":Text.MISSION1_BOY,"captain":Text.MISSION1_CAPTAIN,"crew":Text.MISSION1_SAILOR,"dock_sailor":Text.MISSION1_SAILOR,"porter":Text.MISSION1_PORTER}.get(id,id)
+ return {"amelia":Text.MISSION1_BOY,"captain":Text.MISSION1_CAPTAIN,"crew":Text.MISSION1_SAILOR,"dock_sailor":Text.MISSION1_SAILOR,"porter":Text.MISSION1_PORTER}.get(id,id.capitalize())
 
 func flag(key: String) -> bool:
  return bool(s.flags.get(key, false))
@@ -865,6 +865,7 @@ func restore_record(record: Dictionary) -> void:
   content_versions[authored_content.version] = authored_content.duplicate(true)
   var layout := preload("res://mission1/authoring_content.gd").seed(s.actors)
   for room in ["foyer","passage","controls"]: authored_content.rooms[room] = layout.rooms[room].duplicate(true)
+  authored_content.templates.code_panel.states = layout.templates.code_panel.states.duplicate(true)
   for index in authored_content.connections.size():
    var door: Dictionary = authored_content.connections[index]
    if door.a == "foyer" and door.b in ["passage","controls"]:
@@ -873,6 +874,16 @@ func restore_record(record: Dictionary) -> void:
   content_versions[layout.version] = authored_content.duplicate(true)
   s.content_version = layout.version
   record_current_frame()
+ # The enlarged stock control housing is solid in each state. Retain old history.
+ if authored_content.get("version","") == "mission1-layout-6":
+  content_versions[authored_content.version] = authored_content.duplicate(true)
+  var layout := preload("res://mission1/authoring_content.gd").seed(s.actors)
+  authored_content.templates.code_panel.states = layout.templates.code_panel.states.duplicate(true)
+  authored_content.version = layout.version
+  content_versions[layout.version] = authored_content.duplicate(true)
+  s.content_version = layout.version
+  _record_text_fields()
+  history.append(s.duplicate(true))
  # Upgrade only the untouched first exploration seed. Edited authoring documents
  # keep their own version, and all earlier recorded frames remain unchanged.
  if authored_content.get("version","") in ["mission2-layout-1","mission2-layout-2","mission2-layout-3","mission2-layout-4","mission2-layout-5","mission2-layout-6","mission2-layout-7"]:
@@ -917,6 +928,21 @@ func restore_record(record: Dictionary) -> void:
   for actor in s.actors.values():
    if actor.room == "passage": actor.pos = _corridor_floor_position(actor.pos)
   record_current_frame()
+ # An old save may place someone inside the newly solid stock console base.
+ # Move only the resumed state clear; recorded frames keep their old positions.
+ if authored_content.is_empty() or authored_content.get("version","") == "mission1-layout-7":
+  var panel_base := Rect2(Vector2(350,280)+Rooms.CODE_PANEL_BOUNDS.position,Rooms.CODE_PANEL_BOUNDS.size)
+  var relocated := false
+  if s.room == "controls" and panel_base.has_point(Rooms.point(s.pos)):
+   s.pos[1] = panel_base.end.y+2
+   relocated = true
+  for actor in s.actors.values():
+   if actor.room == "controls" and panel_base.has_point(Rooms.point(actor.pos)):
+    actor.pos[1] = panel_base.end.y+2
+    relocated = true
+  if relocated:
+   _record_text_fields()
+   history.append(s.duplicate(true))
  events.clear()
  restore_notebook()
 

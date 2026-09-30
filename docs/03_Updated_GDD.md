@@ -166,8 +166,12 @@ Highlight starts disabled, retaining its tutorial and existing toggle. Its state
 belongs to each save slot's persistent memory and survives Continue and loop
 resets. It is not a machine preference or recorded simulation frame.
 
-The steam panel always displays Steam ON/OFF from the displayed steam state,
-independently of indicator colours. Entered digits sit inside its display aperture.
+The steam controls have an inset status panel built into the sprite, displaying
+On or Off from the displayed steam state, independently of indicator colours.
+The housing is 240 × 108 pixels with a solid footprint across its base. Both
+readout frames are painted into the sprite; runtime text aligns inside them.
+Entered digits sit inside its separate display aperture. Interaction wheels show
+the character or prop's display name in the centre.
 
 Settings → Accessibility contains High-contrast text panels and Instant dialogue
 text, both off by default and stored with local preferences. High contrast uses

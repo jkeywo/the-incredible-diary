@@ -19,7 +19,7 @@ SLICES = {
     "cabin_door": [(0, 887), (887, 1774)],
     "service_door": [(0, 768), (768, 1536)],
     "baggage": [(0, 530), (530, 1290), (1290, 2017)],
-    "code_panel": [(0, 543), (543, 1086), (1086, 1629), (1629, 2172)],
+    "code_panel_wide": [(0, 1870)],
     "drink": [(0, 520), (520, 1280), (1280, 1774)],
     "chandelier": [(0, 724), (724, 1448), (1448, 2172)],
     "steam_vent": [(0, 887), (887, 1774)],
@@ -31,7 +31,7 @@ SHEETS = {
     "service_door": ("service_door", [0, 1], (80, 128), [(72, 124)] * 2),
     "suitcase": ("baggage", [0, None], (56, 48), [(52, 42)]),
     "bag_hiding": ("baggage", [1, 2], (112, 88), [(108, 82), (108, 82)]),
-    "code_panel": ("code_panel", [0, 1, 2, 3], (80, 72), [(74, 66)] * 4),
+    "code_panel": ("code_panel_wide", [0, 0, 0, 0], (240, 108), [(234, 102)] * 4),
     "drink": ("drink", [0, 0, 1, 2], (56, 48), [(34, 44), (34, 44), (54, 40), (34, 44)]),
     "chandelier": ("chandelier", [0, 1, 2], (144, 144), [(132, 132), (132, 132), (140, 82)]),
     "steam_vent": ("steam_vent", [0, 1], (160, 144), [(154, 140), (82, 76)]),
@@ -59,10 +59,12 @@ def fit(sprite: Image.Image, cell: tuple[int, int], maximum: tuple[int, int]) ->
     return result
 
 
-def build() -> None:
+def build(only: str | None = None) -> None:
     cache = {name: Image.open(SOURCE / f"{name}.png").convert("RGBA") for name in SLICES}
     preview_rows = []
     for name, (source_name, columns, cell, maximums) in SHEETS.items():
+        if only and name != only:
+            continue
         source = cache[source_name]
         sheet = Image.new("RGBA", (cell[0] * len(columns), cell[1]))
         for index, source_index in enumerate(columns):
@@ -70,12 +72,19 @@ def build() -> None:
                 continue
             cutoff = 24 if source_name == "steam_vent" else 64
             sprite = source_sprite(source, SLICES[source_name][source_index], cutoff)
-            pose = fit(sprite, cell, maximums[index])
+            if name == "code_panel":
+                # The new housing has an explicit in-game size and fixed apertures.
+                pose = Image.new("RGBA", cell)
+                pose.alpha_composite(sprite.resize((234, 102), Image.Resampling.LANCZOS), (3, 6))
+            else:
+                pose = fit(sprite, cell, maximums[index])
             sheet.alpha_composite(pose, (index * cell[0], 0))
         sheet.save(DIR / f"{name}_states.png", optimize=True)
         preview_rows.append((name, sheet))
         print(DIR / f"{name}_states.png")
 
+    if only:
+        return
     preview = Image.new("RGBA", (850, len(preview_rows) * 240), "#1b2430")
     draw = ImageDraw.Draw(preview)
     for row, (name, sheet) in enumerate(preview_rows):
@@ -87,4 +96,7 @@ def build() -> None:
 
 
 if __name__ == "__main__":
-    build()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--only", choices=SHEETS)
+    build(parser.parse_args().only)

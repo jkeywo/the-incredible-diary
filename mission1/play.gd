@@ -586,12 +586,16 @@ func _refresh(direction := Vector2.INF) -> void:
  if progress.visible: progress.value = 100.0*float(state.action.progress)/float(state.action.duration)
  wheel.visible = not diary_open and rewind_index < 0 and not state.finished and not choices.is_empty()
  var anchor: Vector2 = Vector2(350,280) if state.code_open else Rooms.point(choices[0].pos) if not choices.is_empty() else actors.amelia.position
+ var target: String = "code_panel" if state.code_open else str(choices[0].get("target","")) if not choices.is_empty() else ""
+ # Put choices below the wide housing so both readouts remain visible.
+ if target == "code_panel" and props.has(target): anchor = props[target].position+Vector2(0,wheel.size.y/2+8)
  wheel.position = Vector2(clampf(anchor.x-wheel.size.x/2,12,1148-wheel.size.x),clampf(anchor.y-wheel.size.y/2,12,650-wheel.size.y))
  var labels := PackedStringArray()
  for i in choices.size(): labels.append(choices[i].label)
  if touch_controls.active:
   wheel.position.y = minf(wheel.position.y,touch_controls.top_edge-20-wheel.size.y)
  wheel.options = labels
+ wheel.target_name = sim.display_name(target) if not target.is_empty() else ""
  var covered_characters: Array[Rect2] = []
  for actor in actors.values():
   if actor.visible and not actor is PendingCharacter:

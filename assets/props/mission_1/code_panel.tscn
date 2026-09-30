@@ -6,6 +6,6 @@
 [node name="CodePanel" type="Sprite2D"]
 texture = ExtResource("2")
 script = ExtResource("1")
-cell_size = Vector2i(80, 72)
+cell_size = Vector2i(240, 108)
 state_names = PackedStringArray("standby", "entry", "accepted", "rejected")
 current_state = "standby"

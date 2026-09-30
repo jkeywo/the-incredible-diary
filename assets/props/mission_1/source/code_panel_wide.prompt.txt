@@ -1,0 +1,10 @@
+Generated with the built-in image generation tool, transparent background.
+Reference: assets/props/mission_1/code_panel_states.png (original 80 x 72 states).
+
+Prompt:
+Redesign the reference game steam-control console as ONE wider console sprite, not a sprite sheet. Transparent background. Match the detailed navy-black metal and aged brass pixel-art/painted steampunk aesthetic of the reference. Orthographic straight-on front face, no perspective tilt. Broad low rectangular console, width to height about 2.22:1, intended game dimensions 240x108 pixels (three times old width and 1.5 times old height). Housing fills canvas with small transparent margin. Incorporate TWO large, genuinely blank flat nearly-black rectangular readout windows into the upper/middle front face, framed with brass: left window for a three-digit code, right window for On/Off text. Make both window interiors unobstructed horizontal rectangles on the same baseline, no text, numbers, divisions or reflections inside windows. Left readout occupies approximately x18%-48%, y30%-58% of housing; right readout x59%-83%, y30%-58%. Put small brass knobs, switches and pressure fittings on lower row below displays; brass corner screws, small top central indicator lamp. No text anywhere, no labels, no floor or background or cast shadow. Full object visible. Crisp contours and readable detail at tiny game resolution.
+
+Runtime packaging: tools/build_mission1_props.py --only code_panel crops the
+transparent margins and resizes the housing to 234 x 102 in a 240 x 108 cell.
+The sheet repeats this housing for all four logical states. Dynamic text is
+centred over the generated display interiors by code_panel.gd.

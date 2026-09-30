@@ -12,6 +12,11 @@ var buttons: Array[Button] = []
 var indices: Array[int] = []
 var character_bounds: Array[Rect2] = []
 var high_contrast := false
+var target_label: Label
+var target_name := "":
+ set(value):
+  target_name = value
+  if is_instance_valid(target_label): Messages.assign(target_label,"text",value)
 
 func _apply_preferences() -> void:
  high_contrast = get_node("/root/Preferences").high_contrast_text_panels
@@ -31,6 +36,21 @@ func _apply_preferences() -> void:
 func _ready() -> void:
  mouse_filter = Control.MOUSE_FILTER_IGNORE
  size = Vector2(556,216)
+ target_label = Label.new()
+ target_label.name = "TargetName"
+ # Keep the name in the centre gap, just below the target's floor contact.
+ target_label.position = Vector2(240,116)
+ target_label.size = Vector2(76,96)
+ target_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+ target_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+ target_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+ target_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+ target_label.add_theme_font_size_override("font_size",14)
+ target_label.add_theme_color_override("font_color",Color("fff1d6"))
+ target_label.add_theme_color_override("font_outline_color",Color("09121e"))
+ target_label.add_theme_constant_override("outline_size",4)
+ add_child(target_label)
+ Messages.assign(target_label,"text",target_name)
  _rebuild()
  if not Engine.is_editor_hint():
   get_node("/root/InputBindings").bindings_changed.connect(_rebuild)
@@ -38,6 +58,10 @@ func _ready() -> void:
   _apply_preferences()
 
 func _rebuild() -> void:
+ if is_instance_valid(target_label):
+  var backdrop := StyleBoxFlat.new()
+  backdrop.bg_color = Color("09121e") if high_contrast else Color.TRANSPARENT
+  target_label.add_theme_stylebox_override("normal",backdrop)
  touches.clear()
  for button in buttons:
   remove_child(button)

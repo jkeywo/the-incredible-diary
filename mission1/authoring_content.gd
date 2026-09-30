@@ -8,7 +8,7 @@ const Dialogue = preload("res://foundation/dialogue.gd")
 const SKINS := {"amelia":"player", "guest":"rake", "chandelier_guest":"glamorous", "chatterbox":"matron", "crew":"sailor", "porter":"ex_army", "dock_sailor":"sailor", "captain":"captain"}
 
 static func seed(actors: Dictionary) -> Dictionary:
-	var data := {"kind":"mission1", "schema":1, "version":"mission1-layout-6", "dialogue":"", "assets":{}, "scenes":{}, "storylets":[], "actors":[], "rooms":{}, "templates":{}, "instances":{}, "schedules":{}, "connections":Rooms.DOORS.duplicate(true), "settings":{"cell_size":25}, "timings":{"creak":4080, "fall":4160, "trap":5500, "steam_fatal":6000, "poison":7650, "end":8100, "demo_start":1850, "demo_end":2300}}
+	var data := {"kind":"mission1", "schema":1, "version":"mission1-layout-7", "dialogue":"", "assets":{}, "scenes":{}, "storylets":[], "actors":[], "rooms":{}, "templates":{}, "instances":{}, "schedules":{}, "connections":Rooms.DOORS.duplicate(true), "settings":{"cell_size":25}, "timings":{"creak":4080, "fall":4160, "trap":5500, "steam_fatal":6000, "poison":7650, "end":8100, "demo_start":1850, "demo_end":2300}}
 	data.scenes = preload("res://mission1/authoring_dialogues.gd").SCENES.duplicate(true)
 	data.texts = preload("res://mission1/authoring_dialogues.gd").TEXTS.duplicate(true)
 	for index in data.connections.size():
@@ -77,6 +77,8 @@ static func seed(actors: Dictionary) -> Dictionary:
 		for flag in flag_states: template.transitions.append({"state":flag_states[flag],"conditions":[{"flag":flag,"equals":true}]})
 	for id in Rooms.CABIN_DOORS: data.templates[id].states.closed.merge({"solid":true,"bounds":[-48,-57,96,70]})
 	data.templates.chandelier.states.fallen.merge({"solid":true,"bounds":[-60,-55,120,65]})
+	for state in data.templates.code_panel.states.values():
+		state.merge({"solid":true,"bounds":[Rooms.CODE_PANEL_BOUNDS.position.x,Rooms.CODE_PANEL_BOUNDS.position.y,Rooms.CODE_PANEL_BOUNDS.size.x,Rooms.CODE_PANEL_BOUNDS.size.y]},true)
 	data.templates.steam_vent.states.active.merge({"solid":true,"bounds":[30,-50,110,100]},true)
 	data.templates.suitcase.states.absent = {"appearance":"present","visible":false,"solid":false}
 	data.templates.suitcase.transitions.append({"state":"absent","conditions":[{"flag":"bag_found","equals":true}]})

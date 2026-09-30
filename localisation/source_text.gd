@@ -435,8 +435,8 @@ const UI_TEA = "Tea"
 const UI_ACCESSIBILITY = "Accessibility"
 const UI_HIGH_CONTRAST_TEXT_PANELS = "High-contrast text panels"
 const UI_INSTANT_DIALOGUE_TEXT = "Instant dialogue text"
-const UI_STEAM_ON = "Steam ON"
-const UI_STEAM_OFF = "Steam OFF"
+const UI_STEAM_ON = "On"
+const UI_STEAM_OFF = "Off"
 const UI_STOP_WAITING = "Stop"
 const UI_WAIT_TOGGLE = "Wait (toggle)"
 const MISSION1_TOGGLE_B_WAIT = "B — Toggle Wait"
@@ -879,8 +879,8 @@ const SOURCES = {
 	"UI_ACCESSIBILITY": "Accessibility",
 	"UI_HIGH_CONTRAST_TEXT_PANELS": "High-contrast text panels",
 	"UI_INSTANT_DIALOGUE_TEXT": "Instant dialogue text",
-	"UI_STEAM_ON": "Steam ON",
-	"UI_STEAM_OFF": "Steam OFF",
+	"UI_STEAM_ON": "On",
+	"UI_STEAM_OFF": "Off",
 	"UI_STOP_WAITING": "Stop",
 	"UI_WAIT_TOGGLE": "Wait (toggle)",
 	"MISSION1_TOGGLE_B_WAIT": "B — Toggle Wait",
@@ -1324,8 +1324,8 @@ const ENGLISH = {
 	"UI_ACCESSIBILITY": "Accessibility",
 	"UI_HIGH_CONTRAST_TEXT_PANELS": "High-contrast text panels",
 	"UI_INSTANT_DIALOGUE_TEXT": "Instant dialogue text",
-	"UI_STEAM_ON": "Steam ON",
-	"UI_STEAM_OFF": "Steam OFF",
+	"UI_STEAM_ON": "On",
+	"UI_STEAM_OFF": "Off",
 	"UI_STOP_WAITING": "Stop",
 	"UI_WAIT_TOGGLE": "Wait (toggle)",
 	"MISSION1_TOGGLE_B_WAIT": "B — Toggle Wait",

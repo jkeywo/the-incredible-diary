@@ -11,7 +11,7 @@ an unknown name. Each `*_states.png` is a one-row transparent sprite sheet.
 | `service_door.tscn` | `closed`, `open` | 80 × 128 |
 | `suitcase.tscn` | `present`, `hidden` | 56 × 48 |
 | `bag_hiding.tscn` | `empty`, `occupied` | 112 × 88 |
-| `code_panel.tscn` | `standby`, `entry`, `accepted`, `rejected` | 80 × 72 |
+| `code_panel.tscn` | `standby`, `entry`, `accepted`, `rejected` | 240 × 108 |
 | `drink.tscn` | `full`, `spiked`, `spilled`, `empty` | 56 × 48 |
 | `chandelier.tscn` | `intact`, `warning`, `fallen` | 144 × 144 |
 | `steam_vent.tscn` | `active`, `off` | 160 × 144 |
@@ -23,7 +23,12 @@ track poison separately and reveal it through witnessing or inspection. The
 at the same time. Cabin door sprites are sized for the narrow empty thresholds
 in the cabin screen. The upright service door can be used for the controls and
 steam room exit. The code panel has blank display windows so the current
-three-digit code can be drawn by UI instead of baked into art.
+three-digit code and On/Off status are centred in the two inset readouts.
+The housing and brass display frames are part of the sprite; only changing
+text is drawn at runtime. All four states share the housing artwork. Its solid
+footprint is 228 × 36 pixels at (-114, -26) relative to its bottom-centre origin,
+defined in the simulation geometry and every authored state.
+Rebuild just this sheet with `tools/build_mission1_props.py --only code_panel`.
 
 The `steam_vent.tscn` scene now loops a separate steam plume when its state is
 `active`; switching to `off` hides it. `chandelier.tscn` exposes

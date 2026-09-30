@@ -2,18 +2,17 @@
 extends "res://assets/props/mission_1/stateful_prop.gd"
 const Messages = preload("res://foundation/message_text.gd")
 const Text = preload("res://localisation/source_text.gd")
-const DISPLAY := Rect2(-20, -42, 40, 14)
+## Readout interiors measured on the 240 x 108 housing; origin is bottom-centre.
+const DISPLAY := Rect2(-84, -70, 78, 24)
+const STATUS_PANEL := Rect2(14, -70, 68, 24)
 var digits: Label
 var status: Label
 var entering := false
 
 func _ready() -> void:
  super._ready()
- digits = _label("Digits", DISPLAY.position, DISPLAY.size, 10)
- # Keep the status in the gap between the two banks of interaction buttons.
- status = _label("SteamStatus", Vector2(-40,6), Vector2(80,22), 14)
- status.add_theme_color_override("font_outline_color",Color("09121e"))
- status.add_theme_constant_override("outline_size",5)
+ digits = _label("Digits", DISPLAY.position, DISPLAY.size, 16)
+ status = _label("SteamStatus", STATUS_PANEL.position, STATUS_PANEL.size, 16)
 
 func _label(id: String, location: Vector2, dimensions: Vector2, font_size: int) -> Label:
  var label := Label.new()
@@ -31,10 +30,5 @@ func _label(id: String, location: Vector2, dimensions: Vector2, font_size: int) 
 
 func present(state: Dictionary) -> void:
  entering = state.code_open
- digits.text = " ".join(str(state.entry).rpad(3,"_").split("")) if state.code_open else ""
+ digits.text = " ".join(str(state.entry).rpad(3,"_").split("")) if state.code_open else "_ _ _"
  Messages.assign(status,"text",Text.UI_STEAM_OFF if state.flags.get("steam_off",false) else Text.UI_STEAM_ON)
- queue_redraw()
-
-func _draw() -> void:
- # Lit entry artwork is too bright for pale digits; retain the surrounding frame.
- if entering: draw_rect(DISPLAY,Color("09121e"))

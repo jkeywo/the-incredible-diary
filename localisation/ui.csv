@@ -172,8 +172,8 @@ UI_TEA,Tea,Player interface,Tea
 UI_ACCESSIBILITY,Accessibility,Accessibility and toggle controls,Accessibility
 UI_HIGH_CONTRAST_TEXT_PANELS,High-contrast text panels,Accessibility and toggle controls,High-contrast text panels
 UI_INSTANT_DIALOGUE_TEXT,Instant dialogue text,Accessibility and toggle controls,Instant dialogue text
-UI_STEAM_ON,Steam ON,Accessibility and toggle controls,Steam ON
-UI_STEAM_OFF,Steam OFF,Accessibility and toggle controls,Steam OFF
+UI_STEAM_ON,On,Steam controls inset status panel,On
+UI_STEAM_OFF,Off,Steam controls inset status panel,Off
 UI_STOP_WAITING,Stop,Accessibility and toggle controls,Stop
 UI_WAIT_TOGGLE,Wait (toggle),Accessibility and toggle controls,Wait (toggle)
 MISSION1_TOGGLE_B_WAIT,B — Toggle Wait,Accessibility and toggle controls,B — Toggle Wait

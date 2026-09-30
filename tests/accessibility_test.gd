@@ -129,7 +129,9 @@ func checks() -> void:
  var panel = game.props.code_panel
  assert(panel.digits.text == "1 2 3")
  assert(panel.digits.get_rect() == panel.DISPLAY)
- assert(panel.status.text == "Steam ON")
+ assert(panel.status.text == "On")
+ assert(panel.status.get_rect() == panel.STATUS_PANEL)
+ assert(game.wheel.target_label.text == game.sim.display_name("code_panel"))
  var recorded: Dictionary = game.sim.s.duplicate(true)
  var history: Array = game.sim.history.duplicate(true)
  var bubble = game.bubble
@@ -145,9 +147,9 @@ func checks() -> void:
  # Recorded state still determines the steam label, even after later changes.
  game.sim.s.flags.steam_off = true
  game._sync_props(game.sim.s)
- assert(panel.status.text == "Steam OFF")
+ assert(panel.status.text == "Off")
  game._sync_props(recorded)
- assert(panel.status.text == "Steam ON")
+ assert(panel.status.text == "On")
  await capture("steam-contrast")
  prefs.instant_dialogue_text = false
  prefs.high_contrast_text_panels = false

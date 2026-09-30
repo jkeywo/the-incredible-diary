@@ -110,6 +110,11 @@ The dock's right edge and market's left edge visibly continue into each other.
 Doorways, furnishings and stalls must be checked with game characters rendered
 over them to establish scale. Mission 3 is available in the dev menu.
 
+Mission 3 starts in the player's own crew cabin. By this leg the chandelier
+has been cleared: remove both its wreckage and the janitor from the foyer.
+Travel between the dock and market uses the full available street opening
+on each screen.
+
 ## 1. Identity and intended experience
 
 ### Dock tutorial and optional hospitality — agreed 29 September 2026

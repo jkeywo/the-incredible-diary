@@ -14,12 +14,14 @@ func checks() -> void:
 	game.enable_controls()
 	game.set_process(false)
 	game.set_physics_process(false)
-	for room in ["docks","restaurant","market"]:
+	for room in ["docks","restaurant","market","foyer"]:
 		game.sim.s.room = room
 		game.sim.s.pos = [1010,465] if room == "restaurant" else [580,500]
 		game.sim.s.actors = {"guest":{"room":room,"pos":[600,450],"action":"idle","facing":"down"},"dock_sailor":{"room":room,"pos":[900,500],"action":"idle","facing":"down"}}
 		game._refresh()
 		assert(game.heading.text.begins_with("Mission 3"))
+		if room == "foyer":
+			assert(not game.props.has("chandelier") and not game.props.has("janitor"))
 		if room == "docks":
 			var dock = game.room_slot.get_child(0)
 			assert(dock.get_node("Ship").texture.resource_path == "res://assets/rooms/mission_1/01_docks_ship.png")

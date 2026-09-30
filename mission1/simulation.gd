@@ -867,6 +867,18 @@ func restore_record(record: Dictionary) -> void:
   s.content_version = authored_content.version
   Authored.update(self)
   record_current_frame()
+ if authored_content.get("version","") == "mission3-layout-1":
+  content_versions[authored_content.version] = authored_content.duplicate(true)
+  authored_content = preload("res://mission3/content.gd").seed()
+  content_versions[authored_content.version] = authored_content.duplicate(true)
+  for id in ["chandelier","janitor"]: s.get_or_add("prop_states",{}).erase(id)
+  if int(s.frame) == 0 and s.room == "docks":
+   s.room = authored_content.instances.amelia.room
+   s.pos = authored_content.instances.amelia.position.duplicate()
+  s.content_version = authored_content.version
+  Authored.update(self)
+  # Keep every recorded old-layout frame available for scrubbing.
+  history.append(s.duplicate(true))
  events.clear()
  restore_notebook()
 

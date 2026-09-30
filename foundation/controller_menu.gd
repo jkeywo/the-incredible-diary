@@ -24,7 +24,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT: reset()
 
 func _process(delta: float) -> void:
-	if not enabled.is_valid() or not enabled.call():
+	if get_node("/root/InputBindings").capture_active or not enabled.is_valid() or not enabled.call():
 		reset()
 		return
 	if direction == Vector2i.ZERO: return
@@ -34,6 +34,7 @@ func _process(delta: float) -> void:
 		repeat_left = 0.12
 
 func _input(event: InputEvent) -> void:
+	if get_node("/root/InputBindings").capture_active: return
 	if not enabled.is_valid() or not enabled.call(): return
 	if event is InputEventJoypadMotion and event.axis in [JOY_AXIS_LEFT_X,JOY_AXIS_LEFT_Y]:
 		device = event.device

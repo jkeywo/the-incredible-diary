@@ -25,6 +25,7 @@ func _ready() -> void:
  mouse_filter = Control.MOUSE_FILTER_IGNORE
  size = Vector2(556,216)
  _rebuild()
+ if not Engine.is_editor_hint(): get_node("/root/InputBindings").bindings_changed.connect(_rebuild)
 
 func _rebuild() -> void:
  touches.clear()
@@ -59,7 +60,11 @@ func _rebuild() -> void:
   for color in ["font_color","font_hover_color","font_pressed_color","font_focus_color"]:
    button.add_theme_color_override(color,Color("fff1d6"))
   var caption := "More…" if indices[slot]<0 else options[indices[slot]]
-  button.text = caption if caption == str(slot+1) else "%d  %s" % [slot+1,caption]
+  var binding := str(slot+1)
+  if not Engine.is_editor_hint():
+   var service := get_node("/root/InputBindings")
+   binding = service.prompt(service.SLOTS[slot])
+  button.text = caption if caption == binding else "%s  %s" % [binding,caption]
   button.tooltip_text = "More…" if indices[slot]<0 else options[indices[slot]]
   button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
   button.pressed.connect(func(): activate_slot(slot))

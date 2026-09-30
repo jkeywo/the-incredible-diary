@@ -295,7 +295,7 @@ func _process(delta: float) -> void:
 	accumulator += minf(delta, 0.25)
 	while accumulator >= 0.1:
 		accumulator -= 0.1
-		var movement := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		var movement: Vector2 = get_node("/root/InputBindings").movement()
 		var command := {"x": movement.x, "y": movement.y}
 		var right_axis := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
 		if right_axis.length() > 0.6:

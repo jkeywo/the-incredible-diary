@@ -11,6 +11,8 @@ config/use_custom_user_dir=true
 config/custom_user_dir_name="AmeliaAuthoringProbe"
 
 [autoload]
+Preferences="*res://foundation/preferences.gd"
+InputBindings="*res://foundation/input_bindings.gd"
 ResourceStream="*res://assets/ui/loading/resource_stream.gd"
 DialogueManager="*res://addons/dialogue_manager/dialogue_manager.gd"
 BrowserFullscreen="*res://foundation/browser_fullscreen.gd"
@@ -67,7 +69,7 @@ cancel_action={
 }
 reset_loop={
 "deadzone": 0.2,
-"events": [Object(InputEventKey,"physical_keycode":82), Object(InputEventJoypadButton,"button_index":6)]
+"events": [Object(InputEventKey,"physical_keycode":82)]
 }
 
 [rendering]

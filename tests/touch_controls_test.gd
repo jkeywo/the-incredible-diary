@@ -74,7 +74,8 @@ func checks():
  settings.settings_path = "res://build/touch-settings-test.cfg"
  settings.touch_available = false
  settings._refresh_controls_tab()
- assert(settings.tabs.is_tab_hidden(settings.controls_tab.get_index()))
+ assert(not settings.tabs.is_tab_hidden(settings.controls_tab.get_index()))
+ assert(settings.controls_tab.sections.keyboard.visible)
  var detected := InputEventScreenTouch.new()
  detected.pressed = true
  settings._input(detected)

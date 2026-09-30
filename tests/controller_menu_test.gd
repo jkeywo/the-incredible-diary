@@ -68,7 +68,8 @@ func checks() -> void:
 	settings.touch_available = true
 	settings._refresh_controls_tab()
 	button(settings.dialog,JOY_BUTTON_RIGHT_SHOULDER)
-	assert(settings.tabs.current_tab == 1 and settings.dialog.gui_get_focus_owner() == settings.stick_side)
+	assert(settings.tabs.current_tab == 1 and settings.dialog.gui_get_focus_owner() == settings.controls_tab.choices()[0])
+	settings.stick_side.grab_focus()
 	var original_side: bool = settings.stick_on_right
 	button(settings.dialog,JOY_BUTTON_A)
 	assert(settings.stick_on_right != original_side)
@@ -77,7 +78,8 @@ func checks() -> void:
 	settings.touch_available = false
 	settings._refresh_controls_tab()
 	button(settings.dialog,JOY_BUTTON_RIGHT_SHOULDER)
-	assert(settings.tabs.current_tab == 0)
+	assert(settings.tabs.current_tab == 1)
+	button(settings.dialog,JOY_BUTTON_LEFT_SHOULDER)
 	button(settings.dialog,JOY_BUTTON_B)
 	await create_timer(0.2).timeout
 	assert(not settings._opened and not paused)

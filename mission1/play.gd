@@ -247,7 +247,8 @@ func _build_hud() -> void:
  var close := Button.new()
  diary_close = close
  close.text = "X"
- close.tooltip_text = "Close diary (Tab / Y)"
+ close.tooltip_text = "Close diary (%s / %s)" % [get_node("/root/InputBindings").prompt("diary"), get_node("/root/InputBindings").prompt("diary", true)]
+ get_node("/root/InputBindings").bindings_changed.connect(func(): close.tooltip_text = "Close diary (%s / %s)" % [get_node("/root/InputBindings").prompt("diary"), get_node("/root/InputBindings").prompt("diary", true)])
  close.position = Vector2(970,65)
  close.size = Vector2(44,40)
  close.theme = right_page.theme
@@ -327,7 +328,7 @@ func _touch_action(action: String) -> void:
  _refresh()
 
 func _movement_input() -> Vector2:
- var direction := Input.get_vector("move_left","move_right","move_up","move_down")
+ var direction: Vector2 = get_node("/root/InputBindings").movement()
  if touch_controls != null and touch_controls.active and touch_controls.movement.length_squared()>0.0:
   direction = touch_controls.movement
  return direction
@@ -393,7 +394,7 @@ func _physics_process(delta: float) -> void:
   _rewind(delta)
   return
  if diary_open or sim.s.finished: return
- var held: bool = Input.is_physical_key_pressed(KEY_F) or Input.is_joy_button_pressed(0,JOY_BUTTON_B) or touch_controls.wait_held
+ var held: bool = get_node("/root/InputBindings").held("wait") or touch_controls.wait_held
  if not held: wait_latched = false
  var waiting: bool = held and not wait_latched and not sim.tutorial_active() and not sim.s.code_open and sim.s.hospitality.menu == "" and sim.s.action.is_empty()
  waiting_active = waiting
@@ -430,36 +431,41 @@ func _unhandled_input(event: InputEvent) -> void:
  if ending.active(): return
  if event is InputEventJoypadButton or event is InputEventJoypadMotion: using_controller = true
  elif event is InputEventKey or event is InputEventMouseButton: using_controller = false
- var key: int = event.physical_keycode if event is InputEventKey and event.pressed and not event.echo else 0
- var button: int = event.button_index if event is InputEventJoypadButton and event.pressed else -1
- if button == JOY_BUTTON_Y:
+ var bindings := get_node("/root/InputBindings")
+ if bindings.blocked(): return
+ var interaction_slot := -1
+ for index in bindings.SLOTS.size():
+  if bindings.pressed(event, bindings.SLOTS[index]):
+   interaction_slot = index
+   break
+ if bindings.pressed(event, "diary"):
   _toggle_diary()
- elif key == KEY_R:
+ elif bindings.pressed(event, "reset_loop"):
   _begin_reset()
- elif sim.s.finished and (key == KEY_ENTER or button == JOY_BUTTON_A):
+ elif sim.s.finished and bindings.pressed(event, "continue_ending"):
   if sim.exploration(): _return_to_menu()
   elif sim.succeeded(): _next_mission()
   else: _begin_reset()
- elif button == JOY_BUTTON_B and diary_open:
+ elif bindings.pressed(event, "cancel_action") and diary_open:
   _toggle_diary()
  elif diary_open or rewind_index >= 0: return
- elif key == KEY_H or button == JOY_BUTTON_A:
+ elif bindings.pressed(event, "highlight"):
   highlight = not highlight
- elif key == KEY_ESCAPE or button == JOY_BUTTON_B:
+ elif bindings.pressed(event, "cancel_action"):
   sim.s.action = {}
   sim.s.code_open = false
   sim.s.hospitality.menu = ""
   sim.s.message = "Action cancelled."
- elif key >= KEY_1 and key <= KEY_8:
-  wheel.activate_slot(key-KEY_1)
- elif key == KEY_ENTER and sim.s.code_open:
+ elif interaction_slot >= 0:
+  wheel.activate_slot(interaction_slot)
+ elif bindings.pressed(event, "submit_code") and sim.s.code_open:
   _submit_code()
- elif key == KEY_BACKSPACE and sim.s.code_open:
+ elif bindings.pressed(event, "clear_code") and sim.s.code_open:
   sim.s.entry = ""
- elif button == JOY_BUTTON_X:
+ elif bindings.pressed(event, "wheel_confirm"):
   wheel.confirm_selected()
- elif event is InputEventJoypadMotion:
-  var stick := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
+ elif event is InputEventJoypadMotion and event.axis in [JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y]:
+  var stick := Vector2(Input.get_joy_axis(event.device, JOY_AXIS_RIGHT_X), Input.get_joy_axis(event.device, JOY_AXIS_RIGHT_Y))
   if stick.length() > 0.35 and not choices.is_empty():
    wheel.select_from_vector(stick)
  _refresh()
@@ -1142,14 +1148,14 @@ func _notification(what: int) -> void:
 func _input(event: InputEvent) -> void:
  if stream_resources and not _content_ticket.is_empty() and (not _content_ticket.done or not str(_content_ticket.error).is_empty()): return
  # Handle Tab before focused controls consume it as focus navigation.
- if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_TAB:
+ if get_node("/root/InputBindings").pressed(event, "diary"):
   if controls_enabled and not get_tree().paused and application_focused and time_presentation.finish_remaining <= 0.0:
-   using_controller = false
+   using_controller = event is InputEventJoypadButton or event is InputEventJoypadMotion
    _toggle_diary()
    get_viewport().set_input_as_handled()
    return
- if diary_open and not get_tree().paused and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode in [KEY_LEFT,KEY_PAGEUP,KEY_RIGHT,KEY_PAGEDOWN]:
-  _turn_diary(-1 if event.physical_keycode in [KEY_LEFT,KEY_PAGEUP] else 1)
+ if diary_open and not get_tree().paused and (get_node("/root/InputBindings").pressed(event, "diary_previous") or get_node("/root/InputBindings").pressed(event, "diary_next")):
+  _turn_diary(-1 if get_node("/root/InputBindings").pressed(event, "diary_previous") else 1)
   get_viewport().set_input_as_handled()
   return
  if event is InputEventKey and event.pressed or event is InputEventMouseButton and event.pressed or event is InputEventScreenTouch and event.pressed or event is InputEventJoypadButton and event.pressed:
@@ -1159,7 +1165,7 @@ func _input(event: InputEvent) -> void:
 
 func _update_idle_hint(delta: float) -> void:
  var eligible: bool = controls_enabled and application_focused and not get_tree().paused and not diary_open and rewind_index<0 and not sim.s.finished and not sim.tutorial_active() and sim.s.dialogue.is_empty() and sim.s.get("conversation",{}).is_empty() and sim.s.action.is_empty() and not sim.s.code_open and sim.s.hospitality.menu == ""
- var active_input: bool = _movement_input().length_squared()>0.01 or Input.is_physical_key_pressed(KEY_F) or Input.is_joy_button_pressed(0,JOY_BUTTON_B) or touch_controls.wait_held
+ var active_input: bool = _movement_input().length_squared()>0.01 or get_node("/root/InputBindings").held("wait") or touch_controls.wait_held
  if not eligible or active_input:
   idle_seconds = 0.0
   return

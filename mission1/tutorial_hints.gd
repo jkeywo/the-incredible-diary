@@ -36,8 +36,10 @@ static func update(run) -> void:
 
 static func prompt(id: String, controller: bool, touch: bool) -> String:
  if touch: return {"highlight":"Tap Highlight", "wait":"Hold Wait", "diary":"Tap Diary"}.get(id,"")
- if controller: return {"highlight":"A — Highlight", "wait":"Hold B — Wait", "diary":"Y — Open diary"}.get(id,"")
- return {"highlight":"H — Highlight", "wait":"Hold F — Wait", "diary":"Tab — Open diary"}.get(id,"")
+ var bindings = Engine.get_main_loop().root.get_node("InputBindings")
+ if id not in ["highlight", "wait", "diary"]: return ""
+ var key: String = bindings.prompt(id, controller)
+ return {"highlight": "%s — Highlight" % key, "wait": "Hold %s — Wait" % key, "diary": "%s — Open diary" % key}.get(id, "")
 
 
 static func see_body(run, victim: String) -> void:

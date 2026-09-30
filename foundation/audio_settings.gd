@@ -7,7 +7,9 @@ const PopupSkin = preload("res://assets/ui/popup/popup_skin.gd")
 
 const MAIN_MENU := "res://assets/ui/mission_1/title_screen.tscn"
 const DEFAULTS := {"Master": 50.0, "SFX": 100.0, "Dialogue": 100.0, "Music": 100.0}
-var settings_path := "user://audio_settings.cfg"
+var settings_path: String:
+	get: return get_node("/root/Preferences").settings_path
+	set(value): get_node("/root/Preferences").settings_path = value
 var volumes: Dictionary = DEFAULTS.duplicate()
 var sliders: Dictionary = {}
 var toggle: Button
@@ -33,26 +35,25 @@ func _ready() -> void:
 	touch_available = TouchControls.supported()
 	_build_ui()
 	get_tree().scene_changed.connect(_finish_close)
+	get_node("/root/Preferences").save_failed.connect(_show_save_error)
 
 
 func load_settings() -> void:
-	var config := ConfigFile.new()
-	config.load(settings_path)
-	for bus in DEFAULTS:
-		var value: Variant = config.get_value("audio", bus, DEFAULTS[bus])
-		if not (value is float or value is int) or not is_finite(float(value)):
-			value = DEFAULTS[bus]
-		set_volume(bus, float(value))
-	var side: Variant = config.get_value("controls", "stick_on_right", false)
-	set_stick_on_right(side if side is bool else false)
+	var prefs := get_node("/root/Preferences")
+	prefs.load_settings()
+	for bus in DEFAULTS: set_volume(bus, prefs.volumes[bus])
+	set_stick_on_right(prefs.stick_on_right)
 
 
 func set_stick_on_right(value: bool) -> void:
 	stick_on_right = value
+	get_node("/root/Preferences").stick_on_right = value
 	controls_changed.emit()
 
 
 func _input(event: InputEvent) -> void:
+	if controls_tab != null: controls_tab.observe_device(event)
+	if get_node("/root/InputBindings").capture_active: return
 	if event is InputEventJoypadButton and event.button_index == JOY_BUTTON_START:
 		get_viewport().set_input_as_handled()
 		if event.pressed:
@@ -65,7 +66,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _refresh_controls_tab() -> void:
-	tabs.set_tab_hidden(controls_tab.get_index(), not touch_available)
+	controls_tab.touch_available = touch_available or controls_tab.touch_available
+	controls_tab.refresh_devices()
 	stick_side.select(1 if stick_on_right else 0)
 
 
@@ -73,18 +75,18 @@ func set_volume(bus: String, percent: float) -> void:
 	if not DEFAULTS.has(bus) or not is_finite(percent):
 		return
 	volumes[bus] = clampf(percent, 0.0, 100.0)
+	get_node("/root/Preferences").volumes[bus] = volumes[bus]
 	var index := AudioServer.get_bus_index(bus)
 	AudioServer.set_bus_volume_db(index, linear_to_db(maxf(volumes[bus] / 100.0, 0.0001)))
 	AudioServer.set_bus_mute(index, volumes[bus] == 0.0)
 
 
 func save_settings() -> void:
-	var config := ConfigFile.new()
-	for bus in DEFAULTS:
-		config.set_value("audio", bus, volumes[bus])
-	config.set_value("controls", "stick_on_right", stick_on_right)
-	if config.save(settings_path) != OK:
-		push_warning("Could not save audio preferences.")
+	get_node("/root/Preferences").save_settings()
+
+func _show_save_error() -> void:
+	menu_status.text = "Preferences could not be saved. Changes work for this session; closing Settings retries."
+	menu_status.show()
 
 
 func open_settings() -> void:
@@ -97,7 +99,7 @@ func open_settings() -> void:
 		sliders[bus].value = volumes[bus]
 	touch_available = touch_available or TouchControls.supported()
 	_refresh_controls_tab()
-	menu_status.hide()
+	menu_status.visible = get_node("/root/Preferences").last_error != OK
 	var scene := get_tree().current_scene
 	main_menu_button.disabled = scene == null or (scene.scene_file_path == MAIN_MENU and not is_instance_valid(scene.get("_game_world")))
 	dialog.popup_centered(Vector2i(440, 390))
@@ -105,6 +107,7 @@ func open_settings() -> void:
 
 
 func close_settings() -> void:
+	if get_node("/root/InputBindings").capture_active: return
 	if not _opened:
 		return
 	if _closing: return
@@ -117,6 +120,7 @@ func _finish_close() -> void:
 	_opened = false
 	_closing = false
 	motion.finish()
+	get_node("/root/InputBindings").guard_release()
 	get_tree().paused = _was_paused
 	save_settings()
 	motion.restore_focus(toggle)
@@ -204,23 +208,10 @@ func _build_ui() -> void:
 			amount.text = "%d%%" % value
 			save_settings())
 		sliders[bus] = slider
-	controls_tab = VBoxContainer.new()
+	controls_tab = preload("res://foundation/controls_settings.gd").new()
 	controls_tab.name = "Controls"
-	controls_tab.add_theme_constant_override("separation", 16)
 	tabs.add_child(controls_tab)
-	var stick_label := Label.new()
-	stick_label.text = "Movement joystick position"
-	controls_tab.add_child(stick_label)
-	stick_side = OptionButton.new()
-	stick_side.add_item("Left")
-	stick_side.add_item("Right")
-	stick_side.item_selected.connect(func(index: int):
-		set_stick_on_right(index == 1)
-		save_settings())
-	controls_tab.add_child(stick_side)
-	var hint := Label.new()
-	hint.text = "The buttons appear on the opposite side."
-	controls_tab.add_child(hint)
+	stick_side = controls_tab.stick_side
 	_refresh_controls_tab()
 	main_menu_button = Button.new()
 	main_menu_button.text = "Return to main menu"
@@ -233,7 +224,7 @@ func _build_ui() -> void:
 	content.add_child(menu_status)
 	controller_menu = preload("res://foundation/controller_menu.gd").new()
 	controller_menu.available = _controller_choices
-	controller_menu.enabled = func(): return _opened and not _closing and dialog.visible
+	controller_menu.enabled = func(): return _opened and not _closing and dialog.visible and not get_node("/root/InputBindings").capture_active
 	controller_menu.start_is_back = true
 	controller_menu.back = close_settings
 	controller_menu.change_tab = _controller_tab
@@ -251,13 +242,16 @@ func _draw_cog() -> void:
 
 
 func _controller_choices() -> Array:
-	var controls: Array = sliders.values() if tabs.current_tab == 0 else [stick_side]
+	var controls: Array = sliders.values() if tabs.current_tab == 0 else controls_tab.choices()
 	return controls + [main_menu_button,dialog.get_ok_button()]
 
 func _focus_tab() -> void:
 	if not _opened: return
-	var control: Control = sliders["Master"] if tabs.current_tab == 0 else stick_side
-	control.grab_focus()
+	var choices := _controller_choices()
+	for control in choices:
+		if control.is_visible_in_tree():
+			control.grab_focus()
+			break
 
 func _controller_tab(step: int) -> void:
 	for offset in range(1,tabs.get_tab_count()+1):

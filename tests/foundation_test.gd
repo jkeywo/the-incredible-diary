@@ -53,7 +53,7 @@ func run() -> void:
 	expect_joy_button("wheel_confirm", JOY_BUTTON_X)
 	expect_joy_button("pause_game", JOY_BUTTON_BACK)
 	expect_joy_button("cancel_action", JOY_BUTTON_B)
-	expect_joy_button("reset_loop", JOY_BUTTON_START)
+	expect(not InputMap.action_get_events("reset_loop").any(func(event): return event is InputEventJoypadButton and event.button_index == JOY_BUTTON_START), "start_reserved_for_settings")
 	var scenario := Content.scenario()
 	test_edit_groups(scenario)
 	expect(Content.validate(scenario).is_empty(), "valid_scenario")

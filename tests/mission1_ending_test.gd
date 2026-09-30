@@ -76,9 +76,30 @@ func checks() -> void:
 		game.ending.clear()
 		game.end_presented = false
 		game.sim = finish(scenario[0],scenario[1],scenario.size()>3)
+		game._show_room(scenario[0])
 		var final_state := JSON.stringify(game.sim.s)
 		var final_history := JSON.stringify(game.sim.history)
 		game._refresh()
+		if scenario[0] != scenario[2]:
+			assert(game.cut_fade_phase == "out" and game.shown_room == scenario[0])
+			game.application_focused = false
+			game._process(0.1)
+			assert(game.cut_fade_elapsed == 0.0)
+			game.application_focused = true
+			paused = true
+			game._process(0.1)
+			assert(game.cut_fade_elapsed == 0.0)
+			paused = false
+			game._process(game.CUT_FADE_SECONDS/2)
+			assert(is_equal_approx(game.cut_fade.modulate.a,0.5) and game.shown_room == scenario[0])
+			game._process(game.CUT_FADE_SECONDS/2)
+			assert(game.cut_fade_phase == "in" and game.cut_fade.modulate.a == 1.0)
+			assert(game.cut_fade.size == game.get_viewport_rect().size)
+			assert(game.shown_room == scenario[2] and game.ending.elapsed == 0.0)
+			game._process(game.CUT_FADE_SECONDS)
+			assert(not game.cut_fade.visible and game.ending.elapsed == 0.0)
+		else:
+			assert(game.cut_fade_phase.is_empty() and not game.cut_fade.visible)
 		assert(game.ending.active() and not game.diary_open and not game.hud.visible)
 		assert(game.shown_room == scenario[2])
 		for id in game.sim.s.actors:

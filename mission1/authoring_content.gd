@@ -7,7 +7,7 @@ const Dialogue = preload("res://foundation/dialogue.gd")
 const SKINS := {"amelia":"player", "guest":"rake", "chandelier_guest":"glamorous", "chatterbox":"matron", "crew":"sailor", "porter":"ex_army", "dock_sailor":"sailor", "captain":"captain"}
 
 static func seed(actors: Dictionary) -> Dictionary:
-	var data := {"kind":"mission1", "schema":1, "version":"mission1-authored-1", "dialogue":"", "assets":{}, "scenes":{}, "storylets":[], "actors":[], "rooms":{}, "templates":{}, "instances":{}, "schedules":{}, "connections":Rooms.DOORS.duplicate(true), "settings":{"cell_size":25}, "timings":{"creak":4080, "fall":4160, "trap":5500, "steam_fatal":6000, "poison":7650, "end":8100, "demo_start":1850, "demo_end":2300}}
+	var data := {"kind":"mission1", "schema":1, "version":"mission1-layout-2", "dialogue":"", "assets":{}, "scenes":{}, "storylets":[], "actors":[], "rooms":{}, "templates":{}, "instances":{}, "schedules":{}, "connections":Rooms.DOORS.duplicate(true), "settings":{"cell_size":25}, "timings":{"creak":4080, "fall":4160, "trap":5500, "steam_fatal":6000, "poison":7650, "end":8100, "demo_start":1850, "demo_end":2300}}
 	data.scenes = preload("res://mission1/authoring_dialogues.gd").SCENES.duplicate(true)
 	data.texts = preload("res://mission1/authoring_dialogues.gd").TEXTS.duplicate(true)
 	for index in data.connections.size():
@@ -51,7 +51,7 @@ static func seed(actors: Dictionary) -> Dictionary:
 	}
 	for id in routes:
 		data.schedules[id].merge(routes[id])
-	var props := {"suitcase":["docks",[145,390],"suitcase","present","bag_found"], "bag_hiding":["docks",[210,335],"bag_hiding","empty","bag_hidden"], "chandelier":["foyer",[580,380],"chandelier","idle","chandelier_fallen"], "code_panel":["controls",[350,280],"code_panel","entry","steam_off"], "steam_vent":["controls",[1035,615],"steam_vent","off","trapped"], "drink":["salon",[930,132],"drink","idle","spilled"]}
+	var props := {"suitcase":["docks",[145,390],"suitcase","present","bag_found"], "bag_hiding":["docks",[210,335],"bag_hiding","empty","bag_hidden"], "chandelier":["foyer",[580,380],"chandelier","idle","chandelier_fallen"], "code_panel":["controls",[350,280],"code_panel","entry","steam_off"], "steam_vent":["controls",[940,290],"steam_vent","off","trapped"], "drink":["salon",[930,132],"drink","idle","spilled"]}
 	for id in Rooms.CABIN_DOORS: props[id] = ["cabins",[Rooms.CABIN_DOORS[id],427],"cabin_door","closed",id]
 	for id in props:
 		var spec: Array = props[id]
@@ -75,7 +75,7 @@ static func seed(actors: Dictionary) -> Dictionary:
 		for flag in flag_states: template.transitions.append({"state":flag_states[flag],"conditions":[{"flag":flag,"equals":true}]})
 	for id in Rooms.CABIN_DOORS: data.templates[id].states.closed.merge({"solid":true,"bounds":[-48,-57,96,70]})
 	data.templates.chandelier.states.fallen.merge({"solid":true,"bounds":[-60,-55,120,65]})
-	data.templates.steam_vent.states.active.merge({"solid":true,"bounds":[-45,-45,90,95]})
+	data.templates.steam_vent.states.active.merge({"solid":true,"bounds":[30,-50,110,100]},true)
 	data.templates.suitcase.states.absent = {"appearance":"present","visible":false,"solid":false}
 	data.templates.suitcase.transitions.append({"state":"absent","conditions":[{"flag":"bag_found","equals":true}]})
 	data.templates.drink.states.unserved = {"appearance":"full","visible":false,"solid":false}
@@ -155,7 +155,7 @@ static func validate(data: Dictionary) -> Array[String]:
 		if not data.templates.has(item.get("template", "")): errors.append("Entity %s template is missing" % id)
 		if not data.rooms.has(item.get("room", "")): errors.append("Entity %s room is missing" % id)
 		var entity := resolve(data,id)
-		var appearances: Array = SKINS.values() + ["guest_male_jacket","guest_male_waistcoat","guest_female_dress","guest_female_coat"] if entity.get("kind") == "character" else ["suitcase","bag_hiding","chandelier","code_panel","steam_vent","drink","cabin_door","service_door","valve"]
+		var appearances: Array = SKINS.values() + ["guest_male_jacket","guest_male_waistcoat","guest_female_dress","guest_female_coat"] if entity.get("kind") == "character" else ["suitcase","bag_hiding","chandelier","code_panel","steam_vent","drink","cabin_door","crew_door","janitor","service_door","valve"]
 		if not appearances.has(entity.get("appearance")): errors.append("Entity %s has an unknown appearance" % id)
 		if not entity.get("states",{}) is Dictionary or not entity.get("transitions",[]) is Array:
 			errors.append("Entity %s state overrides are invalid" % id)

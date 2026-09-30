@@ -150,6 +150,8 @@ static func actors(run, planned: Dictionary) -> Dictionary:
 		for commitment in schedule.commitments:
 			if commitment.tick <= run.s.tick and (destination.is_empty() or commitment.tick > destination.tick): destination = commitment
 		if not destination.is_empty():
+			pose.action = str(destination.get("action","idle"))
+			pose.facing = str(destination.get("facing",pose.get("facing","down")))
 			var route: Array = run.Routines.path(pose.room, run.Rooms.point(pose.pos), destination.room, run.Rooms.point(destination.position), false, run.s.flags)
 			for waypoint in route:
 				if waypoint.room != pose.room:
@@ -161,6 +163,7 @@ static func actors(run, planned: Dictionary) -> Dictionary:
 				var next: Vector2 = run.Rooms.point(pose.pos) + delta.limit_length(float(destination.get("speed", 10)))
 				pose.pos = [next.x, next.y]
 				pose.action = "walk"
+				pose.facing = ("right" if delta.x > 0 else "left") if absf(delta.x)>absf(delta.y) else ("down" if delta.y>0 else "up")
 				break
 		planned[id] = pose
 	return planned

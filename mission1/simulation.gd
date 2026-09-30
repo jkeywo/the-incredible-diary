@@ -37,6 +37,13 @@ func _init(with_opening := true) -> void:
  reset()
 
 func reset() -> void:
+ if exploration():
+  var content := authored_content
+  authored_content = {}
+  reset()
+  authored_content = content
+  _reset_exploration_content()
+  return
  memory.notes = []
  var loop := int(s.get("loop", -1)) + 1
  var previous_code: String = s.get("code","")
@@ -119,6 +126,16 @@ func options(local := true) -> Array[Dictionary]:
 func _authored_options(local := true) -> Array[Dictionary]:
  var result: Array[Dictionary] = []
  if not s.action.is_empty() or s.finished: return result
+ if exploration():
+  for id in preload("res://mission2/content.gd").CREW_DOORS:
+   var x: float = preload("res://mission2/content.gd").CREW_DOORS[id]
+   var bounds := Rect2(x-35,330,70,80)
+   var occupied: bool = s.room == "passage" and bounds.has_point(Rooms.point(s.pos))
+   for actor in s.actors.values():
+    if actor.room == "passage" and bounds.grow(8).has_point(Rooms.point(actor.pos)): occupied = true
+   _option(result,id,"Close door" if flag(id) else "Open door","passage",Vector2(x,385),local,not (flag(id) and occupied))
+  return nearest_options(result) if local else result
+ if not s.action.is_empty() or s.finished: return result
  if tutorial_active():
   _option(result,"report","Report for duty","docks",CAPTAIN,local,s.tutorial == "approach")
   return result
@@ -143,6 +160,7 @@ func _option(result: Array[Dictionary], id: String, label: String, room: String,
   result.append({"id":id, "label":label, "pos":[p.x,p.y], "room":room,"target":interaction_target(id)})
 
 func interaction_target(id: String) -> String:
+ if preload("res://mission2/content.gd").CREW_DOORS.has(id): return id
  if id.begins_with("collect:") or id == "return_drink": return "bar"
  if id == "duties_back": return str(s.hospitality.menu)
  var parts := id.split(":")
@@ -190,6 +208,9 @@ func step(direction := Vector2.ZERO, cancel := false) -> void:
  Rooms.prop_states = prior_states
 
 func _authored_step(direction := Vector2.ZERO, cancel := false) -> void:
+ if exploration():
+  _exploration_step(direction,cancel)
+  return
  if s.finished: return
  events.clear()
  s.frame = int(s.get("frame",s.tick))+1
@@ -204,6 +225,7 @@ func _authored_step(direction := Vector2.ZERO, cancel := false) -> void:
  if direction.length_squared() > 0.01:
   var p := Crowd.move_player(s.room, Rooms.point(s.pos), direction.limit_length() * 14.0, s.flags, s.actors)
   s.pos = [p.x,p.y]
+  _locked_door_feedback(p)
   s.facing = ("right" if direction.x > 0 else "left") if absf(direction.x)>absf(direction.y) else ("down" if direction.y>0 else "up")
   if s.door_cooldown == 0:
    for door in Rooms.exits(s.room, flag("shortcut")):
@@ -260,6 +282,90 @@ func _authored_step(direction := Vector2.ZERO, cancel := false) -> void:
  Authored.update(self)
  history.append(s.duplicate(true))
 
+func exploration() -> bool:
+ return int(authored_content.get("settings",{}).get("mission",1)) == 2
+
+func start_mission_two() -> void:
+ authored_content = {}
+ opening_enabled = false
+ reset()
+ authored_content = preload("res://mission2/content.gd").seed()
+ content_versions = {authored_content.version:authored_content.duplicate(true)}
+ _reset_exploration_content()
+
+func _reset_exploration_content() -> void:
+ var player := preload("res://mission1/authoring_content.gd").resolve(authored_content,"amelia")
+ s.room = player.room
+ s.pos = player.position.duplicate()
+ s.tutorial = "done"
+ s.arrivals = false
+ s.message = "A new day aboard. Explore the ship."
+ s.flags = {"shortcut":true,"cabin_left":true,"cabin_middle":true,"cabin_right":true}
+ s.actors = {}
+ for id in authored_content.instances:
+  var entity := preload("res://mission1/authoring_content.gd").resolve(authored_content,id)
+  if entity.kind == "character" and id != "amelia":
+   s.actors[id] = {"room":entity.room,"pos":entity.position.duplicate(),"action":"idle","facing":"down"}
+ Authored.update(self)
+ history = [s.duplicate(true)]
+
+func _locked_door_feedback(p: Vector2) -> void:
+ for door in Rooms.locked_doors(s.room,exploration()):
+  if door.bounds.has_point(p):
+   s.message = "The door is locked."
+   var key: String = s.room+str(door.point)
+   if s.get("locked_door","") != key or int(s.get("locked_notice_until",0)) <= int(s.frame):
+    Conversations.say(self,"amelia","The door is locked.","thought")
+    s.locked_door = key
+    s.locked_notice_until = int(s.frame)+35
+
+func _exploration_step(direction: Vector2, cancel := false) -> void:
+ if s.finished: return
+ events.clear()
+ s.frame = int(s.frame)+1
+ s.door_cooldown = maxi(0,int(s.door_cooldown)-1)
+ var before := {"room":s.room,"pos":s.pos.duplicate()}
+ if direction.length_squared() > 0.01:
+  var p := Crowd.move_player(s.room,Rooms.point(s.pos),direction.limit_length()*14.0,s.flags,s.actors)
+  s.pos = [p.x,p.y]
+  s.facing = ("right" if direction.x > 0 else "left") if absf(direction.x)>absf(direction.y) else ("down" if direction.y>0 else "up")
+  _locked_door_feedback(p)
+  if s.door_cooldown == 0:
+   for door in Rooms.exits(s.room,true):
+    if door.bounds.has_point(p) and Rooms.can_stand(door.room,Rooms.point(door.arrival),s.flags) and Crowd.clear(door.room,Rooms.point(door.arrival),s.actors):
+     s.room = door.room
+     s.pos = door.arrival.duplicate()
+     s.door_cooldown = 12
+     events.append({"kind":"room","text":s.room})
+     break
+ if not s.action.is_empty():
+  var action: Dictionary = s.action
+  if cancel or not nearby(action.room,Rooms.point(action.pos)) or not _still_valid(action.id):
+   s.action = {}
+  else:
+   action.progress += 1
+   if action.progress >= action.duration:
+    s.action = {}
+    _complete(action.id)
+ var previous_tick := int(s.tick)
+ var progress := float(s.get("clock_fraction",0.0))+CLOCK_RATE
+ s.tick = mini(previous_tick+int(progress),timing("end",10800))
+ s.clock_fraction = progress-int(progress)
+ if int(s.tick/HOUR) > int(previous_tick/HOUR): events.append({"kind":"sound","text":"hour_chime"})
+ var previous: Dictionary = s.actors
+ var planned := Authored.actors(self,{})
+ for actor in planned.values():
+  if actor.room != "passage" or actor.action != "walk": continue
+  for id in preload("res://mission2/content.gd").CREW_DOORS:
+   var x: float = preload("res://mission2/content.gd").CREW_DOORS[id]
+   if absf(float(actor.pos[0])-x) < 65 and absf(float(actor.pos[1])-385) < 100: s.flags[id] = true
+ s.actors = Crowd.separate(planned,s.flags,previous,{"player":{"room":s.room,"pos":s.pos}},{"player":before})
+ Authored.update(self)
+ if s.tick >= timing("end",10800):
+  s.finished = true
+  s.message = "Six hours aboard. End of the exploration schedule."
+ history.append(s.duplicate(true))
+
 func _tutorial_step(direction: Vector2) -> void:
  if s.tutorial == "approach" and direction.length_squared()>0.01:
   var p := Crowd.move_player(s.room,Rooms.point(s.pos),direction.limit_length()*14.0,s.flags,s.actors)
@@ -283,6 +389,9 @@ func _still_valid(id: String) -> bool:
  return valid
 
 func _complete(id: String) -> void:
+ if exploration() and preload("res://mission2/content.gd").CREW_DOORS.has(id):
+  s.flags[id] = not flag(id)
+  return
  if id.begins_with("authored:"):
   Authored.complete_interaction(self,id)
   return
@@ -460,6 +569,7 @@ func _observe_rescues() -> void:
   if flag("chandelier_fallen"): note("fallen_seen", "The guest lies dead beneath the fallen chandelier." if s.dead.has("chandelier_guest") else "The fallen chandelier lies in pieces. The guest is safe.")
 
 func actor_positions() -> Dictionary:
+ if exploration(): return s.get("actors",{}).duplicate(true)
  var prior := Rooms.authored
  var prior_connections := Rooms.authored_connections
  var prior_states := Rooms.prop_states
@@ -725,6 +835,19 @@ func restore_record(record: Dictionary) -> void:
  s = record.current.duplicate(true)
  memory = record.memory.duplicate(true)
  history = record.history.duplicate(true)
+ # Upgrade only the untouched first exploration seed. Edited authoring documents
+ # keep their own version, and all earlier recorded frames remain unchanged.
+ if authored_content.get("version","") in ["mission2-layout-1","mission2-layout-2"]:
+  var old_version: String = authored_content.version
+  content_versions[authored_content.version] = authored_content.duplicate(true)
+  authored_content = preload("res://mission2/content.gd").seed()
+  content_versions[authored_content.version] = authored_content.duplicate(true)
+  if old_version == "mission2-layout-1":
+   for id in preload("res://mission2/content.gd").CREW_DOORS: s.flags[id] = true
+  s.get_or_add("prop_states",{}).chandelier = "fallen"
+  s.content_version = authored_content.version
+  Authored.update(self)
+  record_current_frame()
  events.clear()
  restore_notebook()
 

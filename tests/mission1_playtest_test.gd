@@ -53,13 +53,13 @@ func checks() -> void:
  panel.s.entry = panel.s.code
  assert(panel.submit_code())
  var blocked := {"trapped":true,"steam_off":false}
- assert(not Rooms.can_stand("controls",Vector2(1040,635),blocked))
+ assert(not Rooms.can_stand("controls",Vector2(1015,270),blocked))
  assert(Rooms.can_stand("controls",Vector2(350,300),blocked))
- assert(Rooms.can_stand("controls",Vector2(1040,635),{"trapped":true,"steam_off":true}))
+ assert(Rooms.can_stand("controls",Vector2(1015,270),{"trapped":true,"steam_off":true}))
  panel.s.room = "passage"
- panel.s.pos = [1090,480]
+ panel.s.pos = [720,610]
  panel.s.flags = blocked
- panel.step(Vector2.RIGHT)
+ panel.step(Vector2.DOWN)
  assert(panel.s.room == "passage")
 
  # Both ends of the gangway work outside the former 24-pixel circular trigger.

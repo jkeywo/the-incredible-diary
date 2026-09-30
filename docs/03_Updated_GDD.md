@@ -767,3 +767,31 @@ in both navigation directions. The ten spectators who arrive at 5:25 wave at
 the departing ship during the 5:30 cutscene, using new rear-facing animations
 for the incidental guest models. Give their waves varied timing and preserve
 the other actors in view. Cutscene poses do not alter recorded voyage history.
+
+
+### Room layout and Mission 2 exploration — 30 September 2026
+
+Mission 1 now connects the service corridor to the upper-right foyer door,
+instead of the Salon. The upper-left foyer door is locked and reports that on
+approach; the lower-left passenger-cabin entrance remains usable. A new left
+Salon door is locked in Mission 1 and opens onto the foredeck in Mission 2.
+The service corridor leads down to the northern entrance of the steam-side
+compartment. Its vent, visible steam and collision block move to that entrance
+so the Mission 1 death/rescue sequence still traps the passenger there.
+
+The service corridor shows closed crew doors in Mission 1. Mission 2 opens
+three crew cabins, starts Amelia in her own left cabin, and adds the accessible
+foredeck while retaining the other rooms and connections. All fourteen returning
+NPCs, including the captain, have six hours of schedules. This build includes
+exploration and routines only: no Mission 2 hazards, rescue tasks or powers.
+Implementation timing is 1:00–7:00 at the existing two real minutes per hour.
+Mission 2 has a separate save with its complete recorded history. The title
+screen and Mission 1's successful Turn the Page action can open it.
+
+Both service corridors use identical room scale and stairs. Mission 1 blacks out
+the entire upper cabin section, including ceiling and dividing pillars, while
+keeping the corridor wall and closed doors visible. Mission 2 has working door
+leaves, with brass frames rendered above characters. The steam outlet sits
+slightly left of the northern doorway and blows across it, so steam blocks the
+exit. Mission 1's foredeck door is visibly closed with no sunlight patch on the
+Salon floor. Foredeck deckchairs use the reduced size.

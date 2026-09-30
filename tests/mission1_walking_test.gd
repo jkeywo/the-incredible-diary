@@ -49,18 +49,18 @@ func _initialize() -> void:
  assert(run.start("bump"))
  until(Sim.END)
  assert(run.s.dead.is_empty() and run.s.safe.size()==3)
- # Salon's right exit crosses the tight passage to the far steam half.
+ # The upper-right foyer exit crosses the service corridor to the northern steam door.
  run.reset()
- run.s.room = "salon"
- run.s.pos = [Sim.Rooms.BAR_GUEST.x,Sim.Rooms.BAR_GUEST.y]
- walk(Vector2(960,520),"passage")
- walk(Vector2(1100,480),"controls")
+ run.s.room = "foyer"
+ run.s.pos = [900,300]
+ walk(Vector2(1015,230),"passage")
+ walk(Vector2(720,480))
+ walk(Vector2(720,650),"controls")
  assert(float(run.s.pos[0]) > 600)
- walk(Vector2(1040,550))
- walk(Vector2(1040,635),"passage")
- walk(Vector2(60,480),"salon")
- walk(Vector2(580,550))
- walk(Vector2(580,650),"foyer")
+ walk(Vector2(1015,400))
+ walk(Vector2(1015,270),"passage")
+ walk(Vector2(720,480))
+ walk(Vector2(60,480),"foyer")
  walk(Vector2(175,460),"cabins")
  walk(Vector2(80,530))
  assert(run.s.room == "cabins")

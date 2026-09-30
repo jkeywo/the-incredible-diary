@@ -123,7 +123,7 @@ theme_override_styles/hover = SubResource("BeginHover")
 theme_override_styles/pressed = SubResource("BeginPressed")
 text = "NEW"
 
-[node name="TestLevelButton" type="Button" parent="Menu"]
+[node name="DevMenuButton" type="Button" parent="Menu"]
 custom_minimum_size = Vector2(0, 55)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.988235, 0.835294, 0.568627, 1)
@@ -132,7 +132,7 @@ theme_override_font_sizes/font_size = 25
 theme_override_styles/normal = SubResource("BeginNormal")
 theme_override_styles/hover = SubResource("BeginHover")
 theme_override_styles/pressed = SubResource("BeginPressed")
-text = "TEST LEVEL"
+text = "DEV MENU"
 
 [node name="QuitButton" type="Button" parent="Menu"]
 custom_minimum_size = Vector2(0, 55)

@@ -9,7 +9,8 @@ func advance(run: RefCounted, target: int) -> void:
 func checks() -> void:
  var run := Sim.new(false)
  assert(Rooms.exits("cabins",false).size() == 1)
- assert(Rooms.exits("salon",false).map(func(d): return d.room) == ["passage","foyer"])
+ assert(Rooms.exits("salon",false).map(func(d): return d.room) == ["foyer"])
+ assert(Rooms.exits("passage",false).map(func(d): return d.room) == ["foyer","controls"])
  assert(Rooms.can_stand("controls",Vector2(840,360)))
  assert(not Rooms.can_stand("controls",Vector2(590,360)))
  # Found luggage is a prerequisite for boarding, and hiding ends at recovery.

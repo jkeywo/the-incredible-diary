@@ -1,15 +1,9 @@
-[gd_scene load_steps=4 format=3]
-
+[gd_scene load_steps=3 format=3]
 [ext_resource type="Script" path="res://assets/props/mission_1/steam_vent.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/props/mission_1/steam_vent_states.png" id="2"]
-[ext_resource type="PackedScene" path="res://assets/effects/mission_1/steam_plume.tscn" id="3"]
-
-[node name="SteamVent" type="Sprite2D"]
-texture = ExtResource("2")
+[ext_resource type="PackedScene" path="res://assets/effects/mission_1/steam_plume.tscn" id="2"]
+[node name="SteamVent" type="Node2D"]
 script = ExtResource("1")
-cell_size = Vector2i(160, 144)
-state_names = PackedStringArray("active", "off")
-current_state = "off"
-
-[node name="SteamPlume" parent="." instance=ExtResource("3")]
-position = Vector2(0, -60)
+[node name="SteamPlume" parent="." instance=ExtResource("2")]
+position = Vector2(-23, -42)
+rotation = 1.5707963
+scale = Vector2(1, 1.4)

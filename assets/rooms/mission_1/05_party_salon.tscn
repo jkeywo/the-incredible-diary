@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="Texture2D" path="res://assets/rooms/mission_1/05_party_salon.png" id="1"]
+[ext_resource type="Texture2D" path="res://assets/rooms/mission_1/05_salon_closed.png" id="1"]
 [ext_resource type="Script" path="res://mission1/room_audio_settings.gd" id="2"]
 [ext_resource type="AudioStream" path="res://assets/audio/mission_1/music/hot_swing.mp3" id="3"]
 [ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/salon_crowd.wav" id="4"]
@@ -9,6 +9,7 @@
 texture_filter = 1
 
 [node name="Backdrop" type="Sprite2D" parent="."]
+scale = Vector2(0.7388535, 0.738523)
 centered = false
 texture = ExtResource("1")
 

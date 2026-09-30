@@ -74,6 +74,10 @@ var diary_next: Button
 var diary_menu: Button
 var end_presented := false
 var ending: Control
+const CUT_FADE_SECONDS := 0.18
+var cut_fade: ColorRect
+var cut_fade_phase := ""
+var cut_fade_elapsed := 0.0
 var bubble_identity := ""
 var bubble_offset := Vector2.ZERO
 var diary_text: RichTextLabel
@@ -124,6 +128,15 @@ func _ready() -> void:
  add_child(world_overlay)
  world_overlay.draw.connect(_draw_world_markers)
  _build_hud()
+ var fade_layer := CanvasLayer.new()
+ fade_layer.layer = 20
+ add_child(fade_layer)
+ cut_fade = ColorRect.new()
+ cut_fade.color = Color.BLACK
+ cut_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+ cut_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+ fade_layer.add_child(cut_fade)
+ cut_fade.hide()
  hint_prompt = _label(Vector2.ZERO,Vector2(350,32),17)
  hint_prompt.hide()
  _restore_initial()
@@ -249,7 +262,7 @@ func _build_hud() -> void:
  reset.add_child(preload("res://assets/ui/mission_1/diary_sparkles.gd").new())
  diary_next = Button.new()
  diary_next.text = "Turn the Page"
- diary_next.pressed.connect(_return_to_menu)
+ diary_next.pressed.connect(_next_mission)
  right_page.add_child(diary_next)
  diary_menu = Button.new()
  diary_menu.text = "Return to main menu"
@@ -294,7 +307,8 @@ func _build_hud() -> void:
  touch_controls.action_pressed.connect(_touch_action)
 
 func _touch_action(action: String) -> void:
- if stream_resources and not _prepare_visible(_display_state()): return
+ var display := _display_state()
+ if stream_resources and not _prepare_visible(display): return
  get_node("/root/ButtonFeedback").activate()
  idle_seconds = 0.0
  if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0: return
@@ -339,6 +353,14 @@ func _process(delta: float) -> void:
  time_presentation.rewinding = rewind_index >= 0
  time_presentation.rewind_progress = 1.0-float(rewind_index)/maxf(1.0,rewind_start) if rewind_index >= 0 else 0.0
  if not application_focused: return
+ if not cut_fade_phase.is_empty():
+  if cut_fade_phase == "in":
+   for id in ending.state.actors:
+    if ending.state.actors[id].room != ending.state.room: continue
+    _ensure_actor(id)
+    if actors[id] is PendingCharacter: return
+  if not get_tree().paused: _advance_cut_fade(delta)
+  return
  if ending.active():
   if get_tree().paused: return
   # The cutscene waits for its cast as well as its destination room.
@@ -356,7 +378,7 @@ func _process(delta: float) -> void:
   visual_elapsed = minf(0.099,visual_elapsed+delta)
   _sync_props(sim.s)
   if not sim.tutorial_active():
-   watch.elapsed_seconds = minf(Simulation.END,float(sim.s.tick)+float(sim.s.get("clock_fraction",0.0))+minf(0.99,(accumulator+visual_elapsed)/0.1)*Simulation.CLOCK_RATE)/10.0
+   watch.elapsed_seconds = minf(sim.timing("end",Simulation.END),float(sim.s.tick)+float(sim.s.get("clock_fraction",0.0))+minf(0.99,(accumulator+visual_elapsed)/0.1)*Simulation.CLOCK_RATE)/10.0
 
 func _physics_process(delta: float) -> void:
  if stream_resources and not _prepare_visible(_display_state()):
@@ -414,7 +436,8 @@ func _unhandled_input(event: InputEvent) -> void:
  elif key == KEY_R:
   _begin_reset()
  elif sim.s.finished and (key == KEY_ENTER or button == JOY_BUTTON_A):
-  if sim.succeeded(): _return_to_menu()
+  if sim.exploration(): _return_to_menu()
+  elif sim.succeeded(): _next_mission()
   else: _begin_reset()
  elif button == JOY_BUTTON_B and diary_open:
   _toggle_diary()
@@ -460,11 +483,12 @@ func _refresh(direction := Vector2.INF) -> void:
   direction = _movement_input() if rewind_index < 0 else Vector2.ZERO
  touch_controls.set_context(controls_enabled,diary_open or rewind_index>=0 or sim.s.finished)
  var state: Dictionary = _display_state()
+ if cut_fade_phase == "out": return
  if stream_resources and not _prepare_visible(state): return
  _ensure_actor("amelia")
  if shown_room != state.room: _show_room(state.room)
  watch.elapsed_seconds = float(state.tick)/10.0
- heading.text = "All Aboard  ·  " + str(sim.room_definition(state.room).title)
+ heading.text = ("Mission 2  ·  " if sim.exploration() else "All Aboard  ·  ") + str(sim.room_definition(state.room).title)
  message.text = state.message
  notice.text = state.get("notice", "") if int(state.tick) < int(state.get("notice_until",0)) else ""
  room_audio.set_game_time(int(state.tick)*100)
@@ -537,7 +561,7 @@ func _refresh(direction := Vector2.INF) -> void:
   help.hide()
   if not end_presented:
    end_presented = true
-   (diary_next if sim.succeeded() else diary_reset).call_deferred("grab_focus")
+   (diary_menu if sim.exploration() else diary_next if sim.succeeded() else diary_reset).call_deferred("grab_focus")
  elif rewind_index >= 0:
   message.text = "The pages turn backwards…  R to skip"
  _refresh_bubble(state)
@@ -648,15 +672,27 @@ func _draw_world_markers() -> void:
  if not controls_enabled: return
  if sim.s.finished and rewind_index < 0: return
  var state: Dictionary = sim.history[rewind_index] if rewind_index >= 0 else sim.s
- for door in Rooms.exits(state.room,state.flags.get("shortcut",false)):
+ var prior := Rooms.authored
+ var prior_connections := Rooms.authored_connections
+ Rooms.authored = sim.authored_content.get("rooms",{})
+ Rooms.authored_connections = sim.authored_content.get("connections",[])
+ var exits := Rooms.exits(state.room,state.flags.get("shortcut",false))
+ Rooms.authored = prior
+ Rooms.authored_connections = prior_connections
+ for door in exits:
   world_overlay.draw_rect(door.bounds,Color(0.83,0.71,0.44,0.35 if highlight else 0.13))
   world_overlay.draw_rect(door.bounds,Color(0.83,0.71,0.44,0.85 if highlight else 0.4),false,1)
+ for door in Rooms.locked_doors(state.room,sim.exploration()):
+  world_overlay.draw_rect(door.bounds,Color(0.75,0.5,0.3,0.7 if highlight else 0.3),false,1)
  if highlight and rewind_index < 0 and not diary_open:
   for option in sim.options(false):
    if not _highlight_entity(option.get("target","")):
     world_overlay.draw_circle(Rooms.point(option.pos),12,Color("f8d87390"))
 
 func _display_state() -> Dictionary:
+ if sim.exploration() and sim.s.finished:
+  ending.done = true
+  return sim.s
  if rewind_index >= 0: return sim.history[rewind_index]
  if sim.s.finished:
   if ending.state.is_empty():
@@ -664,12 +700,34 @@ func _display_state() -> Dictionary:
    diary_presentation.clear()
    touch_controls.release_all()
    ending.start(sim.s)
+   if ending.state.room != sim.s.room and not shown_room.is_empty():
+    cut_fade_phase = "out"
+    cut_fade_elapsed = 0.0
+    cut_fade.modulate.a = 0.0
+    cut_fade.show()
+    ending.hide()
    _persist()
+  if cut_fade_phase == "out": return sim.s
   return ending.state
  if not ending.state.is_empty():
   ending.clear()
   end_presented = false
  return sim.s
+
+func _advance_cut_fade(delta: float) -> void:
+ cut_fade_elapsed = minf(CUT_FADE_SECONDS,cut_fade_elapsed+delta)
+ var amount := cut_fade_elapsed/CUT_FADE_SECONDS
+ cut_fade.modulate.a = amount if cut_fade_phase == "out" else 1.0-amount
+ if cut_fade_elapsed < CUT_FADE_SECONDS: return
+ if cut_fade_phase == "out":
+  # Swap the room only under full black; hold the cutscene clock until revealed.
+  cut_fade_phase = "in"
+  cut_fade_elapsed = 0.0
+  ending.show()
+  _refresh()
+ else:
+  cut_fade_phase = ""
+  cut_fade.hide()
 
 func _refresh_character_art() -> void:
  if not character_ticket.is_empty() and not str(character_ticket.error).is_empty():
@@ -796,7 +854,7 @@ func _show_room(id: String) -> void:
  if room.has_node("RoomAudioSettings"): room_audio.set_room(room.get_node("RoomAudioSettings"), int(sim.s.tick)*100, opening_audio_fade)
  opening_audio_fade = 1.0
  shown_room = id
- match id:
+ match ("" if sim.exploration() else id):
   "docks":
    _prop("suitcase", Rooms.LUGGAGE)
    _prop("bag_hiding", Vector2(210,335))
@@ -813,7 +871,7 @@ func _show_room(id: String) -> void:
    digits.add_theme_color_override("font_color",Color("ffe8a3"))
    digits.mouse_filter = Control.MOUSE_FILTER_IGNORE
    props.code_panel.add_child(digits)
-   _prop("steam_vent", Vector2(1035,615))
+   _prop("steam_vent", Vector2(940,290))
    var smoke := preload("res://assets/effects/mission_1/room_steam.gd").new()
    smoke.z_index = 8
    entity_layer.add_child(smoke)
@@ -866,6 +924,8 @@ func _sync_props(state: Dictionary) -> void:
  var world_offset := Vector2.ZERO
  for door_id in Rooms.CABIN_DOORS:
   if props.has(door_id): props[door_id].set_state("open" if state.flags.get(door_id,false) else "closed")
+ for door_id in preload("res://mission2/content.gd").CREW_DOORS:
+  if props.has(door_id): props[door_id].set_state("open" if state.flags.get(door_id,false) else "closed")
  if props.has("drink"):
   props.drink.visible = state.flags.get("party_arrived",false)
   props.drink.show_at(state,effect_fraction)
@@ -892,8 +952,13 @@ func _sync_props(state: Dictionary) -> void:
   if state.flags.has("chandelier_drop_frame"): drop = (frame-float(state.flags.chandelier_drop_frame))/Simulation.DROP_FRAMES
   var impact := (tick-float(state.flags.get("chandelier_impact_tick",Simulation.FALL)))/10.0 if state.flags.get("chandelier_fallen",false) else -1.0
   if state.flags.has("chandelier_impact_frame"): impact = (frame-float(state.flags.chandelier_impact_frame))/10.0
+  if sim.exploration():
+   drop = 1.0
+   impact = 10.0
   props.chandelier.show_at(state.flags.get("chandelier_warning",false),drop,impact,frame/10.0)
   world_offset = preload("res://assets/effects/mission_1/physical_accents.gd").impact_offset(impact)
+ if props.has("janitor"):
+  props.janitor.show_at((float(state.get("frame",state.tick))+effect_fraction)/10.0)
  if props.has("suitcase"):
   props.suitcase.visible = not state.flags.get("bag_found",false)
   props.suitcase.set_state("hidden" if state.flags.get("bag_hidden",false) else "present")
@@ -923,7 +988,12 @@ func _toggle_diary() -> void:
  if diary_presentation.wanted: diary_close.call_deferred("grab_focus")
  _persist()
 
+func _next_mission() -> void:
+ get_tree().set_meta("open_mission2",true)
+ _return_to_menu()
+
 func _return_to_menu() -> void:
+ _persist()
  get_node("/root/AudioSettings").return_to_main_menu()
 
 func _refresh_diary() -> void:
@@ -931,6 +1001,7 @@ func _refresh_diary() -> void:
  var victory: bool = ended and sim.succeeded()
  var text := "\n\n".join(sim.memory.notes)
  var outcome := "5:30 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n") if ended else ""
+ if ended and sim.exploration(): outcome = "7:00 · Six hours aboard.\n\nEnd of the exploration schedule."
  if text+outcome != diary_cached_text or diary_pages.pages.is_empty():
   diary_cached_text = text+outcome
   diary_pages.rebuild(text,diary_text.get_theme_font("normal_font"),18,334,340,outcome)
@@ -952,7 +1023,11 @@ func _refresh_diary() -> void:
  reset_parent.move_child(diary_reset,1 if diary_pages.spread == 0 else 4)
  diary_reset.visible = (diary_pages.spread == 0 or final_page) and not victory
  diary_reset.disabled = not sim.memory.reset and not ended
- diary_next.visible = final_page and victory
+ diary_next.visible = final_page and victory and not sim.exploration()
+ if sim.exploration():
+  diary_reset.hide()
+  diary_instructions.hide()
+  if ended: diary_title.text = "SCHEDULE COMPLETE"
  diary_menu.visible = final_page and ended
  diary_previous_page.disabled = diary_pages.spread == 0
  diary_following_page.disabled = final_page
@@ -971,6 +1046,7 @@ func _turn_diary(direction: int) -> void:
 func _summary() -> String:
  return sim.summary()
 func _begin_reset() -> void:
+ if sim.exploration(): return
  if ending.active(): return
  if time_presentation.finish_remaining > 0.0: return
  if not sim.memory.reset and not sim.s.finished:

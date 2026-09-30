@@ -9,6 +9,8 @@ func checks() -> void:
 	var mounted := {}
 	var paths: Array = ["res://mission1/play.tscn"]
 	for room in Plan.Rooms.ROOMS: paths.append_array(Plan.room_paths(room))
+	var second := preload("res://mission2/content.gd").seed()
+	for room in second.rooms: paths.append_array(Plan.room_paths(room,second))
 	for id in Plan.SKINS: paths.append_array(Plan.character_paths(id))
 	for id in Plan.Sim.Routines.INCIDENTAL_SKINS: paths.append_array(Plan.character_paths(id))
 	for path in paths:

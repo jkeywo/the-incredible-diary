@@ -16,6 +16,7 @@ const LevelWait = preload("res://assets/ui/loading/level_wait.gd")
 const TEST_LEVEL := "res://foundation/harness.tscn"
 
 @export var mission_save_path := Save.DEFAULT_PATH
+@export var mission_two_save_path := "user://mission2.journal"
 
 @onready var cover: TextureRect = $ClosedCover
 @onready var lettering: TextureRect = $TitleLettering
@@ -36,6 +37,9 @@ var glint: TextureRect
 var confirm_motion: Node
 var error_motion: Node
 var controller_menu: Node
+var dev_menu: AcceptDialog
+var dev_motion: Node
+var dev_choices: Array[Button] = []
 var settings_button: Button
 var level_loader: Node
 var loading_diary: Control
@@ -43,6 +47,7 @@ var _waiting := false
 var _pending_new := false
 var _pending_saved: Dictionary = {}
 var _pending_scene := LevelLoader.MISSION
+var _pending_save_path := ""
 var _preview_state: Dictionary = {}
 
 
@@ -62,7 +67,7 @@ func _ready() -> void:
 		return
 	continue_button.pressed.connect(_on_continue)
 	$Menu/NewButton.pressed.connect(_on_new)
-	$Menu/TestLevelButton.pressed.connect(_on_test_level)
+	$Menu/DevMenuButton.pressed.connect(_on_dev_menu)
 	$Menu/QuitButton.pressed.connect(_on_quit)
 	new_confirm.confirmed.connect(_start_new)
 	_menu_audio = RoomAudio.new()
@@ -74,7 +79,10 @@ func _ready() -> void:
 	_refresh_continue()
 	_start_entrance()
 	_signal_web_ready()
-	_start_background_load.call_deferred()
+	if get_tree().has_meta("open_mission2"):
+		get_tree().remove_meta("open_mission2")
+		_on_mission_two.call_deferred(false)
+	else: _start_background_load.call_deferred()
 
 
 var _preview_content: Dictionary = {}
@@ -151,8 +159,9 @@ func _start_background_load() -> void:
 	level_loader.start(LevelLoader.MISSION,_preview_state,false,_preview_content)
 
 
-func _launch_mission(saved: Dictionary = {}) -> void:
+func _launch_mission(saved: Dictionary = {}, destination_save := "") -> void:
 	if _opening or _waiting: return
+	_pending_save_path = mission_save_path if destination_save.is_empty() else destination_save
 	_pending_saved = saved
 	_pending_scene = LevelLoader.MISSION
 	_wait_for_level()
@@ -212,7 +221,7 @@ func _enter_prepared_level() -> void:
 	var game: Node2D = level_loader.resources[LevelLoader.MISSION].instantiate()
 	game.stream_resources = true
 	game.character_ticket = level_loader.character_ticket
-	game.save_path = mission_save_path
+	game.save_path = _pending_save_path
 	game.configure(_pending_saved, true)
 	game.room_audio = _menu_audio
 	game.opening_audio_fade = OPENING_SECONDS
@@ -221,6 +230,58 @@ func _enter_prepared_level() -> void:
 	set_game_world(game)
 	_game_world = game
 	begin()
+
+
+func _on_mission_two(resume_saved := true) -> void:
+	if _opening or _waiting or new_confirm.visible or error_dialog.visible: return
+	var loaded := Save.load_saved(mission_two_save_path)
+	if resume_saved and loaded.ok and not loaded.data.current.finished:
+		_launch_mission(loaded.data,mission_two_save_path)
+		return
+	var run := Simulation.new(false)
+	run.start_mission_two()
+	_launch_mission({"current":run.s,"memory":run.memory,"history":run.history,"authored_content":run.authored_content,"content_versions":run.content_versions},mission_two_save_path)
+
+func _build_dev_menu() -> void:
+	dev_menu = AcceptDialog.new()
+	dev_menu.name = "DevMenu"
+	dev_menu.title = "Dev Menu"
+	dev_menu.exclusive = true
+	dev_menu.ok_button_text = "Back"
+	dev_menu.dialog_hide_on_ok = false
+	add_child(dev_menu)
+	var content := PopupSkin.decorate(dev_menu)
+	var actions: Array[Callable] = [_on_new,_on_mission_two,_on_test_level]
+	var labels := ["Mission 1 — All Aboard","Mission 2","Test Level"]
+	for i in labels.size():
+		var choice := Button.new()
+		choice.text = labels[i]
+		choice.custom_minimum_size.y = 48
+		content.add_child(choice)
+		dev_choices.append(choice)
+		choice.pressed.connect(_select_dev_mission.bind(actions[i]))
+	dev_motion = preload("res://assets/ui/popup/popup_motion.gd").new()
+	dev_motion.setup(dev_menu,self)
+	dev_menu.confirmed.connect(_close_dev_menu)
+	dev_menu.canceled.connect(_close_dev_menu)
+	dev_menu.about_to_popup.connect(func(): dev_choices[0].call_deferred("grab_focus"))
+	_controller_for(dev_menu,func(): return dev_choices+[dev_menu.get_ok_button()],func(): return dev_menu.visible and not dev_motion.closing,_close_dev_menu)
+
+
+func _on_dev_menu() -> void:
+	if _opening or _waiting or new_confirm.visible or error_dialog.visible or dev_menu.visible: return
+	_finish_entrance()
+	dev_menu.popup_centered()
+
+
+func _close_dev_menu() -> void:
+	dev_motion.leave(func(): dev_motion.restore_focus($Menu/DevMenuButton))
+
+
+func _select_dev_mission(action: Callable) -> void:
+	if dev_motion.closing: return
+	dev_motion.finish()
+	action.call()
 
 
 func _on_test_level() -> void:
@@ -317,6 +378,7 @@ func _build_polish() -> void:
 	menu.add_child(settings_button)
 	menu.move_child(settings_button,3)
 	settings_button.pressed.connect(_on_settings)
+	_build_dev_menu()
 	glint = TextureRect.new()
 	glint.texture = lettering.texture
 	glint.size = lettering.size
@@ -335,7 +397,7 @@ func _build_polish() -> void:
 	error_dialog.dialog_hide_on_ok = false
 	error_dialog.confirmed.connect(func(): error_motion.leave(func(): error_motion.restore_focus(continue_button if continue_button.visible else $Menu/NewButton)))
 	error_dialog.canceled.connect(func(): error_motion.leave(func(): error_motion.restore_focus($Menu/NewButton)))
-	controller_menu = _controller_for(self,func(): return menu.get_children(),func(): return menu.visible and not _opening and not _waiting and not get_tree().paused and not new_confirm.visible and not error_dialog.visible,func(): pass)
+	controller_menu = _controller_for(self,func(): return menu.get_children(),func(): return menu.visible and not _opening and not _waiting and not get_tree().paused and not new_confirm.visible and not error_dialog.visible and not dev_menu.visible,func(): pass)
 	_controller_for(new_confirm,func(): return [new_confirm.get_cancel_button(),new_confirm.get_ok_button()],func(): return new_confirm.visible and not confirm_motion.closing,func(): new_confirm.canceled.emit())
 	_controller_for(error_dialog,func(): return [error_dialog.get_ok_button()],func(): return error_dialog.visible and not error_motion.closing,func(): error_dialog.canceled.emit())
 	new_confirm.about_to_popup.connect(func(): new_confirm.get_cancel_button().call_deferred("grab_focus"))

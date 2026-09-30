@@ -86,6 +86,17 @@ func checks() -> void:
 	assert(settings._opened and paused)
 	button(settings.dialog,JOY_BUTTON_B)
 	await create_timer(0.2).timeout
+	title.get_node("Menu/DevMenuButton").grab_focus()
+	button(root,JOY_BUTTON_A)
+	await process_frame
+	assert(title.dev_menu.visible and title.dev_menu.gui_get_focus_owner() == title.dev_choices[0])
+	button(title.dev_menu,JOY_BUTTON_DPAD_DOWN)
+	assert(title.dev_menu.gui_get_focus_owner() == title.dev_choices[1])
+	button(title.dev_menu,JOY_BUTTON_DPAD_DOWN)
+	assert(title.dev_menu.gui_get_focus_owner() == title.dev_choices[2])
+	button(title.dev_menu,JOY_BUTTON_B)
+	await create_timer(0.2).timeout
+	assert(not title.dev_menu.visible and root.gui_get_focus_owner() == title.get_node("Menu/DevMenuButton"))
 	title.get_node("Menu/NewButton").grab_focus()
 	button(root,JOY_BUTTON_A)
 	await process_frame

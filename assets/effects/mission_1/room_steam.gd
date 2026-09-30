@@ -17,6 +17,10 @@ func show_at(time: float, enabled: bool, shutdown_age := -1.0) -> void:
 
 func _draw() -> void:
  if not active: return
+ # Dense source cloud covers the relocated northern doorway.
+ for i in 12:
+  var source := Vector2(1015+sin(phase*1.8+i)*27,275+cos(phase*1.2+i)*22)
+  draw_circle(source,37+i%3*7,Color(0.87,0.91,0.92,0.055))
  var xs := [625.0,685.0,1050.0,1125.0]
  var ys := [30.0,130.0,575.0,690.0]
  var fade := [0.0,1.0,1.0,0.0]

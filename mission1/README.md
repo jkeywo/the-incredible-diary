@@ -72,7 +72,7 @@ guest names, preferences, errand outcomes and temporary routes.
 5. In Hour 5, bump the luggage owner after witnessing the spiking at the salon.
    His ruined outfit takes him away until the party ends.
 6. Survive the full sixth Hour to complete the mission. Completion and the
-   location-rewriting unlock are retained; Mission 2 itself is outside this build.
+   location-rewriting unlock are retained; Mission 2 is available as a separate exploration build.
 
 The foyer, controls, salon and cabin corridor form a circular route. The porter
 makes the central stair shortcut available in Hour 4; familiar loops still need
@@ -182,8 +182,7 @@ without fading the text.
 
 At 5:30 the open diary becomes the mission-over screen: the outcome summary is
 on the left page, with buttons on the right. Failure offers the usual rewind;
-victory offers **Turn the Page**. Both offer **Return to main menu**. Until the
-next mission exists, Turn the Page also returns to the main menu.
+victory offers **Turn the Page**. Both offer **Return to main menu**. Turn the Page now opens Mission 2.
 
 
 ### Witnesses, interaction focus and loading
@@ -296,3 +295,13 @@ everyone alive, ten spectators instead enter at the lower-right docks entrance
 and walk to waterfront positions, using the four incidental guest models.
 These arrivals are recorded and resume through saves. The cutscene retains all
 actors in its room, including Boy when present, at their actual final positions.
+
+
+### Revised room layout
+
+The upper-right foyer door now reaches the service corridor. The Salon left
+door and upper-left foyer door report locked in Mission 1. Closed crew doors
+line the service corridor. Its bottom exit reaches the top of the steam room;
+the vent and steam blocking area occupy that new entrance. Start a new Mission
+1 to use the revised authored layout; existing journals retain their recorded
+content and history. See [Mission 2](../mission2/README.md) for the next leg.

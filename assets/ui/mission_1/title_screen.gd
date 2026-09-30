@@ -17,6 +17,7 @@ const TEST_LEVEL := "res://foundation/harness.tscn"
 
 @export var mission_save_path := Save.DEFAULT_PATH
 @export var mission_two_save_path := "user://mission2.journal"
+@export var mission_three_save_path := "user://mission3.journal"
 
 @onready var cover: TextureRect = $ClosedCover
 @onready var lettering: TextureRect = $TitleLettering
@@ -79,7 +80,10 @@ func _ready() -> void:
 	_refresh_continue()
 	_start_entrance()
 	_signal_web_ready()
-	if get_tree().has_meta("open_mission2"):
+	if get_tree().has_meta("open_mission3"):
+		get_tree().remove_meta("open_mission3")
+		_on_mission_three.call_deferred(false)
+	elif get_tree().has_meta("open_mission2"):
 		get_tree().remove_meta("open_mission2")
 		_on_mission_two.call_deferred(false)
 	else: _start_background_load.call_deferred()
@@ -242,6 +246,16 @@ func _on_mission_two(resume_saved := true) -> void:
 	run.start_mission_two()
 	_launch_mission({"current":run.s,"memory":run.memory,"history":run.history,"authored_content":run.authored_content,"content_versions":run.content_versions},mission_two_save_path)
 
+func _on_mission_three(resume_saved := true) -> void:
+	if _opening or _waiting or new_confirm.visible or error_dialog.visible: return
+	var loaded := Save.load_saved(mission_three_save_path)
+	if resume_saved and loaded.ok and not loaded.data.current.finished:
+		_launch_mission(loaded.data,mission_three_save_path)
+		return
+	var run := Simulation.new(false)
+	run.start_mission_three()
+	_launch_mission({"current":run.s,"memory":run.memory,"history":run.history,"authored_content":run.authored_content,"content_versions":run.content_versions},mission_three_save_path)
+
 func _build_dev_menu() -> void:
 	dev_menu = AcceptDialog.new()
 	dev_menu.name = "DevMenu"
@@ -251,8 +265,8 @@ func _build_dev_menu() -> void:
 	dev_menu.dialog_hide_on_ok = false
 	add_child(dev_menu)
 	var content := PopupSkin.decorate(dev_menu)
-	var actions: Array[Callable] = [_on_new,_on_mission_two,_on_test_level]
-	var labels := ["Mission 1 — All Aboard","Mission 2","Test Level"]
+	var actions: Array[Callable] = [_on_new,_on_mission_two,_on_mission_three,_on_test_level]
+	var labels := ["Mission 1 — All Aboard","Mission 2","Mission 3 — Landing in Greece","Test Level"]
 	for i in labels.size():
 		var choice := Button.new()
 		choice.text = labels[i]

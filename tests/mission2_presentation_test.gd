@@ -38,7 +38,7 @@ func checks() -> void:
  game.sim.s.tick = 10800
  game._refresh()
  assert(game.diary_title.text == "SCHEDULE COMPLETE")
- assert(not game.diary_reset.visible and not game.diary_next.visible)
+ assert(not game.diary_reset.visible and game.diary_next.visible)
  assert(game.diary_menu.visible and not game.ending.active())
  game.queue_free()
  await process_frame

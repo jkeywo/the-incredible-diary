@@ -76,7 +76,7 @@ func _draw() -> void:
 	if not texture_cache.has(image_key) and not image_key.is_empty():
 		if not asset.is_empty() and data.assets.has(asset): texture_cache[image_key] = Assets.texture(data.assets[asset])
 		else:
-			var path := "res://assets/rooms/mission_1/%s.png" % image_key
+			var path := ("res://assets/rooms/mission_1/%s.png" % image_key).simplify_path()
 			if ResourceLoader.exists(path): texture_cache[image_key] = load(path)
 	var texture: Texture2D = texture_cache.get(image_key)
 	if texture != null: draw_texture_rect(texture, bounds, false)
@@ -86,6 +86,13 @@ func _draw() -> void:
 			if not texture_cache.has(path): texture_cache[path] = load(path)
 			var layer_texture: Texture2D = texture_cache[path]
 			draw_texture(layer_texture,layer[1])
+	if image_key == "../mission_3/greek_docks":
+		for layer in [["res://assets/rooms/mission_1/01_docks_water.png",Vector2(-20,-13)],["res://assets/rooms/mission_1/01_docks_ship.png",Vector2(-20,-90)],["res://assets/rooms/mission_3/greek_pier.png",Vector2.ZERO]]:
+			var path: String = layer[0]
+			if not texture_cache.has(path): texture_cache[path] = load(path)
+			var layer_texture: Texture2D = texture_cache[path]
+			if path.ends_with("greek_pier.png"): draw_texture_rect(layer_texture,bounds,false)
+			else: draw_texture(layer_texture,layer[1])
 	if not editor.history_mode:
 		for key in room.blocked:
 			var coordinates: PackedStringArray = str(key).split(",")

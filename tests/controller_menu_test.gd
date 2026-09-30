@@ -94,6 +94,10 @@ func checks() -> void:
 	assert(title.dev_menu.gui_get_focus_owner() == title.dev_choices[1])
 	button(title.dev_menu,JOY_BUTTON_DPAD_DOWN)
 	assert(title.dev_menu.gui_get_focus_owner() == title.dev_choices[2])
+	assert(title.dev_choices[2].text.begins_with("Mission 3"))
+	button(title.dev_menu,JOY_BUTTON_DPAD_DOWN)
+	assert(title.dev_menu.gui_get_focus_owner() == title.dev_choices[3])
+	assert(title.dev_choices[3].text == "Test Level")
 	button(title.dev_menu,JOY_BUTTON_B)
 	await create_timer(0.2).timeout
 	assert(not title.dev_menu.visible and root.gui_get_focus_owner() == title.get_node("Menu/DevMenuButton"))

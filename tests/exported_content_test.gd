@@ -11,6 +11,8 @@ func checks() -> void:
 	for room in Plan.Rooms.ROOMS: paths.append_array(Plan.room_paths(room))
 	var second := preload("res://mission2/content.gd").seed()
 	for room in second.rooms: paths.append_array(Plan.room_paths(room,second))
+	var third := preload("res://mission3/content.gd").seed()
+	for room in third.rooms: paths.append_array(Plan.room_paths(room,third))
 	for id in Plan.SKINS: paths.append_array(Plan.character_paths(id))
 	for id in Plan.Sim.Routines.INCIDENTAL_SKINS: paths.append_array(Plan.character_paths(id))
 	for path in paths:

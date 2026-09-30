@@ -10,7 +10,7 @@ static func room_paths(id: String, content: Dictionary = {}) -> Array:
 	if not content.is_empty():
 		var result: Array = []
 		var room: Dictionary = content.rooms.get(id,{})
-		if not str(room.get("scene", "")).is_empty(): result.append("res://assets/rooms/mission_1/%s.tscn" % room.scene)
+		if not str(room.get("scene", "")).is_empty(): result.append(("res://assets/rooms/mission_1/%s.tscn" % room.scene).simplify_path())
 		for entity_id in content.instances:
 			var entity := preload("res://mission1/authoring_content.gd").resolve(content,entity_id)
 			if entity.kind != "character" and entity.room == id: result.append("res://assets/props/mission_1/%s.tscn" % entity.appearance)

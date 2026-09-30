@@ -158,10 +158,10 @@ static func arrival_open(room: String, p: Vector2, flags: Dictionary) -> bool:
  return true
 
 # Closed doors have no connection and never enter NPC route finding.
-static func locked_doors(room: String, mission_two := false) -> Array:
+static func locked_doors(room: String, mission_two := false, at_sea := true) -> Array:
  if room == "foyer":
   var doors := [{"point":[135,230],"bounds":Rect2(95,190,100,100)}]
-  if mission_two: doors.append({"point":[580,650],"bounds":Rect2(515,620,130,100),"message":"We're at sea. I don't want to go overboard."})
+  if mission_two and at_sea: doors.append({"point":[580,650],"bounds":Rect2(515,620,130,100),"message":"We're at sea. I don't want to go overboard."})
   return doors
  if room == "salon" and not mission_two: return [{"point":[80,520],"bounds":Rect2(40,480,100,105)}]
  if room == "passage" and not mission_two:

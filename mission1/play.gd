@@ -488,7 +488,7 @@ func _refresh(direction := Vector2.INF) -> void:
  _ensure_actor("amelia")
  if shown_room != state.room: _show_room(state.room)
  watch.elapsed_seconds = float(state.tick)/10.0
- heading.text = ("Mission 2  ·  " if sim.exploration() else "All Aboard  ·  ") + str(sim.room_definition(state.room).title)
+ heading.text = ("Mission %d  ·  " % sim.mission_number() if sim.exploration() else "All Aboard  ·  ") + str(sim.room_definition(state.room).title)
  message.text = state.message
  notice.text = state.get("notice", "") if int(state.tick) < int(state.get("notice_until",0)) else ""
  room_audio.set_game_time(int(state.tick)*100)
@@ -682,7 +682,7 @@ func _draw_world_markers() -> void:
  for door in exits:
   world_overlay.draw_rect(door.bounds,Color(0.83,0.71,0.44,0.35 if highlight else 0.13))
   world_overlay.draw_rect(door.bounds,Color(0.83,0.71,0.44,0.85 if highlight else 0.4),false,1)
- for door in Rooms.locked_doors(state.room,sim.exploration()):
+ for door in Rooms.locked_doors(state.room,sim.exploration(),sim.mission_number() == 2):
   world_overlay.draw_rect(door.bounds,Color(0.75,0.5,0.3,0.7 if highlight else 0.3),false,1)
  if highlight and rewind_index < 0 and not diary_open:
   for option in sim.options(false):
@@ -848,7 +848,7 @@ func _show_room(id: String) -> void:
   if picture.texture != null: picture.scale = Vector2(definition.size[0],definition.size[1]) / picture.texture.get_size()
   room.add_child(picture)
  else:
-  room = load("res://assets/rooms/mission_1/%s.tscn" % definition.scene).instantiate() as Node2D
+  room = load(("res://assets/rooms/mission_1/%s.tscn" % definition.scene).simplify_path()).instantiate() as Node2D
  room_slot.add_child(room)
  if room.has_method("set_motion_time"): room.animate_bobbing = false
  if room.has_node("RoomAudioSettings"): room_audio.set_room(room.get_node("RoomAudioSettings"), int(sim.s.tick)*100, opening_audio_fade)
@@ -989,7 +989,7 @@ func _toggle_diary() -> void:
  _persist()
 
 func _next_mission() -> void:
- get_tree().set_meta("open_mission2",true)
+ get_tree().set_meta("open_mission3" if sim.mission_number() == 2 else "open_mission2",true)
  _return_to_menu()
 
 func _return_to_menu() -> void:
@@ -1001,7 +1001,7 @@ func _refresh_diary() -> void:
  var victory: bool = ended and sim.succeeded()
  var text := "\n\n".join(sim.memory.notes)
  var outcome := "5:30 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n") if ended else ""
- if ended and sim.exploration(): outcome = "7:00 · Six hours aboard.\n\nEnd of the exploration schedule."
+ if ended and sim.exploration(): outcome = "7:00 · Six hours %s.\n\nEnd of the exploration schedule." % ("in Greece" if sim.mission_number() == 3 else "aboard")
  if text+outcome != diary_cached_text or diary_pages.pages.is_empty():
   diary_cached_text = text+outcome
   diary_pages.rebuild(text,diary_text.get_theme_font("normal_font"),18,334,340,outcome)
@@ -1028,6 +1028,7 @@ func _refresh_diary() -> void:
   diary_reset.hide()
   diary_instructions.hide()
   if ended: diary_title.text = "SCHEDULE COMPLETE"
+  diary_next.visible = final_page and ended and sim.mission_number() == 2
  diary_menu.visible = final_page and ended
  diary_previous_page.disabled = diary_pages.spread == 0
  diary_following_page.disabled = final_page

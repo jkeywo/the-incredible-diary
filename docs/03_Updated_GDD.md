@@ -97,6 +97,19 @@ the line. The cinematic camera and poses do not alter recorded voyage history.
 The cutscene keeps all actors already in the selected room visible, including
 Boy if he is there, and uses their recorded positions.
 
+### Mission 3 — Landing in Greece — clarified 30 September 2026
+
+Mission 3 follows Mission 2 and retains its full ship. A new Greek dock connects
+to a restaurant screen on the left and a market screen on the right. The
+restaurant has a dining area with a kitchen at the back. The market has stalls
+in an arc across the top and two smaller stalls in the middle.
+
+The dock reuses Mission 1's separate ship and sea images. Its new land layer
+uses plain weathered Greek stone paving without the compass-star pattern.
+The dock's right edge and market's left edge visibly continue into each other.
+Doorways, furnishings and stalls must be checked with game characters rendered
+over them to establish scale. Mission 3 is available in the dev menu.
+
 ## 1. Identity and intended experience
 
 ### Dock tutorial and optional hospitality — agreed 29 September 2026

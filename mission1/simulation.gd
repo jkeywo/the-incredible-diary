@@ -283,7 +283,10 @@ func _authored_step(direction := Vector2.ZERO, cancel := false) -> void:
  history.append(s.duplicate(true))
 
 func exploration() -> bool:
- return int(authored_content.get("settings",{}).get("mission",1)) == 2
+ return mission_number() >= 2
+
+func mission_number() -> int:
+ return int(authored_content.get("settings",{}).get("mission",1))
 
 func start_mission_two() -> void:
  authored_content = {}
@@ -293,13 +296,21 @@ func start_mission_two() -> void:
  content_versions = {authored_content.version:authored_content.duplicate(true)}
  _reset_exploration_content()
 
+func start_mission_three() -> void:
+ authored_content = {}
+ opening_enabled = false
+ reset()
+ authored_content = preload("res://mission3/content.gd").seed()
+ content_versions = {authored_content.version:authored_content.duplicate(true)}
+ _reset_exploration_content()
+
 func _reset_exploration_content() -> void:
  var player := preload("res://mission1/authoring_content.gd").resolve(authored_content,"amelia")
  s.room = player.room
  s.pos = player.position.duplicate()
  s.tutorial = "done"
  s.arrivals = false
- s.message = "A new day aboard. Explore the ship."
+ s.message = "Welcome to Greece. Explore the dock, restaurant, market and ship." if mission_number() == 3 else "A new day aboard. Explore the ship."
  s.flags = {"shortcut":true,"cabin_left":true,"cabin_middle":true,"cabin_right":true}
  s.actors = {}
  for id in authored_content.instances:
@@ -310,7 +321,7 @@ func _reset_exploration_content() -> void:
  history = [s.duplicate(true)]
 
 func _locked_door_feedback(p: Vector2) -> void:
- for door in Rooms.locked_doors(s.room,exploration()):
+ for door in Rooms.locked_doors(s.room,exploration(),mission_number() == 2):
   if door.bounds.has_point(p):
    var text: String = door.get("message","The door is locked.")
    s.message = text
@@ -364,7 +375,7 @@ func _exploration_step(direction: Vector2, cancel := false) -> void:
  Authored.update(self)
  if s.tick >= timing("end",10800):
   s.finished = true
-  s.message = "Six hours aboard. End of the exploration schedule."
+  s.message = "Six hours in Greece. End of the exploration schedule." if mission_number() == 3 else "Six hours aboard. End of the exploration schedule."
  history.append(s.duplicate(true))
 
 func _tutorial_step(direction: Vector2) -> void:

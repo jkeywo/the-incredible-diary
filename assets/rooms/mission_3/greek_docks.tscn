@@ -1,0 +1,38 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://assets/rooms/mission_1/docks.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/rooms/mission_1/01_docks_water.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/rooms/mission_1/01_docks_ship.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/rooms/mission_3/greek_pier.png" id="4"]
+[ext_resource type="Script" path="res://mission1/room_audio_settings.gd" id="5"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/dock_waves.wav" id="6"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/steamboat_engine.wav" id="7"]
+
+[node name="Docks" type="Node2D"]
+texture_filter = 1
+script = ExtResource("1")
+
+[node name="Water" type="Sprite2D" parent="."]
+position = Vector2(-20, -13)
+centered = false
+texture = ExtResource("2")
+
+[node name="Ship" type="Sprite2D" parent="."]
+position = Vector2(-20, -90)
+centered = false
+texture = ExtResource("3")
+
+[node name="PierAndStairs" type="Sprite2D" parent="."]
+scale = Vector2(0.7221880762138906, 0.7238883143743536)
+centered = false
+texture = ExtResource("4")
+
+[node name="Entities" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="Effects" type="Node2D" parent="."]
+
+[node name="RoomAudioSettings" type="Node" parent="."]
+script = ExtResource("5")
+ambience = ExtResource("6")
+secondary_ambience = ExtResource("7")

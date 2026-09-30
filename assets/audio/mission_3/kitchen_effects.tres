@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://mission1/audio_sequence.gd" id="1"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/kitchen/cookware_clatter.ogg" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/kitchen/fast_chops_on_cutting_board.ogg" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/kitchen/slow_chops_on_cutting_board.ogg" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/kitchen/water_boiling_in_pot.ogg" id="5"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/kitchen/gas_burner_flicker_on_2.ogg" id="6"]
+
+[resource]
+script = ExtResource("1")
+clips = Array[AudioStream]([ExtResource("2"), ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])
+random_order = true
+gap_min_seconds = 3.0
+gap_max_seconds = 9.0
+delay_first_clip = true

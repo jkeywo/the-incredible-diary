@@ -94,6 +94,7 @@ def main():
     text = text.replace('<script src="index.js">', '<script src="content-cache.js"></script>\n\t\t<script src="index.js">')
     html.write_text(text, encoding="utf-8")
     (OUT / "content-cache.js").write_bytes((ROOT / "assets/ui/loading/content-cache.js").read_bytes())
+    (OUT / "audio-credits.txt").write_bytes((ROOT / "assets/audio/mission_3/CREDITS.txt").read_bytes())
     (ROOT / "build/web-content-manifest.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
     check = subprocess.run([godot, "--headless", "--path", str(OUT), "--main-pack", "index.pck",
                             "--script", str(ROOT / "tests/exported_content_test.gd"), "--quit-after", "300"],

@@ -1,9 +1,8 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Texture2D" path="res://assets/rooms/mission_1/05_salon_revised.png" id="1"]
 [ext_resource type="Script" path="res://mission1/room_audio_settings.gd" id="2"]
-[ext_resource type="AudioStream" path="res://assets/audio/mission_1/music/hot_swing.mp3" id="3"]
-[ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/salon_crowd.wav" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_1/music/piano_swap_rpg.ogg" id="3"]
 
 [node name="PartySalon" type="Node2D"]
 texture_filter = 1
@@ -21,5 +20,3 @@ y_sort_enabled = true
 [node name="RoomAudioSettings" type="Node" parent="."]
 script = ExtResource("2")
 music = ExtResource("3")
-ambience = ExtResource("4")
-ambience_volume_db = -6.0

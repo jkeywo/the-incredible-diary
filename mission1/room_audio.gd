@@ -3,6 +3,7 @@ const Text = preload("res://localisation/source_text.gd")
 ## Room beds follow elapsed game time, including time spent in other rooms.
 
 const Settings = preload("res://mission1/room_audio_settings.gd")
+const SequencePlayer = preload("res://mission1/audio_sequence_player.gd")
 
 var presentation_gain := 1.0
 var _gain_tween: Tween
@@ -48,7 +49,11 @@ func _fade_level(player: AudioStreamPlayer, db: float, seconds: float) -> Tween:
 func set_room(settings: Node, elapsed_ms: int, opening_fade_override_seconds: float = -1.0) -> void:
 	assert(settings is Settings)
 	var fade: float = opening_fade_override_seconds if opening_fade_override_seconds >= 0.0 else settings.fade_seconds
-	_set_bed("music", settings.music, settings.music_volume_db, fade, elapsed_ms)
+	if settings.music_sequence != null and not settings.music_sequence.clips.is_empty():
+		_set_sequence("music", settings.music_sequence, settings.music_volume_db, fade)
+	else:
+		_set_bed("music", settings.music, settings.music_volume_db, fade, elapsed_ms)
+	_set_sequence("random_ambience", settings.random_ambience, settings.random_ambience_volume_db, fade)
 	_set_bed("ambience", settings.ambience, settings.ambience_volume_db, fade, elapsed_ms)
 	_set_bed("secondary_ambience", settings.secondary_ambience, settings.secondary_ambience_volume_db, fade, elapsed_ms)
 	_set_intermittent(settings, elapsed_ms, fade)
@@ -118,6 +123,7 @@ func _set_bed(slot: String, source: AudioStream, target_db: float, fade: float, 
 				_fade_level(current,target_db,fade)
 		return
 	if current != null:
+		if current is SequencePlayer: current.retire()
 		_players.erase(slot)
 		_stop_fade(current)
 		if fade <= 0.0:
@@ -140,6 +146,30 @@ func _set_bed(slot: String, source: AudioStream, target_db: float, fade: float, 
 	player.play(offset_seconds(elapsed_ms, player.stream.get_length()))
 	if fade > 0.0:
 		_fade_level(player,target_db,fade)
+
+
+func _set_sequence(slot: String, config: Resource, db: float, fade: float) -> void:
+	var current: AudioStreamPlayer = _players.get(slot)
+	if current is SequencePlayer and current.sequence == config:
+		if not is_equal_approx(float(current.get_meta("level_db", current.volume_db)), db):
+			_stop_fade(current)
+			if fade <= 0.0: _set_level(db, current)
+			else: _fade_level(current, db, fade)
+		return
+	# Clear the previous bed/sequence through the normal crossfade path.
+	_set_bed(slot, null, db, fade, 0)
+	if config == null or config.clips.is_empty():
+		return
+	var player := SequencePlayer.new()
+	player.name = slot.capitalize() + "Sequence"
+	player.bus = &"Music" if slot == "music" else &"SFX"
+	player.process_mode = Node.PROCESS_MODE_PAUSABLE
+	player.set_meta("source_path", config.resource_path)
+	_set_level(-80.0 if fade > 0.0 else db, player)
+	add_child(player)
+	_players[slot] = player
+	player.start_sequence(config)
+	if fade > 0.0: _fade_level(player, db, fade)
 
 
 func _stop_fade(player: AudioStreamPlayer) -> void:

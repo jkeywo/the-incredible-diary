@@ -2,7 +2,7 @@
 
 [ext_resource type="Texture2D" path="res://assets/rooms/mission_1/07_crew_cabins_dead_end.png" id="1"]
 [ext_resource type="Script" path="res://mission1/room_audio_settings.gd" id="2"]
-[ext_resource type="AudioStream" path="res://assets/audio/mission_1/music/piano_swap_rpg.ogg" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/steamboat_engine.wav" id="3"]
 
 [ext_resource type="Script" path="res://assets/rooms/mission_1/crew_corridor.gd" id="4"]
 
@@ -23,4 +23,4 @@ y_sort_enabled = true
 
 [node name="RoomAudioSettings" type="Node" parent="."]
 script = ExtResource("2")
-music = ExtResource("3")
+ambience = ExtResource("3")

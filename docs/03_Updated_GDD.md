@@ -49,6 +49,34 @@ Gameplay actions support primary and alternate physical keyboard keys (including
 
 Audio, touch preferences and bindings are stored together in `user://settings.cfg`, separately from voyage journals. Existing audio/touch preferences migrate from `audio_settings.cfg`; New, Continue, resetting a loop and deleting a voyage preserve settings. Preferences are local to the installation/browser profile.
 
+### Room audio — clarified 30 September 2026
+
+The foredeck uses the existing waves ambience. The service corridor and crew
+cabins use steamboat engine ambience in both Mission 1 and Mission 2; Mission 3
+inherits the same ship settings. The Salon in Missions 2 and 3 uses Piano Swap
+Rpg, without the Mission 1 party crowd. Mission 1 retains its party soundtrack.
+The Greek restaurant/kitchen uses Italian restaurant walla with kitchen
+effects, and the market uses Athens crowd walla. The restaurant, Greek docks
+and market share the approved Greek music playlist described below.
+
+Audio audition decisions: MicheleFalleri's Restaurant ambience (Freesound
+578447) and jenniferelradhi's Traders calling Central Athens Market October
+2018 (Pixabay 68627) are approved. Reject cpark12's kitchen recording because
+the speech is too intelligible. Seek kitchen activity with indistinct or no
+speech. Reject the archival Kalamatianos and Calamatiano candidates for their
+recording quality. Sascha Ende's Greece Vol. 5 is approved; the supplied file is
+`greece-vol-5-travel-series-by-ende-dot-app.mp3`.
+
+The later playlist decision supersedes the single-track no-loop restriction:
+play Sascha Ende's Greece volumes 1–5 in order, with a newly randomised 5–20
+second silence after every track, then repeat the full playlist. Share playback
+across Greek docks, restaurant and market so moving between them does not restart
+the track or its gap. The sequence uses listening time and pauses with the game;
+it does not skip music when simulation time is accelerated or scrubbed.
+DavidW's Kitchen Ambience effects are approved: play random effects quietly
+behind the Italian restaurant walla, one at a time with 3–9 second gaps and no
+immediate repeat. These are presentation effects, not simulated events.
+
 ### Opening audio — clarified 29 September 2026
 
 The main menu plays the saved destination room's music and ambience when Continue is available; otherwise it uses the new game's starting room. Playback starts at half the normal in-game amplitude, after respecting the player's volume preferences. Continue preserves the active tracks and raises their volume smoothly to normal during the book-opening transition. New leaves the preview unchanged until confirmation, then crossfades to the starting room's audio over that same transition. Cancelling New does not affect playback. The existing players transfer into gameplay so tracks shared by the menu and destination do not restart.

@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://assets/rooms/mission_1/docks.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/rooms/mission_1/01_docks_water.png" id="2"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://mission1/room_audio_settings.gd" id="5"]
 [ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/dock_waves.wav" id="6"]
 [ext_resource type="AudioStream" path="res://assets/audio/mission_1/ambience/steamboat_engine.wav" id="7"]
+[ext_resource type="Resource" path="res://assets/audio/mission_3/greek_playlist.tres" id="8"]
 
 [node name="Docks" type="Node2D"]
 texture_filter = 1
@@ -34,5 +35,6 @@ y_sort_enabled = true
 
 [node name="RoomAudioSettings" type="Node" parent="."]
 script = ExtResource("5")
+music_sequence = ExtResource("8")
 ambience = ExtResource("6")
 secondary_ambience = ExtResource("7")

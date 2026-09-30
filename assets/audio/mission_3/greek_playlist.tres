@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://mission1/audio_sequence.gd" id="1"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/music/greece_vol_1.mp3" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/music/greece_vol_2.mp3" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/music/greece_vol_3.mp3" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/music/greece_vol_4.mp3" id="5"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/music/greece_vol_5.mp3" id="6"]
+
+[resource]
+script = ExtResource("1")
+clips = Array[AudioStream]([ExtResource("2"), ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])
+gap_min_seconds = 5.0
+gap_max_seconds = 20.0

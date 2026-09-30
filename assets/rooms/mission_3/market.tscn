@@ -1,6 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 [ext_resource type="Texture2D" path="res://assets/rooms/mission_3/market.png" id="1"]
 [ext_resource type="Script" path="res://mission1/room_audio_settings.gd" id="2"]
+[ext_resource type="Resource" path="res://assets/audio/mission_3/greek_playlist.tres" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/mission_3/ambience/market_walla.ogg" id="4"]
 [node name="Room" type="Node2D"]
 texture_filter = 1
 [node name="Backdrop" type="Sprite2D" parent="."]
@@ -9,3 +11,5 @@ centered = false
 texture = ExtResource("1")
 [node name="RoomAudioSettings" type="Node" parent="."]
 script = ExtResource("2")
+music_sequence = ExtResource("3")
+ambience = ExtResource("4")

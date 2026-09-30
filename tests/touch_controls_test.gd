@@ -143,4 +143,4 @@ func checks():
  assert(root.content_scale_aspect == Window.CONTENT_SCALE_ASPECT_KEEP)
  assert(root.canvas_transform == Transform2D.IDENTITY and settings.offset.x == 0)
  print("TOUCH CONTROLS PASS: input, settings persistence, wide margins, swapping, resize fallback and scene cleanup")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

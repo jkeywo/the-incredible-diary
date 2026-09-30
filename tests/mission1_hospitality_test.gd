@@ -245,4 +245,4 @@ func checks() -> void:
  game.queue_free()
  await process_frame
  print("MISSION1 HOSPITALITY PASS: frozen tutorial, arrivals, saved frames, drinks, mischief, detours, names, legacy journals and contextual UI")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

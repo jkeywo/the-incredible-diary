@@ -61,4 +61,4 @@ func run_checks() -> void:
 	await process_frame
 	DirAccess.remove_absolute(settings.settings_path)
 	print("AUDIO SETTINGS %s" % ("FAIL" if failed else "PASS"))
-	quit(1 if failed else 0)
+	await preload("res://tests/shutdown.gd").finish(self, 1 if failed else 0)

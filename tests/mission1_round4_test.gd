@@ -117,7 +117,7 @@ func checks() -> void:
  game.queue_free()
  await process_frame
  print("MISSION1 ROUND4 PASS: directional shove, witnesses, body watch, schedule, panel digits, nearest targets, hint count and apology")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)
 func capture(label: String) -> void:
  if "--screenshots" not in OS.get_cmdline_user_args(): return
  await process_frame

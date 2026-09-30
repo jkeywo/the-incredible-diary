@@ -134,4 +134,4 @@ func checks():
  wheel.set_character_bounds(overlaps)
  assert(button.get_theme_stylebox("normal").tint.a == 1.0)
  print("PRESENTATION FIXES PASS: atlas outlines, sprite-bottom occlusion and interaction background fading")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

@@ -47,4 +47,4 @@ func checks():
  menu.queue_free()
  await process_frame
  print("ACTION MENU PASS: two columns, eight choices, paging, stable refresh, mouse and controller selection")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

@@ -118,4 +118,4 @@ func run() -> void:
 	if packed.ok: check(preload("res://foundation/github_project.gd").open_files(packed.files).ok,"Mission 1 project reopens through the shared project serializer")
 	game.free()
 	print(JSON.stringify({"suite":"mission1_authoring_ui","passed":failures.is_empty(),"failures":failures}))
-	quit(0 if failures.is_empty() else 1)
+	await preload("res://tests/shutdown.gd").finish(self, 0 if failures.is_empty() else 1)

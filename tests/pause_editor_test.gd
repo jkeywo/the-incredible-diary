@@ -133,7 +133,7 @@ func _run() -> void:
 	authored.free()
 	await process_frame
 	print(JSON.stringify({"suite": "pause_editor", "passed": failures.is_empty(), "failures": failures}))
-	quit(0 if failures.is_empty() else 1)
+	await preload("res://tests/shutdown.gd").finish(self, 0 if failures.is_empty() else 1)
 
 func check_panels(editor: Node) -> void:
 	var panel = editor.panels["Scene"]

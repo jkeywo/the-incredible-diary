@@ -68,7 +68,7 @@ func _run() -> void:
 	salon.queue_free()
 	await process_frame
 	print("MISSION1_AUDIO_RESULT {\"passed\":%s}" % ["false" if _failed else "true"])
-	quit(1 if _failed else 0)
+	await preload("res://tests/shutdown.gd").finish(self, 1 if _failed else 0)
 
 
 func _check(condition: bool, label: String) -> void:

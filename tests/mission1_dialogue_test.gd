@@ -58,4 +58,4 @@ func checks() -> void:
  game.queue_free()
  await process_frame
  print("MISSION1 DIALOGUE PASS: speakers, turn-taking, thoughts, witness privacy, save continuity, typewriter, rewind and diary")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

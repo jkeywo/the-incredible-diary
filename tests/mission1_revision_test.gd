@@ -116,4 +116,4 @@ func checks() -> void:
  game.queue_free()
  await process_frame
  print("MISSION1 REVISION PASS: layout, luggage, cabin collisions, witness diary, sprites, animation and constant movement")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

@@ -69,4 +69,4 @@ func checks() -> void:
    await RenderingServer.frame_post_draw
    root.get_texture().get_image().save_png("res://build/mission1-revised-%s.png" % room)
  print("MISSION2 PRESENTATION PASS: rooms, HUD and neutral schedule ending")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

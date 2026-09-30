@@ -98,4 +98,4 @@ func run_checks() -> void:
  game.queue_free()
  await process_frame
  print("MISSION1 PLAY ", JSON.stringify({"passed":failures.is_empty(),"failures":failures}))
- quit(0 if failures.is_empty() else 1)
+ await preload("res://tests/shutdown.gd").finish(self, 0 if failures.is_empty() else 1)

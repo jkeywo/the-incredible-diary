@@ -139,7 +139,7 @@ func checks() -> void:
 	await process_frame
 	Save.clear(PATH)
 	print("CONTROLLER MENU PASS: preview gap/outcome, stick focus, A/B, Start, sliders, visible tabs, confirmation and gameplay isolation")
-	quit()
+	await preload("res://tests/shutdown.gd").finish(self)
 
 func capture(label: String) -> void:
 	if "--screenshots" not in OS.get_cmdline_user_args(): return

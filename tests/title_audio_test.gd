@@ -82,4 +82,4 @@ func checks():
  await process_frame
  Save.clear(PATH)
  print("TITLE AUDIO PASS: destination previews, half gain, continuous handoff, fade-up, cancellation and confirmed New crossfade")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

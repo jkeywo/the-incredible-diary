@@ -136,4 +136,4 @@ func checks() -> void:
 	DirAccess.remove_absolute(PATH)
 	DirAccess.remove_absolute(prefs.legacy_path)
 	print("INPUT BINDINGS %s" % ("FAIL" if failed else "PASS"))
-	quit(1 if failed else 0)
+	await preload("res://tests/shutdown.gd").finish(self, 1 if failed else 0)

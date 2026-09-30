@@ -237,9 +237,13 @@ func _run_tests() -> void:
 	stop_steam()
 	check("character_escape", rescued and chatter_position == 1.0)
 	check("first_character_line", (await next_line()).contains("Chatterbox:"))
+	var previous_dialogue: WeakRef = weakref(dialogue)
 	save_snapshot()
 	check("second_character_and_world_command", (await next_line()).contains("Guest:") and guest_arrival == 5)
 	check("restore_mid_conversation", load_snapshot() and guest_arrival == 4 and hour == 4)
+	# Dialogue Manager emits got_dialogue deferred, temporarily retaining the line.
+	await get_tree().process_frame
+	check("replaced_dialogue_released", previous_dialogue.get_ref() == null)
 	check("resume_runs_pending_command_once", (await next_line()).contains("Guest:") and guest_arrival == 5)
 	save_snapshot()
 	advance_time()

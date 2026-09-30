@@ -97,11 +97,14 @@ func run() -> void:
 	github_ui.document = github_ui.session.document
 	github_ui.github_repository = github_repository
 	github_ui.status_label = Label.new()
+	github_ui.add_child(github_ui.status_label)
 	github_ui.github_repo_picker = OptionButton.new()
+	github_ui.add_child(github_ui.github_repo_picker)
 	github_ui.github_repo_picker.add_item("Choose repository")
 	github_ui.github_repo_picker.add_item("example/diary")
 	github_ui.github_repo_picker.select(1)
 	github_ui.github_branch_picker = OptionButton.new()
+	github_ui.add_child(github_ui.github_branch_picker)
 	github_ui.github_branch_picker.add_item("Choose branch")
 	github_ui.github_branch_picker.add_item("main")
 	github_ui.github_branch_picker.select(1)
@@ -343,16 +346,21 @@ func run() -> void:
 	placement.document = placement.session.document
 	placement.session.pause()
 	placement.status_label = Label.new()
+	placement.add_child(placement.status_label)
 	placement.interaction_label_edit = LineEdit.new()
+	placement.add_child(placement.interaction_label_edit)
 	placement.interaction_label_edit.text = "Close test valve"
 	placement.interaction_duration_edit = SpinBox.new()
+	placement.add_child(placement.interaction_duration_edit)
 	placement.interaction_duration_edit.min_value = 1
 	placement.interaction_duration_edit.value = 5
 	placement.interaction_effect_edit = OptionButton.new()
+	placement.add_child(placement.interaction_effect_edit)
 	placement.interaction_effect_edit.add_item("Close valve")
 	placement.interaction_effect_edit.add_item("Delay guest")
 	placement.interaction_effect_edit.select(0)
 	placement.interaction_effect_ticks_edit = SpinBox.new()
+	placement.add_child(placement.interaction_effect_ticks_edit)
 	placement.interaction_effect_ticks_edit.value = 60
 	placement.geometry_mode = "door_start"
 	var place_click := InputEventMouseButton.new()
@@ -498,12 +506,17 @@ func run() -> void:
 	schedule_ui.document = schedule_ui.session.document
 	schedule_ui.session.pause()
 	schedule_ui.status_label = Label.new()
+	schedule_ui.add_child(schedule_ui.status_label)
 	schedule_ui.source_editor = CodeEdit.new()
+	schedule_ui.add_child(schedule_ui.source_editor)
 	schedule_ui.source_editor.text = schedule_ui.document.source_draft
 	schedule_ui.scenario_source_editor = CodeEdit.new()
+	schedule_ui.add_child(schedule_ui.scenario_source_editor)
 	schedule_ui.actor_id_edit = LineEdit.new()
+	schedule_ui.add_child(schedule_ui.actor_id_edit)
 	schedule_ui.actor_id_edit.text = "porter"
 	schedule_ui.actor_sprite_edit = OptionButton.new()
+	schedule_ui.add_child(schedule_ui.actor_sprite_edit)
 	for sprite_id in ["player", "rake", "glamorous", "ex_army", "matron"]:
 		schedule_ui.actor_sprite_edit.add_item(sprite_id)
 	schedule_ui.actor_sprite_edit.select(2)
@@ -511,10 +524,13 @@ func run() -> void:
 	expect(schedule_ui.document.content.actors.size() == 4 and schedule_ui.document.content.actors[-1].sprite == "glamorous", "actor_created_in_visual_view")
 	schedule_ui.inspected_room = "corridor"
 	schedule_ui.commitment_id_edit = LineEdit.new()
+	schedule_ui.add_child(schedule_ui.commitment_id_edit)
 	schedule_ui.commitment_id_edit.text = "porter_cross"
 	schedule_ui.commitment_speed_edit = SpinBox.new()
+	schedule_ui.add_child(schedule_ui.commitment_speed_edit)
 	schedule_ui.commitment_speed_edit.value = 6
 	schedule_ui.schedule_timeline = HSlider.new()
+	schedule_ui.add_child(schedule_ui.schedule_timeline)
 	schedule_ui.schedule_timeline.min_value = 1
 	schedule_ui.schedule_timeline.max_value = Simulation.LEG_TICKS
 	schedule_ui.schedule_timeline.value = 5
@@ -693,21 +709,29 @@ func run() -> void:
 	story_ui.document = story_ui.session.document
 	story_ui.session.pause()
 	story_ui.status_label = Label.new()
+	story_ui.add_child(story_ui.status_label)
 	story_ui.storylet_id_edit = LineEdit.new()
+	story_ui.add_child(story_ui.storylet_id_edit)
 	story_ui.storylet_id_edit.text = "signal"
 	story_ui.scene_id_edit = LineEdit.new()
+	story_ui.add_child(story_ui.scene_id_edit)
 	story_ui.scene_id_edit.text = "signal_scene"
 	story_ui.required_actor_edit = LineEdit.new()
+	story_ui.add_child(story_ui.required_actor_edit)
 	story_ui.required_actor_edit.text = "guard"
 	story_ui.storylet_start_edit = SpinBox.new()
+	story_ui.add_child(story_ui.storylet_start_edit)
 	story_ui.storylet_start_edit.value = 75
 	story_ui.storylet_end_edit = SpinBox.new()
+	story_ui.add_child(story_ui.storylet_end_edit)
 	story_ui.storylet_end_edit.value = 150
 	story_ui.storylet_flag_edit = OptionButton.new()
+	story_ui.add_child(story_ui.storylet_flag_edit)
 	for caption in ["Any valve state", "Valve closed", "Valve open"]:
 		story_ui.storylet_flag_edit.add_item(caption)
 	story_ui.storylet_flag_edit.select(1)
 	story_ui.storylet_scene_editor = CodeEdit.new()
+	story_ui.add_child(story_ui.storylet_scene_editor)
 	story_ui.storylet_scene_editor.text = str(story_scenario.scenes.signal_scene)
 	story_ui._on_storylet_scene_changed()
 	story_ui.document.finish_edit_group("scene:signal_scene")
@@ -1076,6 +1100,7 @@ func run() -> void:
 	loaded_reset.reset_loop()
 	expect(loaded_reset.inspect() == reset_run.inspect(), "reset_after_reopen_matches")
 	print("FOUNDATION_RESULT ", JSON.stringify({"passed": failures.is_empty(), "failures": failures}))
+	github_ui.free()
 	quit(0 if failures.is_empty() else 1)
 
 func check_edit_transaction(document: FoundationAuthoringDocument, operation: Callable, name: String) -> Dictionary:

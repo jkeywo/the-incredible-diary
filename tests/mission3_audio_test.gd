@@ -102,4 +102,4 @@ func checks() -> void:
 	for room in rooms: room.queue_free()
 	await process_frame
 	print("MISSION3 AUDIO PASS: ordered playlist, random gaps, shared rooms, kitchen pool, pause and completion")
-	quit()
+	await preload("res://tests/shutdown.gd").finish(self)

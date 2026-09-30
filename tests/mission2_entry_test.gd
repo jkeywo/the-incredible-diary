@@ -35,4 +35,4 @@ func checks() -> void:
   await process_frame
  Save.clear(PATH)
  print("MISSION2 ENTRY PASS: Turn the Page starts in cabin; Dev Menu resumes saved visit")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

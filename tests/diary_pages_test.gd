@@ -160,7 +160,7 @@ func checks() -> void:
 	await process_frame
 	Save.clear(PATH)
 	print("DIARY PAGES PASS: seen bodies only, once per playthrough, queue and save continuity, fresh New discovery, fitted pages, end opening and final actions")
-	quit()
+	await preload("res://tests/shutdown.gd").finish(self)
 
 func capture(label: String) -> void:
 	if "--screenshots" not in OS.get_cmdline_user_args(): return

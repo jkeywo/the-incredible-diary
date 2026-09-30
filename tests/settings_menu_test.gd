@@ -57,4 +57,4 @@ func checks():
  await create_timer(0.2).timeout
  Save.clear(PATH)
  print("SETTINGS MENU PASS: nested gameplay save, failure preservation, return, Continue and pause cleanup")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

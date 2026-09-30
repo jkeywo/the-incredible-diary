@@ -9,20 +9,21 @@ var elapsed := 0.0
 var progress := 0.0
 var failed := false
 var completed := false
+var ticket: Dictionary = {}
 func _ready() -> void:
  mouse_filter = Control.MOUSE_FILTER_IGNORE
- ResourceLoader.load_threaded_request(TITLE)
+ ticket = get_node("/root/ResourceStream").request_resources([TITLE], true)
 func _process(delta: float) -> void:
  elapsed += delta
- var values := []
- var status := ResourceLoader.load_threaded_get_status(TITLE,values)
- if not values.is_empty(): progress = float(values[0])
- failed = status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE
- if status == ResourceLoader.THREAD_LOAD_LOADED and elapsed >= (0.0 if OS.has_feature("web") else 0.85) and not completed:
+ progress = float(ticket.get("progress",0.0))
+ failed = not str(ticket.get("error", "")).is_empty()
+ if ticket.get("done", false) and not failed and elapsed >= (0.0 if OS.has_feature("web") else 0.85) and not completed:
   completed = true
-  var scene: PackedScene = ResourceLoader.load_threaded_get(TITLE)
+  var scene: PackedScene = get_node("/root/ResourceStream").resources[TITLE]
   get_tree().change_scene_to_packed.call_deferred(scene)
  queue_redraw()
+func _exit_tree() -> void:
+ if not ticket.is_empty(): ticket.cancelled = true
 func _draw() -> void:
  var font := ThemeDB.fallback_font
  draw_rect(Rect2(Vector2.ZERO,size),Color("0b1723"))

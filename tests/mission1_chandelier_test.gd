@@ -42,4 +42,4 @@ func checks() -> void:
  fixture.queue_free()
  await process_frame
  print("MISSION1 CHANDELIER PASS: centre anchor, accelerating drop, impact dust, rewind,  window rescue, off-screen death privacy, continued play")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)

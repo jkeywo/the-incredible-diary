@@ -188,7 +188,7 @@ func checks() -> void:
  game.queue_free()
  await process_frame
  print("MISSION1 IMPROVEMENTS PASS: arrivals, groups, operator, prevention, foyer pause, pacing, wreckage, hints, outlines and dropped glass")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)
 
 func capture(label: String) -> void:
  if "--screenshots" not in OS.get_cmdline_user_args(): return

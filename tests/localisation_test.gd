@@ -114,4 +114,4 @@ func checks() -> void:
 	prefs.settings_path = settings_path
 	prefs.load_settings()
 	print("LOCALISATION PASS: locales, override, plurals, references, authored edits, legacy text, history and deterministic timing")
-	quit()
+	await preload("res://tests/shutdown.gd").finish(self)

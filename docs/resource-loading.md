@@ -1,5 +1,9 @@
 # Resource loading
 
+Native resource reads run on one owned worker thread, which is joined during shutdown. This avoids the Godot 4.7 threaded-request shutdown leaks observed in loading tests. Startup uses the same scheduler. The single-threaded web export prepares one downloaded resource per frame on the main thread.
+
+The vendored Dialogue Manager has a local ownership fix: its line data is copied before adding a runtime resource reference, preventing a resource from retaining itself. The probe checks that replaced dialogue resources are released.
+
 The initial web pack contains the title, Settings, docks scene/audio, and small resource metadata/scripts. Imported art and audio outside that set are exported as individual PCKs. The engine is still required at startup. The September 2026 build has a roughly 7.4 MB initial pack and a 39.5 MB engine, before HTTP compression.
 
 ## Runtime

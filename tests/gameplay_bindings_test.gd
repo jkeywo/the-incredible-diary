@@ -80,4 +80,4 @@ func checks() -> void:
 	await process_frame
 	DirAccess.remove_absolute(prefs.settings_path)
 	print("GAMEPLAY BINDINGS PASS: actions, polling, text focus and voyage isolation")
-	quit()
+	await preload("res://tests/shutdown.gd").finish(self)

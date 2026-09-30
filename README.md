@@ -25,6 +25,10 @@ Python 3 is needed for tool installation, web packaging and a convenient local H
 
 Open `project.godot` to edit. The Windows executable exports to `build/windows/Amelia.exe`. To preview the browser build, run `python -m http.server 8000 --directory build/web` and visit http://localhost:8000 . Use HTTP rather than opening the HTML file directly.
 
+Automated Test/Export runs use `build/godot-profile` for Windows AppData, so their settings, caches and logs are writable without touching personal saves. Editor/Run retain your normal profile. If a restricted agent run reports `Failed to read the root certificate store`, run the same command in a normal PowerShell terminal; the isolated profile cannot grant access to Windows certificates. Keep TLS verification enabled.
+
+Tests fail on shutdown resource-leak messages as well as assertion failures. Each Godot test prints its name before running and saves its output under `build/test-logs`. Native stderr is captured as text on both Windows PowerShell 5.1 and PowerShell 7, so failures identify the test and log path. Audio/UI tests use `tests/shutdown.gd` to release scenes and allow a mixer update before exiting.
+
 On Windows, double-click `build-and-run.bat` to export the native game and launch it. Close an existing `Amelia.exe` session before rebuilding, because Windows locks the running executable. If the pinned Godot tools are missing, the batch file installs them first; that initial setup requires Python 3. Command-line arguments passed to the batch file are forwarded to the game.
 
 ## Builds and GitHub Pages

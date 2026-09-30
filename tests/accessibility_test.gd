@@ -200,7 +200,7 @@ func checks() -> void:
  Save.clear(SLOT_B)
  DirAccess.remove_absolute(prefs.settings_path)
  print("ACCESSIBILITY PASS: toggle input, stop conditions, per-slot Highlight, preference persistence, rendering and recorded-state isolation")
- quit()
+ await preload("res://tests/shutdown.gd").finish(self)
 
 func capture(label: String) -> void:
  if "--screenshots" not in OS.get_cmdline_user_args(): return

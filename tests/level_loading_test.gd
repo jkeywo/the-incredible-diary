@@ -96,4 +96,4 @@ func checks() -> void:
 	await process_frame
 	Save.clear(PATH)
 	print("LEVEL LOADING PASS: screen priority, invisible character fallback without pausing, save preservation, room wait and cache reuse")
-	quit()
+	await preload("res://tests/shutdown.gd").finish(self)

@@ -11,16 +11,16 @@ func checks() -> void:
  assert(not loader.completed and loader.elapsed > 0.2)
  await capture("second")
  for i in 500:
-  if ResourceLoader.load_threaded_get_status(loader.TITLE) == ResourceLoader.THREAD_LOAD_LOADED: break
+  if loader.ticket.done: break
   await process_frame
- assert(ResourceLoader.load_threaded_get_status(loader.TITLE) == ResourceLoader.THREAD_LOAD_LOADED)
+ assert(loader.ticket.done and loader.ticket.error.is_empty())
  loader._process(1.0)
  await process_frame
  await process_frame
  assert(current_scene.scene_file_path == "res://assets/ui/mission_1/title_screen.tscn")
  await capture("title")
- print("NATIVE LOADING PASS: animated frames, threaded title load and transition")
- quit()
+ print("NATIVE LOADING PASS: animated frames, background title load and transition")
+ await preload("res://tests/shutdown.gd").finish(self)
 func capture(label: String) -> void:
  if "--screenshots" not in OS.get_cmdline_user_args(): return
  await process_frame

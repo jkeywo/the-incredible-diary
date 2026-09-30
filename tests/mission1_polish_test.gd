@@ -155,7 +155,7 @@ func checks() -> void:
 	await process_frame
 	Save.clear(PATH)
 	print("MISSION1 POLISH PASS: reversible diary, sampled impacts/spill/steam, save/history, rewind finish, watch, preview and modal pause")
-	quit()
+	await preload("res://tests/shutdown.gd").finish(self)
 
 func capture(label: String) -> void:
 	if "--screenshots" not in OS.get_cmdline_user_args(): return

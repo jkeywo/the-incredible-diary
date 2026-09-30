@@ -37,4 +37,4 @@ func checks() -> void:
 	assert(game.diary_title.text == "SCHEDULE COMPLETE")
 	assert(not game.diary_next.visible and game.diary_menu.visible)
 	print("MISSION3 PRESENTATION PASS: Greek rooms, character scale staging and reused ship/sea layers")
-	quit()
+	await preload("res://tests/shutdown.gd").finish(self)

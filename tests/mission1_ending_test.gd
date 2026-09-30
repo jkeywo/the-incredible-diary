@@ -173,7 +173,7 @@ func checks() -> void:
 	game.queue_free()
 	await process_frame
 	print("MISSION1 ENDING PASS: recorded 5:25 arrivals, ten spectators, captain walk, retained cast, authored rooms, saved routes, departure, missed boat and rewind")
-	quit()
+	await preload("res://tests/shutdown.gd").finish(self)
 
 func capture(_game, label: String) -> void:
 	if "--screenshots" not in OS.get_cmdline_user_args(): return

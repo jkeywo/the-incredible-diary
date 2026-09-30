@@ -9,6 +9,7 @@ var manifest: Dictionary = {}
 var bridge: JavaScriptObject
 var active_packs: Array[String] = []
 var active_resource := ""
+var _load_worker: Thread
 var failures: Dictionary = {}
 
 func _ready() -> void:
@@ -62,12 +63,11 @@ func _update_ticket(ticket: Dictionary) -> void:
 func _process(_delta: float) -> void:
 	for hash in active_packs.duplicate(): _poll_pack(hash)
 	if not active_resource.is_empty():
-		var state := ResourceLoader.load_threaded_get_status(active_resource)
-		if state == ResourceLoader.THREAD_LOAD_LOADED:
-			resources[active_resource] = ResourceLoader.load_threaded_get(active_resource)
-			active_resource = ""
-		elif state in [ResourceLoader.THREAD_LOAD_FAILED,ResourceLoader.THREAD_LOAD_INVALID_RESOURCE]:
-			failures[active_resource] = Text.UI_A_RESOURCE_COULD_NOT_BE_PREPARED_PLEASE_TRY_AGAIN
+		if _load_worker == null or not _load_worker.is_alive():
+			var loaded: Resource = _load_worker.wait_to_finish() if _load_worker != null else load(active_resource)
+			_load_worker = null
+			if loaded == null: failures[active_resource] = Text.UI_A_RESOURCE_COULD_NOT_BE_PREPARED_PLEASE_TRY_AGAIN
+			else: resources[active_resource] = loaded
 			active_resource = ""
 	for ticket in tickets: _update_ticket(ticket)
 	tickets = tickets.filter(func(ticket): return not ticket.done and not ticket.cancelled)
@@ -85,9 +85,16 @@ func _process(_delta: float) -> void:
 						active_packs.append(hash)
 						bridge.begin(manifest.packs[hash].url,hash)
 				if missing or not active_resource.is_empty(): continue
-				if ResourceLoader.load_threaded_request(path) != OK:
-					failures[path] = Text.UI_A_RESOURCE_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN
-				else: active_resource = path
+				active_resource = path
+				# Avoid 4.7 threaded-request shutdown leaks seen in loading tests.
+				# Use one owned worker and collect its result on the main thread.
+				# The single-threaded web export loads one prepared resource per frame.
+				if not OS.has_feature("web"):
+					_load_worker = Thread.new()
+					if _load_worker.start(_load_resource.bind(path)) != OK:
+						_load_worker = null
+						failures[path] = Text.UI_A_RESOURCE_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN
+						active_resource = ""
 		break
 
 func _priority(ticket: Dictionary) -> int:
@@ -113,5 +120,10 @@ func _poll_pack(hash: String) -> void:
 
 func _exit_tree() -> void:
 	# Finish the one outstanding disk read before the engine tears resources down.
-	if not active_resource.is_empty() and ResourceLoader.load_threaded_get_status(active_resource) != ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
-		ResourceLoader.load_threaded_get(active_resource)
+	if _load_worker != null:
+		_load_worker.wait_to_finish()
+		_load_worker = null
+	active_resource = ""
+
+static func _load_resource(path: String) -> Resource:
+	return load(path)

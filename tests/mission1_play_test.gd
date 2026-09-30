@@ -28,7 +28,7 @@ func run_checks() -> void:
  Input.flush_buffered_events()
  game.sim.s.tick = Sim.HOUR-5
  game._physics_process(1)
- check(game.sim.s.tick == Sim.HOUR and game.wait_latched, "accelerated wait stops at Hour boundary")
+ check(game.sim.s.tick == Sim.HOUR and not game.wait_requested, "accelerated wait stops at Hour boundary")
  game._physics_process(0.1)
  check(game.sim.s.tick in [Sim.HOUR+1,Sim.HOUR+2], "holding wait does not accelerate through next Hour")
  wait_key = wait_key.duplicate()
@@ -36,7 +36,7 @@ func run_checks() -> void:
  Input.parse_input_event(wait_key)
  Input.flush_buffered_events()
  game._physics_process(0.1)
- check(not game.wait_latched, "release rearms waiting")
+ check(not game.wait_requested, "release does not restart waiting")
  paused = true
  tick = game.sim.s.tick
  game._physics_process(1)
@@ -99,4 +99,3 @@ func run_checks() -> void:
  await process_frame
  print("MISSION1 PLAY ", JSON.stringify({"passed":failures.is_empty(),"failures":failures}))
  quit(0 if failures.is_empty() else 1)
-

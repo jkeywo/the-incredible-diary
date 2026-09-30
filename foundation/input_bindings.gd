@@ -3,7 +3,7 @@ const Text = preload("res://localisation/source_text.gd")
 signal bindings_changed
 const ACTIONS := {
 	"move_left": Text.UI_MOVE_LEFT, "move_right": Text.UI_MOVE_RIGHT, "move_up": Text.UI_MOVE_UP, "move_down": Text.UI_MOVE_DOWN,
-	"wait": Text.UI_WAIT_HOLD, "highlight": Text.UI_HIGHLIGHT, "diary": Text.UI_OPEN_CLOSE_DIARY, "reset_loop": Text.UI_RESET_LOOP,
+	"wait": Text.UI_WAIT_TOGGLE, "highlight": Text.UI_HIGHLIGHT, "diary": Text.UI_OPEN_CLOSE_DIARY, "reset_loop": Text.UI_RESET_LOOP,
 	"cancel_action": Text.UI_CANCEL_ACTION, "interaction_one": Text.UI_INTERACTION_1, "interaction_two": Text.UI_INTERACTION_2,
 	"interaction_3": Text.UI_INTERACTION_3, "interaction_4": Text.UI_INTERACTION_4, "interaction_5": Text.UI_INTERACTION_5,
 	"interaction_6": Text.UI_INTERACTION_6, "interaction_7": Text.UI_INTERACTION_7, "interaction_8": Text.UI_INTERACTION_8,
@@ -146,7 +146,7 @@ func conflicts(action: String, device: String, slot: int, record: Dictionary) ->
 func label(record: Dictionary) -> String:
 	if record.is_empty(): return "Unbound"
 	if record.kind == "key":
-		var code: int = record.code if DisplayServer.get_name() == "headless" else DisplayServer.keyboard_get_keycode_from_physical(record.code)
+		var code: int = record.code if OS.has_feature("web") or DisplayServer.get_name() == "headless" else DisplayServer.keyboard_get_keycode_from_physical(record.code)
 		return OS.get_keycode_string((code if code != 0 else record.code) | record.modifiers)
 	if record.kind == "trigger": return "LT" if record.code == JOY_AXIS_TRIGGER_LEFT else "RT"
 	return {JOY_BUTTON_A: "A", JOY_BUTTON_B: "B", JOY_BUTTON_X: "X", JOY_BUTTON_Y: "Y", JOY_BUTTON_LEFT_SHOULDER: "LB", JOY_BUTTON_RIGHT_SHOULDER: "RB", JOY_BUTTON_LEFT_STICK: "L3", JOY_BUTTON_RIGHT_STICK: "R3", JOY_BUTTON_DPAD_UP: Text.UI_D_PAD_UP, JOY_BUTTON_DPAD_DOWN: Text.UI_D_PAD_DOWN, JOY_BUTTON_DPAD_LEFT: Text.UI_D_PAD_LEFT, JOY_BUTTON_DPAD_RIGHT: Text.UI_D_PAD_RIGHT}.get(record.code, Text.UI_BUTTON_D % record.code)

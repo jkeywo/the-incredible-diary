@@ -30,6 +30,19 @@ const PAPER = preload("res://assets/ui/popup/body.png")
 const FRAME = preload("res://assets/ui/popup/nine_piece_style.gd")
 var tail_side := "bottom"
 var kind := "speech"
+var high_contrast := false
+var instant_text := false
+var presented_line: Dictionary = {}
+var presented_elapsed := 0.0
+
+func _apply_preferences() -> void:
+ var prefs := get_node_or_null("/root/Preferences")
+ if prefs == null: return
+ high_contrast = prefs.high_contrast_text_panels
+ instant_text = prefs.instant_dialogue_text
+ self_modulate.a = 1.0 if high_contrast else background_opacity
+ if not presented_line.is_empty(): present(presented_line,presented_elapsed)
+ queue_redraw()
 
 func point_tail_at(target: Vector2) -> void:
  var center := Vector2(size.x/2,(size.y-20)/2)
@@ -54,16 +67,18 @@ func tail_geometry() -> Array[Vector2]:
 var background_opacity := 1.0:
  set(value):
   background_opacity = value
-  self_modulate.a = value
+  self_modulate.a = 1.0 if high_contrast else value
   queue_redraw()
 
 func present(line: Dictionary, elapsed_seconds: float) -> void:
+ presented_line = line
+ presented_elapsed = elapsed_seconds
  speaker_name = Messages.field(line,"name")
  message = Messages.field(line,"text")
  kind = line.get("kind", "speech")
  var source_length := str(line.get("text","")).length()
  var reveal_seconds := maxf(0.001,source_length/36.0)
- message_label.visible_characters = mini(message.length(), maxi(0, int(elapsed_seconds / reveal_seconds * message.length())))
+ message_label.visible_characters = -1 if instant_text else mini(message.length(), maxi(0, int(elapsed_seconds / reveal_seconds * message.length())))
  queue_redraw()
 
 @onready var speaker_label: Label = $Speaker
@@ -71,6 +86,9 @@ func present(line: Dictionary, elapsed_seconds: float) -> void:
 
 
 func _ready() -> void:
+ if not Engine.is_editor_hint():
+  get_node("/root/Preferences").accessibility_changed.connect(_apply_preferences)
+  _apply_preferences()
  speaker_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
  message_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
  custom_minimum_size = Vector2(170, 84)
@@ -101,7 +119,8 @@ func _layout_text() -> void:
 func _textured_shape(points: PackedVector2Array) -> void:
  var uv := PackedVector2Array()
  for p in points: uv.append(p / Vector2(PAPER.get_size()))
- draw_polygon(points,PackedColorArray([Color.WHITE]),uv,PAPER)
+ if high_contrast: draw_colored_polygon(points,Color("09121e"))
+ else: draw_polygon(points,PackedColorArray([Color.WHITE]),uv,PAPER)
  var outline := points.duplicate()
  outline.append(points[0])
  draw_polyline(outline,Color("ba955c"),2.0)
@@ -131,4 +150,6 @@ func _draw() -> void:
   _thought_dot(edge+direction*20,3)
  else:
   _textured_shape(PackedVector2Array([edge-tangent-direction*3,edge+direction*20,edge+tangent-direction*3]))
-  draw_style_box(FRAME.new(),Rect2(0,0,size.x,size.y-20))
+  var frame := FRAME.new()
+  frame.high_contrast = high_contrast
+  draw_style_box(frame,Rect2(0,0,size.x,size.y-20))

@@ -89,7 +89,7 @@ func checks() -> void:
  assert(hints.s.dialogue.hint == "diary" and hints.s.hint_queue.has("wait"))
  hints.record_current_frame()
  check_record(hints)
- assert(Sim.Hints.prompt("wait",false,false).contains("Hold F"))
+ assert(Sim.Hints.prompt("wait",false,false).contains("F — Toggle Wait"))
  assert(Sim.Hints.prompt("highlight",true,false).contains("A"))
  assert(Sim.Hints.prompt("diary",false,true) == "Tap Diary")
 

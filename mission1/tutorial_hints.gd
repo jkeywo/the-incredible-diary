@@ -36,11 +36,11 @@ static func update(run) -> void:
  run.s.dialogue.hint = id
 
 static func prompt(id: String, controller: bool, touch: bool) -> String:
- if touch: return {"highlight":Text.MISSION1_TAP_HIGHLIGHT, "wait":Text.MISSION1_HOLD_WAIT, "diary":Text.MISSION1_TAP_DIARY}.get(id,"")
+ if touch: return {"highlight":Text.MISSION1_TAP_HIGHLIGHT, "wait":Text.MISSION1_TAP_WAIT, "diary":Text.MISSION1_TAP_DIARY}.get(id,"")
  var bindings = Engine.get_main_loop().root.get_node("InputBindings")
  if id not in ["highlight", "wait", "diary"]: return ""
  var key: String = bindings.prompt(id, controller)
- return {"highlight": Text.MISSION1_S_HIGHLIGHT % key, "wait": Text.MISSION1_HOLD_S_WAIT % key, "diary": Text.MISSION1_S_OPEN_DIARY % key}.get(id, "")
+ return {"highlight": Text.MISSION1_S_HIGHLIGHT % key, "wait": Text.MISSION1_TOGGLE_S_WAIT % key, "diary": Text.MISSION1_S_OPEN_DIARY % key}.get(id, "")
 
 
 static func see_body(run, victim: String) -> void:

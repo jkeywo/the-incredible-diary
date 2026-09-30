@@ -64,7 +64,7 @@ var highlight := false
 var idle_seconds := 0.0
 var application_focused := true
 var hint_prompt: Label
-var wait_latched := false
+var wait_requested := false
 var initial: Dictionary = {}
 var diary: Control
 var diary_title: Label
@@ -110,6 +110,8 @@ func configure(saved: Dictionary = {}, enable_save := true) -> void:
  save_enabled = enable_save
 
 func _ready() -> void:
+ Input.joy_connection_changed.connect(func(_device: int, connected: bool):
+  if not connected: _stop_wait())
  get_node("/root/Localisation").language_changed.connect(_language_changed)
  if stream_resources and character_ticket.is_empty():
   character_ticket = get_node("/root/ResourceStream").request_resources(ContentPlan.level_characters(),false,2)
@@ -153,6 +155,7 @@ func _ready() -> void:
 
 func enable_controls() -> void:
  controls_enabled = true
+ _refresh()
 
 func is_pause_editor_available() -> bool:
  return controls_enabled and (_content_ticket.is_empty() or (_content_ticket.done and str(_content_ticket.error).is_empty()))
@@ -304,22 +307,50 @@ func _build_hud() -> void:
  diary_presentation = preload("res://assets/ui/mission_1/diary_presentation.gd").new()
  add_child(diary_presentation)
  diary_presentation.setup(diary)
- diary_presentation.closed.connect(func(): diary_open = false; accumulator = 0.0)
+ diary_presentation.closed.connect(func(): diary_open = false; accumulator = 0.0; _refresh())
  time_presentation = preload("res://assets/ui/mission_1/time_presentation.gd").new()
  hud.add_child(time_presentation)
  touch_controls = TouchControls.new()
  hud.add_child(touch_controls)
  touch_controls.action_pressed.connect(_touch_action)
+ touch_controls.controls_released.connect(_stop_wait)
+
+func _can_wait() -> bool:
+ return controls_enabled and application_focused and not get_tree().paused and not diary_open and rewind_index < 0 and not sim.s.finished and not ending.active() and time_presentation.finish_remaining <= 0.0 and not sim.tutorial_active() and not sim.s.code_open and sim.s.hospitality.menu == "" and sim.s.action.is_empty()
+
+func _stop_wait() -> void:
+ if wait_requested: accumulator = 0.0
+ wait_requested = false
+ waiting_active = false
+ if is_instance_valid(touch_controls): touch_controls.waiting_active = false
+ if is_instance_valid(time_presentation): time_presentation.waiting = false
+
+func _toggle_wait() -> void:
+ if wait_requested:
+  _stop_wait()
+ elif _can_wait() and _movement_input().length_squared() <= 0.01:
+  wait_requested = true
+  waiting_active = true
+  touch_controls.waiting_active = true
+  idle_seconds = 0.0
+
+func _toggle_highlight() -> void:
+ highlight = not highlight
+ sim.memory.highlight_enabled = highlight
+ _persist()
 
 func _touch_action(action: String) -> void:
  var display := _display_state()
  if stream_resources and not _prepare_visible(display): return
  get_node("/root/ButtonFeedback").activate()
  idle_seconds = 0.0
- if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0: return
+ if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0:
+  _stop_wait()
+  return
  match action:
   "diary": _toggle_diary()
   "cancel":
+   _stop_wait()
    if diary_open: _toggle_diary()
    else:
     sim.s.action = {}
@@ -327,7 +358,8 @@ func _touch_action(action: String) -> void:
     sim.s.hospitality.menu = ""
     sim.s.message = Text.MISSION1_ACTION_CANCELLED
   "highlight":
-   if not diary_open and rewind_index<0: highlight = not highlight
+   if not diary_open and rewind_index<0: _toggle_highlight()
+  "wait": _toggle_wait()
  _refresh()
 
 func _movement_input() -> Vector2:
@@ -392,14 +424,17 @@ func _physics_process(delta: float) -> void:
  visual_elapsed = 0.0
  waiting_active = false
  _update_idle_hint(delta)
- if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0: return
+ if not controls_enabled or get_tree().paused or not application_focused or time_presentation.finish_remaining > 0.0:
+  _stop_wait()
+  return
  if rewind_index >= 0:
   _rewind(delta)
   return
- if diary_open or sim.s.finished: return
- var held: bool = get_node("/root/InputBindings").held("wait") or touch_controls.wait_held
- if not held: wait_latched = false
- var waiting: bool = held and not wait_latched and not sim.tutorial_active() and not sim.s.code_open and sim.s.hospitality.menu == "" and sim.s.action.is_empty()
+ if diary_open or sim.s.finished:
+  _stop_wait()
+  return
+ if not _can_wait() or _movement_input().length_squared() > 0.01: _stop_wait()
+ var waiting: bool = wait_requested
  waiting_active = waiting
  accumulator += delta * (20.0 if waiting else 1.0)
  var direction := _movement_input() if not waiting else Vector2.ZERO
@@ -413,11 +448,12 @@ func _physics_process(delta: float) -> void:
    break
   _save_counter += 1
   if waiting and int(sim.s.tick/Simulation.HOUR) > old_hour:
-   wait_latched = true
-   waiting_active = false
+   _stop_wait()
    accumulator = 0.0
    break
-  if sim.s.finished: break
+  if sim.s.finished:
+   _stop_wait()
+   break
  if direction.length_squared() > 0.01:
   _footstep += delta
   if _footstep >= 0.35:
@@ -453,8 +489,11 @@ func _unhandled_input(event: InputEvent) -> void:
   _toggle_diary()
  elif diary_open or rewind_index >= 0: return
  elif bindings.pressed(event, "highlight"):
-  highlight = not highlight
+  _toggle_highlight()
+ elif bindings.pressed(event, "wait") and (not bindings.pressed(event, "cancel_action") or (sim.s.action.is_empty() and not sim.s.code_open and sim.s.hospitality.menu == "")):
+  _toggle_wait()
  elif bindings.pressed(event, "cancel_action"):
+  _stop_wait()
   sim.s.action = {}
   sim.s.code_open = false
   sim.s.hospitality.menu = ""
@@ -462,8 +501,10 @@ func _unhandled_input(event: InputEvent) -> void:
  elif interaction_slot >= 0:
   wheel.activate_slot(interaction_slot)
  elif bindings.pressed(event, "submit_code") and sim.s.code_open:
+  _stop_wait()
   _submit_code()
  elif bindings.pressed(event, "clear_code") and sim.s.code_open:
+  _stop_wait()
   sim.s.entry = ""
  elif bindings.pressed(event, "wheel_confirm"):
   wheel.confirm_selected()
@@ -474,6 +515,7 @@ func _unhandled_input(event: InputEvent) -> void:
  _refresh()
 
 func _choose(index: int) -> void:
+ _stop_wait()
  if stream_resources and not _prepare_visible(_display_state()): return
  if diary_open or rewind_index >= 0 or time_presentation.finish_remaining > 0.0: return
  idle_seconds = 0.0
@@ -798,6 +840,7 @@ func _prepare_visible(state: Dictionary) -> bool:
   if not _content_ticket.is_empty(): _content_ticket.cancelled = true
   _content_ticket = stream.request_resources(ContentPlan.for_state(state,sim.authored_content),true)
  if not _content_ticket.done or not str(_content_ticket.error).is_empty():
+  _stop_wait()
   if not is_instance_valid(_content_overlay):
    _content_overlay = CanvasLayer.new()
    _content_overlay.layer = 100
@@ -885,15 +928,6 @@ func _show_room(id: String) -> void:
    _prop("chandelier", Rooms.CHANDELIER_FLOOR)
   "controls":
    _prop("code_panel", Vector2(350,280))
-   var digits := Label.new()
-   digits.name = "Digits"
-   digits.position = Vector2(-23,-47)
-   digits.size = Vector2(46,15)
-   digits.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-   digits.add_theme_font_size_override("font_size",11)
-   digits.add_theme_color_override("font_color",Color("ffe8a3"))
-   digits.mouse_filter = Control.MOUSE_FILTER_IGNORE
-   props.code_panel.add_child(digits)
    _prop("steam_vent", Vector2(940,290))
    var smoke := preload("res://assets/effects/mission_1/room_steam.gd").new()
    Depth.assign(smoke,Depth.EFFECT)
@@ -957,8 +991,8 @@ func _sync_props(state: Dictionary) -> void:
   props.drink.show_at(state,effect_fraction)
  var stained: bool = state.flags.get("spilled", false)
  if actors.has("guest") and actors.guest.stained_outfit != stained: actors.guest.set_outfit_stained(stained)
- if props.has("code_panel") and props.code_panel.has_node("Digits"):
-  props.code_panel.get_node("Digits").text = " ".join(str(state.entry).rpad(3,"_").split("")) if state.code_open else ""
+ if props.has("code_panel"):
+  props.code_panel.present(state)
  if props.has("steam_vent"):
   var active := Rooms.steam_blocked(state.flags)
   props.steam_vent.set_state("active" if active else "off")
@@ -1005,6 +1039,7 @@ func _events() -> void:
 
 
 func _toggle_diary() -> void:
+ _stop_wait()
  if sim.s.finished or rewind_index >= 0 or time_presentation.finish_remaining > 0.0: return
  idle_seconds = 0.0
  diary_open = true
@@ -1077,6 +1112,7 @@ func _turn_diary(direction: int) -> void:
 func _summary() -> String:
  return sim.summary()
 func _begin_reset() -> void:
+ _stop_wait()
  if sim.exploration(): return
  if ending.active(): return
  if time_presentation.finish_remaining > 0.0: return
@@ -1134,8 +1170,8 @@ func _persist() -> void:
   push_warning(result.reason)
 func _restore_initial() -> void:
  idle_seconds = 0.0
- if initial.is_empty(): return
- journal.restore_run(sim, initial)
+ if not initial.is_empty(): journal.restore_run(sim, initial)
+ highlight = sim.memory.get("highlight_enabled",false) == true
 
 func _exit_tree() -> void:
  if not character_ticket.is_empty(): character_ticket.cancelled = true
@@ -1144,7 +1180,9 @@ func _exit_tree() -> void:
  _persist()
 
 func _notification(what: int) -> void:
+ if what == NOTIFICATION_PAUSED: _stop_wait()
  if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+  _stop_wait()
   application_focused = false
   idle_seconds = 0.0
   if is_node_ready(): _persist()
@@ -1172,7 +1210,7 @@ func _input(event: InputEvent) -> void:
 
 func _update_idle_hint(delta: float) -> void:
  var eligible: bool = controls_enabled and application_focused and not get_tree().paused and not diary_open and rewind_index<0 and not sim.s.finished and not sim.tutorial_active() and sim.s.dialogue.is_empty() and sim.s.get("conversation",{}).is_empty() and sim.s.action.is_empty() and not sim.s.code_open and sim.s.hospitality.menu == ""
- var active_input: bool = _movement_input().length_squared()>0.01 or get_node("/root/InputBindings").held("wait") or touch_controls.wait_held
+ var active_input: bool = _movement_input().length_squared()>0.01 or wait_requested
  if not eligible or active_input:
   idle_seconds = 0.0
   return

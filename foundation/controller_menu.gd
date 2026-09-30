@@ -100,7 +100,9 @@ func activate() -> void:
 		items[0].grab_focus()
 		return
 	if focus is OptionButton: select_option(focus,1)
-	elif focus is BaseButton: focus.pressed.emit()
+	elif focus is BaseButton:
+		if focus.toggle_mode: focus.button_pressed = not focus.button_pressed
+		focus.pressed.emit()
 
 func select_option(option: OptionButton, step: int) -> void:
 	for offset in range(1,option.item_count+1):

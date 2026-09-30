@@ -432,6 +432,17 @@ const UI_CONFIRM = "CONFIRM"
 const UI_PEOPLE = "PEOPLE"
 const UI_MOVE = "Move"
 const UI_TEA = "Tea"
+const UI_ACCESSIBILITY = "Accessibility"
+const UI_HIGH_CONTRAST_TEXT_PANELS = "High-contrast text panels"
+const UI_INSTANT_DIALOGUE_TEXT = "Instant dialogue text"
+const UI_STEAM_ON = "Steam ON"
+const UI_STEAM_OFF = "Steam OFF"
+const UI_STOP_WAITING = "Stop"
+const UI_WAIT_TOGGLE = "Wait (toggle)"
+const MISSION1_TOGGLE_B_WAIT = "B — Toggle Wait"
+const MISSION1_TOGGLE_F_WAIT = "F — Toggle Wait"
+const MISSION1_TAP_WAIT = "Tap Wait to start/stop"
+const MISSION1_TOGGLE_S_WAIT = "%s — Toggle Wait"
 const SOURCES = {
 	"MISSION1_BOY": "Boy",
 	"MISSION1_MR_FELIX_HARCOURT": "Mr. Felix Harcourt",
@@ -864,7 +875,18 @@ const SOURCES = {
 	"UI_CONFIRM": "CONFIRM",
 	"UI_PEOPLE": "PEOPLE",
 	"UI_MOVE": "Move",
-	"UI_TEA": "Tea"
+	"UI_TEA": "Tea",
+	"UI_ACCESSIBILITY": "Accessibility",
+	"UI_HIGH_CONTRAST_TEXT_PANELS": "High-contrast text panels",
+	"UI_INSTANT_DIALOGUE_TEXT": "Instant dialogue text",
+	"UI_STEAM_ON": "Steam ON",
+	"UI_STEAM_OFF": "Steam OFF",
+	"UI_STOP_WAITING": "Stop",
+	"UI_WAIT_TOGGLE": "Wait (toggle)",
+	"MISSION1_TOGGLE_B_WAIT": "B — Toggle Wait",
+	"MISSION1_TOGGLE_F_WAIT": "F — Toggle Wait",
+	"MISSION1_TAP_WAIT": "Tap Wait to start/stop",
+	"MISSION1_TOGGLE_S_WAIT": "%s — Toggle Wait"
 }
 const ENGLISH = {
 	"MISSION1_BOY": "Boy",
@@ -1298,5 +1320,16 @@ const ENGLISH = {
 	"UI_CONFIRM": "CONFIRM",
 	"UI_PEOPLE": "PEOPLE",
 	"UI_MOVE": "Move",
-	"UI_TEA": "Tea"
+	"UI_TEA": "Tea",
+	"UI_ACCESSIBILITY": "Accessibility",
+	"UI_HIGH_CONTRAST_TEXT_PANELS": "High-contrast text panels",
+	"UI_INSTANT_DIALOGUE_TEXT": "Instant dialogue text",
+	"UI_STEAM_ON": "Steam ON",
+	"UI_STEAM_OFF": "Steam OFF",
+	"UI_STOP_WAITING": "Stop",
+	"UI_WAIT_TOGGLE": "Wait (toggle)",
+	"MISSION1_TOGGLE_B_WAIT": "B — Toggle Wait",
+	"MISSION1_TOGGLE_F_WAIT": "F — Toggle Wait",
+	"MISSION1_TAP_WAIT": "Tap Wait to start/stop",
+	"MISSION1_TOGGLE_S_WAIT": "{arg1} — Toggle Wait"
 }

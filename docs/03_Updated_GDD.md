@@ -125,6 +125,30 @@ on each screen.
 
 ## 1. Identity and intended experience
 
+### Accessibility and control defaults — clarified 30 September 2026
+
+Wait is a toggle on keyboard, controller and touch: press once for 20× waiting,
+again to stop. It stops at the next voyage-hour boundary, on movement or
+interaction, menus/diary, focus loss, device disconnection, loading and mission
+end. Resuming requires a fresh press. Cancel takes precedence over Wait when
+their shared controller button can dismiss an interaction or ongoing action.
+Waiting remains unavailable during the tutorial, code entry and ongoing actions.
+
+Highlight starts disabled, retaining its tutorial and existing toggle. Its state
+belongs to each save slot's persistent memory and survives Continue and loop
+resets. It is not a machine preference or recorded simulation frame.
+
+The steam panel always displays Steam ON/OFF from the displayed steam state,
+independently of indicator colours. Entered digits sit inside its display aperture.
+
+Settings → Accessibility contains High-contrast text panels and Instant dialogue
+text, both off by default and stored with local preferences. High contrast uses
+opaque dark speech/thought and interaction panels, including code choices,
+without overlap fading. Instant text reveals the current line immediately,
+including thoughts, tutorials and cutscenes. Both apply during rewind without
+changing recorded events, line duration, speaker order or diary-entry timing.
+Turning instant text off restores the reveal amount at the recorded elapsed time.
+
 ### Dock tutorial and optional hospitality — agreed 29 September 2026
 
 A new game begins with Boy in the middle of the docks and the captain beside

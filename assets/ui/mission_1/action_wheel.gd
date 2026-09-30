@@ -11,6 +11,11 @@ var page := 0
 var buttons: Array[Button] = []
 var indices: Array[int] = []
 var character_bounds: Array[Rect2] = []
+var high_contrast := false
+
+func _apply_preferences() -> void:
+ high_contrast = get_node("/root/Preferences").high_contrast_text_panels
+ _rebuild()
 @export var options := PackedStringArray([Text.UI_INSPECT, Text.UI_TALK, Text.UI_HIDE_BAG]):
  set(value):
   if options == value: return
@@ -27,7 +32,10 @@ func _ready() -> void:
  mouse_filter = Control.MOUSE_FILTER_IGNORE
  size = Vector2(556,216)
  _rebuild()
- if not Engine.is_editor_hint(): get_node("/root/InputBindings").bindings_changed.connect(_rebuild)
+ if not Engine.is_editor_hint():
+  get_node("/root/InputBindings").bindings_changed.connect(_rebuild)
+  get_node("/root/Preferences").accessibility_changed.connect(_apply_preferences)
+  _apply_preferences()
 
 func _rebuild() -> void:
  touches.clear()
@@ -90,11 +98,12 @@ func _fade_backgrounds() -> void:
    if area.intersects(rect): covered = true; break
   for state in ["normal","hover","pressed"]:
    var style := button.get_theme_stylebox(state)
-   style.set("tint",Color(1,1,1,0.5 if covered else 1.0))
+   style.set("tint",Color(1,1,1,0.5 if covered and not high_contrast else 1.0))
    style.emit_changed()
 
 func _frame() -> StyleBox:
  var frame := FRAME.new()
+ frame.high_contrast = high_contrast
  frame.set_content_margin(SIDE_LEFT,16)
  frame.set_content_margin(SIDE_RIGHT,16)
  frame.set_content_margin(SIDE_TOP,8)

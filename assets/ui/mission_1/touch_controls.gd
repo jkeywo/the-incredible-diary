@@ -3,6 +3,7 @@ const Messages = preload("res://foundation/message_text.gd")
 const Text = preload("res://localisation/source_text.gd")
 ## Independent finger capture prevents one thumb from releasing the other.
 signal action_pressed(action: String)
+signal controls_released
 const FRAME = preload("res://assets/ui/popup/nine_piece_style.gd")
 const ACTIONS := ["diary","wait","highlight","cancel"]
 const LABELS := [Text.UI_DIARY,Text.UI_WAIT,Text.UI_HIGHLIGHT,Text.UI_CANCEL]
@@ -11,7 +12,10 @@ var active := false
 var gameplay_enabled := false
 var modal := false
 var movement := Vector2.ZERO
-var wait_held := false
+var waiting_active := false:
+ set(value):
+  waiting_active = value
+  queue_redraw()
 var tutorial_action := "":
  set(value):
   tutorial_action = value
@@ -105,7 +109,7 @@ func set_context(enabled: bool, blocked: bool) -> void:
 func release_all() -> void:
  fingers.clear()
  movement = Vector2.ZERO
- wait_held = false
+ controls_released.emit()
  queue_redraw()
 
 func _process(_delta: float) -> void:
@@ -134,13 +138,11 @@ func _input(event: InputEvent) -> void:
     for action in ACTIONS:
      if _allowed(action) and buttons[action].has_point(point) and not fingers.values().has(action):
       fingers[id] = action
-      if action == "wait": get_node("/root/ButtonFeedback").activate()
       break
   elif fingers.has(id):
    var action: String = fingers[id]
    fingers.erase(id)
    if action == "move": movement = Vector2.ZERO
-   elif action == "wait": wait_held = false
    elif not event.canceled and buttons[action].has_point(point): action_pressed.emit(action)
    get_viewport().set_input_as_handled()
    queue_redraw()
@@ -148,7 +150,6 @@ func _input(event: InputEvent) -> void:
  if not fingers.has(id): return
  var held: String = fingers[id]
  if held == "move": movement = _vector(point-move_center)
- elif held == "wait": wait_held = buttons.wait.has_point(point)
  get_viewport().set_input_as_handled()
  queue_redraw()
 
@@ -174,7 +175,8 @@ func _draw() -> void:
   if not _allowed(action): continue
   var rect: Rect2 = buttons[action]
   draw_style_box(FRAME.new(),rect)
-  if fingers.values().has(action): draw_rect(rect,Color(1.0,0.8,0.4,0.18))
+  if fingers.values().has(action) or (action == "wait" and waiting_active): draw_rect(rect,Color(1.0,0.8,0.4,0.18))
   if action == tutorial_action: draw_rect(rect.grow(3),Color("ffd578"),false,3)
   var color := Color("ffd578") if fingers.values().has(action) else Color("fff1d6")
-  draw_string(font,rect.position+Vector2(4,rect.size.y/2+12 if portrait else rect.size.y/2+6),Messages.ui(LABELS[i]),HORIZONTAL_ALIGNMENT_CENTER,rect.size.x-8,36 if portrait else 18,color)
+  var caption: String = Text.UI_STOP_WAITING if action == "wait" and waiting_active else LABELS[i]
+  draw_string(font,rect.position+Vector2(4,rect.size.y/2+12 if portrait else rect.size.y/2+6),Messages.ui(caption),HORIZONTAL_ALIGNMENT_CENTER,rect.size.x-8,36 if portrait else 18,color)

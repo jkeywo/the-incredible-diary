@@ -31,6 +31,8 @@ var controls_tab: VBoxContainer
 var stick_side: OptionButton
 var controller_menu: Node
 var language_choice: OptionButton
+var accessibility_tab: VBoxContainer
+var accessibility_buttons: Array[CheckButton] = []
 
 
 func _ready() -> void:
@@ -102,6 +104,8 @@ func open_settings() -> void:
 	get_tree().paused = true
 	for bus in sliders:
 		sliders[bus].value = volumes[bus]
+	for index in accessibility_buttons.size():
+		accessibility_buttons[index].set_pressed_no_signal(get_node("/root/Preferences").get(["high_contrast_text_panels", "instant_dialogue_text"][index]))
 	touch_available = touch_available or TouchControls.supported()
 	_refresh_controls_tab()
 	menu_status.visible = get_node("/root/Preferences").last_error != OK
@@ -236,6 +240,21 @@ func _build_ui() -> void:
 	stick_side = controls_tab.stick_side
 	_refresh_controls_tab()
 	main_menu_button = Button.new()
+	accessibility_tab = VBoxContainer.new()
+	accessibility_tab.name = Text.UI_ACCESSIBILITY
+	accessibility_tab.add_theme_constant_override("separation", 16)
+	tabs.add_child(accessibility_tab)
+	for item in [["high_contrast_text_panels", Text.UI_HIGH_CONTRAST_TEXT_PANELS], ["instant_dialogue_text", Text.UI_INSTANT_DIALOGUE_TEXT]]:
+		var button := CheckButton.new()
+		Messages.assign(button,"text",item[1])
+		button.button_pressed = get_node("/root/Preferences").get(item[0])
+		button.toggled.connect(func(value: bool):
+			var prefs := get_node("/root/Preferences")
+			prefs.set(item[0],value)
+			prefs.accessibility_changed.emit()
+			prefs.save_settings())
+		accessibility_tab.add_child(button)
+		accessibility_buttons.append(button)
 	Messages.assign(main_menu_button,"text",Text.MISSION1_RETURN_TO_MAIN_MENU)
 	main_menu_button.pressed.connect(return_to_main_menu)
 	content.add_child(main_menu_button)
@@ -267,6 +286,7 @@ func _controller_choices() -> Array:
 	var controls: Array = [language_choice]
 	if tabs.get_current_tab_control() == audio_tab: controls = sliders.values()
 	elif tabs.get_current_tab_control() == controls_tab: controls = controls_tab.choices()
+	elif tabs.get_current_tab_control() == accessibility_tab: controls = accessibility_buttons
 	return controls + [main_menu_button,dialog.get_ok_button()]
 
 func _focus_tab() -> void:

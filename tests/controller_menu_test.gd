@@ -57,6 +57,9 @@ func checks() -> void:
 	var settings = root.get_node("AudioSettings")
 	settings.settings_path = "res://build/controller-settings.cfg"
 	assert(settings._opened and paused and not title.new_confirm.visible)
+	assert(settings.tabs.get_current_tab_control() == settings.general_tab)
+	assert(settings.dialog.gui_get_focus_owner() == settings.language_choice)
+	button(settings.dialog,JOY_BUTTON_RIGHT_SHOULDER)
 	assert(settings.dialog.gui_get_focus_owner() == settings.sliders.Master)
 	var volume: float = settings.volumes.Master
 	axis(settings.dialog,JOY_AXIS_LEFT_X,-0.8)
@@ -68,17 +71,17 @@ func checks() -> void:
 	settings.touch_available = true
 	settings._refresh_controls_tab()
 	button(settings.dialog,JOY_BUTTON_RIGHT_SHOULDER)
-	assert(settings.tabs.current_tab == 1 and settings.dialog.gui_get_focus_owner() == settings.controls_tab.choices()[0])
+	assert(settings.tabs.current_tab == 2 and settings.dialog.gui_get_focus_owner() == settings.controls_tab.choices()[0])
 	settings.stick_side.grab_focus()
 	var original_side: bool = settings.stick_on_right
 	button(settings.dialog,JOY_BUTTON_A)
 	assert(settings.stick_on_right != original_side)
 	button(settings.dialog,JOY_BUTTON_LEFT_SHOULDER)
-	assert(settings.tabs.current_tab == 0 and settings.dialog.gui_get_focus_owner() == settings.sliders.Master)
+	assert(settings.tabs.current_tab == 1 and settings.dialog.gui_get_focus_owner() == settings.sliders.Master)
 	settings.touch_available = false
 	settings._refresh_controls_tab()
 	button(settings.dialog,JOY_BUTTON_RIGHT_SHOULDER)
-	assert(settings.tabs.current_tab == 1)
+	assert(settings.tabs.current_tab == 2)
 	button(settings.dialog,JOY_BUTTON_LEFT_SHOULDER)
 	button(settings.dialog,JOY_BUTTON_B)
 	await create_timer(0.2).timeout

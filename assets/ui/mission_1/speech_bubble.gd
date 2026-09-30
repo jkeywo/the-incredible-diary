@@ -1,5 +1,7 @@
 @tool
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Resize bubble_size or the Control rect; text wraps inside the paper panel.
 
 @export var bubble_size := Vector2(320, 132):
@@ -13,12 +15,12 @@ extends Control
  set(value):
   tail_position = value
   queue_redraw()
-@export var speaker_name := "Passenger":
+@export var speaker_name := Text.UI_PASSENGER:
  set(value):
   speaker_name = value
   if is_node_ready():
    _layout_text()
-@export_multiline var message := "We should look more closely.":
+@export_multiline var message := Text.UI_WE_SHOULD_LOOK_MORE_CLOSELY:
  set(value):
   message = value
   if is_node_ready():
@@ -56,10 +58,12 @@ var background_opacity := 1.0:
   queue_redraw()
 
 func present(line: Dictionary, elapsed_seconds: float) -> void:
- speaker_name = line.get("name", "Passenger")
- message = line.get("text", "")
+ speaker_name = Messages.field(line,"name")
+ message = Messages.field(line,"text")
  kind = line.get("kind", "speech")
- message_label.visible_characters = mini(message.length(), maxi(0, int(elapsed_seconds * 36.0)))
+ var source_length := str(line.get("text","")).length()
+ var reveal_seconds := maxf(0.001,source_length/36.0)
+ message_label.visible_characters = mini(message.length(), maxi(0, int(elapsed_seconds / reveal_seconds * message.length())))
  queue_redraw()
 
 @onready var speaker_label: Label = $Speaker
@@ -67,6 +71,8 @@ func present(line: Dictionary, elapsed_seconds: float) -> void:
 
 
 func _ready() -> void:
+ speaker_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+ message_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
  custom_minimum_size = Vector2(170, 84)
  size = bubble_size
  speaker_label.add_theme_color_override("font_color", Color("e6c68c"))

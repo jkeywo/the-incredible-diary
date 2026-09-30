@@ -19,8 +19,8 @@
 		</noscript>
 
         <div id="status">
-            <p class="eyebrow">A voyage between the pages</p>
-            <h1>The Incredible Diary</h1>
+            <p class="eyebrow" id="loading-tagline">A voyage between the pages</p>
+            <h1 id="loading-title">The Incredible Diary</h1>
             <div class="diary" aria-hidden="true">
                 <div class="book-half left"><img src="@DIARY@" alt=""></div>
                 <div class="book-half right"><img src="@DIARY@" alt=""></div>
@@ -29,9 +29,10 @@
             <p class="loading-label" id="loading-label" role="status">Preparing the diary…</p>
             <div class="bar-frame"><progress id="status-progress" aria-label="Game download progress"></progress></div>
             <div id="status-notice" role="alert"></div>
-            <div class="credit"><span>Made with Godot</span><img src="@GODOT@" alt="Godot Engine"></div>
+            <div class="credit"><span id="loading-credit">Made with Godot</span><img src="@GODOT@" alt="Godot Engine"></div>
         </div>
 
+		@LOCALISATION_SCRIPT@
 		<script src="$GODOT_URL"></script>
 		<script>
 const GODOT_CONFIG = $GODOT_CONFIG;
@@ -40,6 +41,11 @@ const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
 
 (function () {
 	const loadingLabel = document.getElementById('loading-label');
+	const localText = (id, args) => window.DiaryLocalisation.text(id, args);
+	loadingLabel.textContent = localText('UI_LOADING_PREPARING');
+	document.getElementById('loading-tagline').textContent = localText('UI_A_VOYAGE_BETWEEN_THE_PAGES');
+	document.getElementById('loading-title').textContent = localText('UI_THE_INCREDIBLE_DIARY');
+	document.getElementById('loading-credit').textContent = localText('UI_MADE_WITH_GODOT');
 	const statusOverlay = document.getElementById('status');
 	const statusProgress = document.getElementById('status-progress');
 	const statusNotice = document.getElementById('status-notice');
@@ -87,13 +93,13 @@ const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
 	function displayFailureNotice(err) {
 		console.error(err);
 		statusOverlay.classList.add('failed');
-		loadingLabel.textContent = 'The diary could not be opened.';
+		loadingLabel.textContent = localText('UI_LOADING_FAILED');
 		if (err instanceof Error) {
 			setStatusNotice(err.message);
 		} else if (typeof err === 'string') {
 			setStatusNotice(err);
 		} else {
-			setStatusNotice('An unknown error occurred.');
+			setStatusNotice(localText('UI_LOADING_UNKNOWN'));
 		}
 		setStatusMode('notice');
 		initializing = false;
@@ -137,7 +143,8 @@ const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
 		} else {
 			// Display the message as usual
 			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
-			displayFailureNotice(missingMsg + missing.join('\n'));
+			console.error(missingMsg + missing.join('\n'));
+			displayFailureNotice(localText('UI_LOADING_UNSUPPORTED'));
 		}
 	} else {
 		setStatusMode('progress');
@@ -146,7 +153,7 @@ const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
 				if (current > 0 && total > 0) {
 					statusProgress.max = total;
 					statusProgress.value = current;
-					loadingLabel.textContent = current >= total ? 'Opening the diary…' : 'Loading the diary… ' + Math.floor(current / total * 100) + '%';
+					loadingLabel.textContent = current >= total ? localText('UI_LOADING_OPENING') : localText('UI_LOADING_PROGRESS', { percent: Math.floor(current / total * 100) });
 				} else {
 					statusProgress.removeAttribute('value');
 					statusProgress.removeAttribute('max');

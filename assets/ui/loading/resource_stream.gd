@@ -1,4 +1,5 @@
 extends Node
+const Text = preload("res://localisation/source_text.gd")
 ## Shared, mission-independent resource cache. Foreground work precedes neighbour
 ## prefetch; mounted content and Resource references survive scene changes.
 var resources: Dictionary = {}
@@ -13,7 +14,7 @@ var failures: Dictionary = {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	if OS.has_feature("web"):
-		var parsed = JSON.parse_string(str(JavaScriptBridge.eval("JSON.stringify(window.DIARY_CONTENT || null)")))
+		var parsed = JSON.parse_string(str(JavaScriptBridge.eval(Text.UI_JSON_STRINGIFY_WINDOW_DIARY_CONTENT_NULL)))
 		if parsed is Dictionary:
 			manifest = parsed
 			bridge = JavaScriptBridge.get_interface("diaryAssets")
@@ -32,7 +33,7 @@ func request_resources(paths: Array, foreground := false, background_priority :=
 	var ticket := {"paths":unique,"packs":packs,"foreground":foreground,"priority":background_priority,"done":false,"cancelled":false,"error":"","progress":0.0}
 	if not manifest.is_empty() and bridge == null:
 		ticket.done = true
-		ticket.error = "Resource downloads could not start. Please reload the page."
+		ticket.error = Text.UI_RESOURCE_DOWNLOADS_COULD_NOT_START_PLEASE_RELOAD_THE_PAGE
 		return ticket
 	_update_ticket(ticket)
 	if not ticket.done: tickets.append(ticket)
@@ -66,7 +67,7 @@ func _process(_delta: float) -> void:
 			resources[active_resource] = ResourceLoader.load_threaded_get(active_resource)
 			active_resource = ""
 		elif state in [ResourceLoader.THREAD_LOAD_FAILED,ResourceLoader.THREAD_LOAD_INVALID_RESOURCE]:
-			failures[active_resource] = "A resource could not be prepared. Please try again."
+			failures[active_resource] = Text.UI_A_RESOURCE_COULD_NOT_BE_PREPARED_PLEASE_TRY_AGAIN
 			active_resource = ""
 	for ticket in tickets: _update_ticket(ticket)
 	tickets = tickets.filter(func(ticket): return not ticket.done and not ticket.cancelled)
@@ -85,7 +86,7 @@ func _process(_delta: float) -> void:
 						bridge.begin(manifest.packs[hash].url,hash)
 				if missing or not active_resource.is_empty(): continue
 				if ResourceLoader.load_threaded_request(path) != OK:
-					failures[path] = "A resource could not be opened. Please try again."
+					failures[path] = Text.UI_A_RESOURCE_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN
 				else: active_resource = path
 		break
 
@@ -98,12 +99,12 @@ func _poll_pack(hash: String) -> void:
 		var path := "/tmp/diary-assets/"+hash+".pck"
 		var file := FileAccess.open(path,FileAccess.WRITE)
 		if file == null:
-			failures[hash] = "There is not enough space to open this resource. Please try again."
+			failures[hash] = Text.UI_THERE_IS_NOT_ENOUGH_SPACE_TO_OPEN_THIS_RESOURCE_PLEASE_TRY_AGAIN
 		else:
 			file.store_buffer(JavaScriptBridge.js_buffer_to_packed_byte_array(bridge.bytes(hash)))
 			file.close()
 			if ProjectSettings.load_resource_pack(path,false): mounted[hash] = true
-			else: failures[hash] = "A downloaded resource could not be opened. Please reload and try again."
+			else: failures[hash] = Text.UI_A_DOWNLOADED_RESOURCE_COULD_NOT_BE_OPENED_PLEASE_RELOAD_AND_TRY_A
 	elif status.get("state") == "failed":
 		failures[hash] = str(status.error)
 	else: return

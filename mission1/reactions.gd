@@ -1,4 +1,5 @@
 extends RefCounted
+const Text = preload("res://localisation/source_text.gd")
 const Rooms = preload("res://mission1/rooms.gd")
 const Routes = preload("res://mission1/routines.gd")
 const Speech = preload("res://mission1/conversations.gd")
@@ -22,11 +23,11 @@ static func update(run) -> void:
   if ready and run.s.room == reaction.room and run.s.dialogue.is_empty() and run.s.get("conversation",{}).is_empty():
    var lines := []
    if reaction.success:
-    lines = [[reaction.people[0],"Close shave"]]
+    lines = [[reaction.people[0],Text.MISSION1_CLOSE_SHAVE]]
    elif key == "chandelier":
-    lines = [[reaction.people[0],"Oh, how dreadful. That poor woman."],[reaction.people[1],"She was standing here a moment ago. Someone must fetch the captain."]]
+    lines = [[reaction.people[0],Text.MISSION1_OH_HOW_DREADFUL_THAT_POOR_WOMAN],[reaction.people[1],Text.MISSION1_SHE_WAS_STANDING_HERE_A_MOMENT_AGO_SOMEONE_MUST_FETCH_THE_CAPTAIN]]
    else:
-    lines = [[reaction.people[0],"He's dead! What a terrible end to the party."],[reaction.people[1],"He was rather a bore. Still, nobody deserves this."]]
+    lines = [[reaction.people[0],Text.MISSION1_HE_S_DEAD_WHAT_A_TERRIBLE_END_TO_THE_PARTY],[reaction.people[1],Text.MISSION1_HE_WAS_RATHER_A_BORE_STILL_NOBODY_DESERVES_THIS]]
    Speech.start(run,conversation_id,lines,reaction.people)
   if reaction.success and run.s.get("conversations_seen",[]).has(conversation_id) and run.s.get("conversation",{}).get("id","") != conversation_id and run.s.dialogue.is_empty(): reaction.done = true
  update_watch(run)
@@ -76,7 +77,7 @@ static func update_watch(run) -> void:
   watch.phase = "away"
   watch.next = (int(run.s.tick/run.HOUR)+1)*run.HOUR
  if watch.phase == "body" and not watch.commented and run.s.room == "controls" and run.s.dialogue.is_empty() and run.s.get("conversation",{}).is_empty():
-  Speech.say(run,WATCHER,"She's dead. I'll stay with her until help arrives.","speech","steam_body_found")
+  Speech.say(run,WATCHER,Text.MISSION1_SHE_S_DEAD_I_LL_STAY_WITH_HER_UNTIL_HELP_ARRIVES,"speech","steam_body_found")
   watch.commented = true
 
 static func apply_routes(run, planned: Dictionary) -> void:

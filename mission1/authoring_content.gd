@@ -1,4 +1,5 @@
 extends RefCounted
+const Text = preload("res://localisation/source_text.gd")
 ## Portable Mission 1 definitions. Never contains a live Node or simulation snapshot.
 const Grid = preload("res://mission1/authoring_grid.gd")
 const Rooms = preload("res://mission1/rooms.gd")
@@ -35,10 +36,10 @@ static func seed(actors: Dictionary) -> Dictionary:
 		if not roster.has(id): roster[id] = {"room":"cabins","pos":[-25,530]}
 	for id in roster:
 		var template: Dictionary = data.templates.character.duplicate(true)
-		template.name = {"amelia":"Boy","guest":"Mr. Felix Harcourt","chandelier_guest":"Miss Evelyn Vale","chatterbox":"Mrs. Mabel Pritchard","crew":"Sailor","dock_sailor":"Sailor","captain":"Captain","porter":"Porter"}.get(id,"Sailor" if str(id).contains("sailor") else "Guest" if str(id).begins_with("incidental") else str(id).capitalize())
+		template.name = {"amelia":Text.MISSION1_BOY,"guest":Text.MISSION1_MR_FELIX_HARCOURT,"chandelier_guest":Text.MISSION1_MISS_EVELYN_VALE,"chatterbox":Text.MISSION1_MRS_MABEL_PRITCHARD,"crew":Text.MISSION1_SAILOR,"dock_sailor":Text.MISSION1_SAILOR,"captain":Text.MISSION1_CAPTAIN,"porter":Text.MISSION1_PORTER}.get(id,Text.MISSION1_SAILOR if str(id).contains("sailor") else Text.MISSION1_GUEST if str(id).begins_with("incidental") else str(id).capitalize())
 		template.appearance = SKINS.get(id, {"incidental_guest_1":"guest_male_jacket","incidental_guest_2":"guest_female_dress","incidental_guest_3":"guest_female_coat","incidental_guest_4":"guest_male_waistcoat"}.get(id,"sailor"))
 		if str(id).begins_with("sendoff_guest_"):
-			template.name = "Guest"
+			template.name = Text.MISSION1_GUEST
 			template.appearance = preload("res://mission1/departure.gd").skin(id)
 		data.templates[id] = template
 		data.instances[id] = {"template":str(id), "room":roster[id].room, "position":roster[id].pos.duplicate(), "overrides":{}, "builtin":true}
@@ -115,122 +116,122 @@ static func resolve(data: Dictionary, id: String) -> Dictionary:
 
 static func validate(data: Dictionary) -> Array[String]:
 	var errors: Array[String] = []
-	if data.get("schema") != 1: return ["Unsupported Mission 1 content schema"]
+	if data.get("schema") != 1: return [Text.MISSION1_UNSUPPORTED_MISSION_1_CONTENT_SCHEMA]
 	for field in ["rooms", "templates", "instances", "schedules", "assets", "scenes", "timings"]:
-		if not data.get(field) is Dictionary: errors.append("%s must be an object" % field)
+		if not data.get(field) is Dictionary: errors.append(Text.MISSION1_S_MUST_BE_AN_OBJECT % field)
 	for field in ["actors", "connections", "storylets"]:
-		if not data.get(field) is Array: errors.append("%s must be a list" % field)
+		if not data.get(field) is Array: errors.append(Text.MISSION1_S_MUST_BE_A_LIST % field)
 	if not errors.is_empty(): return errors
-	if not data.instances.has("amelia"): errors.append("The player entity amelia is required")
+	if not data.instances.has("amelia"): errors.append(Text.MISSION1_THE_PLAYER_ENTITY_AMELIA_IS_REQUIRED)
 	for id in SKINS:
-		if not data.instances.has(id): errors.append("Mission 1 operations still reference character " + str(id))
+		if not data.instances.has(id): errors.append(Text.MISSION1_MISSION_1_OPERATIONS_STILL_REFERENCE_CHARACTER + str(id))
 	for id in data.rooms:
 		var room: Variant = data.rooms[id]
 		if not room is Dictionary or not room.get("blocked") is Dictionary or not _point(room.get("size")):
-			errors.append("Room %s needs dimensions and collision cells" % id)
+			errors.append(Text.MISSION1_ROOM_S_NEEDS_DIMENSIONS_AND_COLLISION_CELLS % id)
 			continue
-		if room.size[0] <= 0 or room.size[1] <= 0 or room.size[0] > 10000 or room.size[1] > 10000: errors.append("Room %s dimensions must be 1–10000" % id)
+		if room.size[0] <= 0 or room.size[1] <= 0 or room.size[0] > 10000 or room.size[1] > 10000: errors.append(Text.MISSION1_ROOM_S_DIMENSIONS_MUST_BE_1_10000 % id)
 		for cell in room.blocked:
 			var parts := str(cell).split(",")
-			if parts.size() != 2 or not parts[0].is_valid_int() or not parts[1].is_valid_int() or room.blocked[cell] != true: errors.append("Room %s collision cells must use integer x,y keys and true values" % id)
-		if not str(room.get("background_asset", "")).is_empty() and not data.assets.has(room.background_asset): errors.append("Room %s background asset is missing" % id)
+			if parts.size() != 2 or not parts[0].is_valid_int() or not parts[1].is_valid_int() or room.blocked[cell] != true: errors.append(Text.MISSION1_ROOM_S_COLLISION_CELLS_MUST_USE_INTEGER_X_Y_KEYS_AND_TRUE_VALUES % id)
+		if not str(room.get("background_asset", "")).is_empty() and not data.assets.has(room.background_asset): errors.append(Text.MISSION1_ROOM_S_BACKGROUND_ASSET_IS_MISSING % id)
 	for id in data.templates:
 		var template: Variant = data.templates[id]
 		if not template is Dictionary or template.get("kind") not in ["character","prop","door","interaction"]:
-			errors.append("Template %s has an invalid entity kind" % id)
+			errors.append(Text.MISSION1_TEMPLATE_S_HAS_AN_INVALID_ENTITY_KIND % id)
 			continue
-		if not template.get("states", {}) is Dictionary or not template.get("transitions", []) is Array or not template.get("interactions", []) is Array: errors.append("Template %s has invalid state rules" % id)
+		if not template.get("states", {}) is Dictionary or not template.get("transitions", []) is Array or not template.get("interactions", []) is Array: errors.append(Text.MISSION1_TEMPLATE_S_HAS_INVALID_STATE_RULES % id)
 	if not errors.is_empty(): return errors
 	for id in data.templates:
 		var template: Dictionary = data.templates[id]
 		for state in template.get("states",{}).values():
-			if not state is Dictionary: errors.append("Template %s states must be objects" % id)
+			if not state is Dictionary: errors.append(Text.MISSION1_TEMPLATE_S_STATES_MUST_BE_OBJECTS % id)
 		for transition in template.get("transitions",[]):
-			if not transition is Dictionary or not template.get("states",{}).has(transition.get("state","")) or not transition.get("conditions",[]) is Array: errors.append("Template %s has an invalid transition" % id)
+			if not transition is Dictionary or not template.get("states",{}).has(transition.get("state","")) or not transition.get("conditions",[]) is Array: errors.append(Text.MISSION1_TEMPLATE_S_HAS_AN_INVALID_TRANSITION % id)
 	if not errors.is_empty(): return errors
 	for id in data.instances:
 		var item: Variant = data.instances[id]
 		if not item is Dictionary or not _point(item.get("position")) or not item.get("overrides") is Dictionary or not item.get("room") is String or not item.get("template") is String:
-			errors.append("Entity %s needs a position and overrides" % id)
+			errors.append(Text.MISSION1_ENTITY_S_NEEDS_A_POSITION_AND_OVERRIDES % id)
 			continue
-		if not data.templates.has(item.get("template", "")): errors.append("Entity %s template is missing" % id)
-		if not data.rooms.has(item.get("room", "")): errors.append("Entity %s room is missing" % id)
+		if not data.templates.has(item.get("template", "")): errors.append(Text.MISSION1_ENTITY_S_TEMPLATE_IS_MISSING % id)
+		if not data.rooms.has(item.get("room", "")): errors.append(Text.MISSION1_ENTITY_S_ROOM_IS_MISSING % id)
 		var entity := resolve(data,id)
 		var appearances: Array = SKINS.values() + ["guest_male_jacket","guest_male_waistcoat","guest_female_dress","guest_female_coat"] if entity.get("kind") == "character" else ["suitcase","bag_hiding","chandelier","code_panel","steam_vent","drink","cabin_door","crew_door","janitor","service_door","valve"]
-		if not appearances.has(entity.get("appearance")): errors.append("Entity %s has an unknown appearance" % id)
+		if not appearances.has(entity.get("appearance")): errors.append(Text.MISSION1_ENTITY_S_HAS_AN_UNKNOWN_APPEARANCE % id)
 		if not entity.get("states",{}) is Dictionary or not entity.get("transitions",[]) is Array:
-			errors.append("Entity %s state overrides are invalid" % id)
+			errors.append(Text.MISSION1_ENTITY_S_STATE_OVERRIDES_ARE_INVALID % id)
 			continue
 		for transition in entity.get("transitions",[]):
 			if not transition is Dictionary or not entity.get("states",{}).has(transition.get("state","")):
-				errors.append("Entity %s transition target is missing" % id)
+				errors.append(Text.MISSION1_ENTITY_S_TRANSITION_TARGET_IS_MISSING % id)
 				continue
 			errors.append_array(validate_conditions(transition.get("conditions",[]),data))
 		if not entity.get("interactions",[]) is Array:
-			errors.append("Entity %s interactions must be a list" % id)
+			errors.append(Text.MISSION1_ENTITY_S_INTERACTIONS_MUST_BE_A_LIST % id)
 			continue
 		for interaction in entity.get("interactions",[]):
 			if not interaction is Dictionary or not _point(interaction.get("position",item.position)):
-				errors.append("Entity %s has an invalid interaction position" % id)
+				errors.append(Text.MISSION1_ENTITY_S_HAS_AN_INVALID_INTERACTION_POSITION % id)
 				continue
 			var position: Array = interaction.get("position",item.position)
 			errors.append_array(validate_conditions(interaction.get("conditions",[]),data))
 			errors.append_array(validate_effects(interaction.get("effects",[]),data))
-			if not _number(interaction.get("duration",10)) or interaction.get("duration",10) <= 0: errors.append("Interaction duration must be positive")
-			if data.rooms.has(item.room) and data.rooms[item.room].get("blocked") is Dictionary and not Grid.contains(data.rooms[item.room],Vector2(position[0],position[1])): errors.append("Entity %s interaction is blocked by authored collision" % id)
+			if not _number(interaction.get("duration",10)) or interaction.get("duration",10) <= 0: errors.append(Text.MISSION1_INTERACTION_DURATION_MUST_BE_POSITIVE)
+			if data.rooms.has(item.room) and data.rooms[item.room].get("blocked") is Dictionary and not Grid.contains(data.rooms[item.room],Vector2(position[0],position[1])): errors.append(Text.MISSION1_ENTITY_S_INTERACTION_IS_BLOCKED_BY_AUTHORED_COLLISION % id)
 	for connection in data.connections:
 		if not connection is Dictionary or not data.rooms.has(connection.get("a", "")) or not data.rooms.has(connection.get("b", "")) or not _point(connection.get("ap")) or not _point(connection.get("bp")):
-			errors.append("A room connection has missing endpoints")
+			errors.append(Text.MISSION1_A_ROOM_CONNECTION_HAS_MISSING_ENDPOINTS)
 		else:
 			for side in ["a","b"]:
 				var room: Dictionary = data.rooms[connection[side]]
 				var position: Array = connection[side + "p"]
-				if room.get("blocked") is Dictionary and not Grid.contains(room,Vector2(position[0],position[1])): errors.append("Connection endpoint in %s is blocked" % connection[side])
+				if room.get("blocked") is Dictionary and not Grid.contains(room,Vector2(position[0],position[1])): errors.append(Text.MISSION1_CONNECTION_ENDPOINT_IN_S_IS_BLOCKED % connection[side])
 	for id in data.schedules:
-		if not data.instances.has(id): errors.append("Schedule %s actor is missing" % id)
+		if not data.instances.has(id): errors.append(Text.MISSION1_SCHEDULE_S_ACTOR_IS_MISSING % id)
 		var schedule: Variant = data.schedules[id]
 		if not schedule is Dictionary or not schedule.get("commitments") is Array:
-			errors.append("Schedule %s needs commitments" % id)
+			errors.append(Text.MISSION1_SCHEDULE_S_NEEDS_COMMITMENTS % id)
 			continue
 		for commitment in schedule.commitments:
 			if not commitment is Dictionary or not _number(commitment.get("tick")) or not data.rooms.has(commitment.get("room", "")) or not _point(commitment.get("position")):
-				errors.append("Schedule %s has an invalid commitment" % id)
+				errors.append(Text.MISSION1_SCHEDULE_S_HAS_AN_INVALID_COMMITMENT % id)
 		if schedule.has("stages"):
-			if not _point(schedule.get("origin")) or not schedule.stages is Array: errors.append("Schedule %s needs an origin and stages" % id)
+			if not _point(schedule.get("origin")) or not schedule.stages is Array: errors.append(Text.MISSION1_SCHEDULE_S_NEEDS_AN_ORIGIN_AND_STAGES % id)
 			else:
 				for stage in schedule.stages:
-					if not stage is Array or stage.size() < 4 or not data.rooms.has(stage[1]) or not _point(stage[2]): errors.append("Schedule %s has an invalid stage" % id)
+					if not stage is Array or stage.size() < 4 or not data.rooms.has(stage[1]) or not _point(stage[2]): errors.append(Text.MISSION1_SCHEDULE_S_HAS_AN_INVALID_STAGE % id)
 	if not errors.is_empty(): return errors
 	for story in data.storylets:
 		if not story is Dictionary or not story.get("id") is String or not story.get("conditions", []) is Array or not story.get("effects", []) is Array:
-			errors.append("Storylet needs an ID, conditions and effects")
+			errors.append(Text.MISSION1_STORYLET_NEEDS_AN_ID_CONDITIONS_AND_EFFECTS)
 			continue
 		if not _number(story.get("start_tick",0)) or not _number(story.get("end_tick",10800)) or not _number(story.get("priority",0)) or not story.get("participants",[]) is Array:
-			errors.append("Storylet %s has invalid timing or participants" % story.id)
+			errors.append(Text.MISSION1_STORYLET_S_HAS_INVALID_TIMING_OR_PARTICIPANTS % story.id)
 			continue
-		if not str(story.get("scene", "")).is_empty() and not data.scenes.has(story.scene): errors.append("Storylet %s scene is missing" % story.id)
+		if not str(story.get("scene", "")).is_empty() and not data.scenes.has(story.scene): errors.append(Text.MISSION1_STORYLET_S_SCENE_IS_MISSING % story.id)
 		for actor in story.get("participants", []):
-			if not data.instances.has(actor): errors.append("Storylet %s actor %s is missing" % [story.id, actor])
+			if not data.instances.has(actor): errors.append(Text.MISSION1_STORYLET_S_ACTOR_S_IS_MISSING % [story.id, actor])
 		for effect in story.get("effects", []):
-			if not effect is Dictionary or effect.get("command") not in ["flag", "prop", "say", "note", "mission"]: errors.append("Storylet %s has an unsupported command" % story.id)
-			elif effect.command == "mission" and effect.get("operation") not in ["luggage_routine","party_routine","steam_trap","steam_fatal","steam_alarm","chandelier_warning","chandelier_drop","chandelier_impact"]: errors.append("Unsupported Mission 1 operation")
-			elif effect.command == "flag" and not effect.get("key") is String: errors.append("Flag command needs a key")
-			elif effect.command == "prop" and (not data.instances.has(effect.get("entity","")) or not effect.get("state") is String): errors.append("Prop command needs an entity and state")
-			elif effect.command == "say" and (not data.instances.has(effect.get("actor","")) or not effect.get("text") is String): errors.append("Say command needs an actor and text")
-			elif effect.command == "note" and (not effect.get("key") is String or not effect.get("text") is String): errors.append("Note command needs a key and text")
+			if not effect is Dictionary or effect.get("command") not in ["flag", "prop", "say", "note", "mission"]: errors.append(Text.MISSION1_STORYLET_S_HAS_AN_UNSUPPORTED_COMMAND % story.id)
+			elif effect.command == "mission" and effect.get("operation") not in ["luggage_routine","party_routine","steam_trap","steam_fatal","steam_alarm","chandelier_warning","chandelier_drop","chandelier_impact"]: errors.append(Text.MISSION1_UNSUPPORTED_MISSION_1_OPERATION)
+			elif effect.command == "flag" and not effect.get("key") is String: errors.append(Text.MISSION1_FLAG_COMMAND_NEEDS_A_KEY)
+			elif effect.command == "prop" and (not data.instances.has(effect.get("entity","")) or not effect.get("state") is String): errors.append(Text.MISSION1_PROP_COMMAND_NEEDS_AN_ENTITY_AND_STATE)
+			elif effect.command == "say" and (not data.instances.has(effect.get("actor","")) or not effect.get("text") is String): errors.append(Text.MISSION1_SAY_COMMAND_NEEDS_AN_ACTOR_AND_TEXT)
+			elif effect.command == "note" and (not effect.get("key") is String or not effect.get("text") is String): errors.append(Text.MISSION1_NOTE_COMMAND_NEEDS_A_KEY_AND_TEXT)
 		for condition in story.get("conditions",[]):
-			if not condition is Dictionary: errors.append("Storylet conditions must be objects")
+			if not condition is Dictionary: errors.append(Text.MISSION1_STORYLET_CONDITIONS_MUST_BE_OBJECTS)
 		errors.append_array(validate_conditions(story.get("conditions",[]),data))
 		errors.append_array(validate_effects(story.get("effects",[]),data))
 	for id in data.timings:
-		if not _number(data.timings[id]) or data.timings[id] < 0 or data.timings[id] > 10800: errors.append("Timing %s must be within the leg" % id)
+		if not _number(data.timings[id]) or data.timings[id] < 0 or data.timings[id] > 10800: errors.append(Text.MISSION1_TIMING_S_MUST_BE_WITHIN_THE_LEG % id)
 	for id in data.assets:
 		var reason := Assets.validate(data.assets[id])
-		if not reason.is_empty(): errors.append("Asset %s: %s" % [id, reason])
+		if not reason.is_empty(): errors.append(Text.MISSION1_ASSET_S_S % [id, reason])
 	var actor_ids: Array[String] = []
 	for id in data.instances: actor_ids.append(str(id))
 	for id in data.scenes:
-		if not data.scenes[id] is String: errors.append("Scene %s must be source text" % id)
+		if not data.scenes[id] is String: errors.append(Text.MISSION1_SCENE_S_MUST_BE_SOURCE_TEXT % id)
 		else: errors.append_array(Dialogue.parse(data.scenes[id], actor_ids).errors)
 	if not errors.is_empty(): return errors
 	var player: Dictionary = data.instances.amelia
@@ -238,11 +239,11 @@ static func validate(data: Dictionary) -> Array[String]:
 		var entity := resolve(data,id)
 		for interaction in entity.get("interactions",[]):
 			var point: Array = interaction.get("position",entity.position)
-			if not reachable(data,player.room,player.position,entity.room,point): errors.append("Entity %s interaction has no route from the player start" % id)
+			if not reachable(data,player.room,player.position,entity.room,point): errors.append(Text.MISSION1_ENTITY_S_INTERACTION_HAS_NO_ROUTE_FROM_THE_PLAYER_START % id)
 	for id in data.schedules:
 		var start: Dictionary = data.instances[id]
 		for commitment in data.schedules[id].commitments:
-			if not reachable(data,start.room,start.position,commitment.room,commitment.position): errors.append("Schedule %s destination has no connected route" % id)
+			if not reachable(data,start.room,start.position,commitment.room,commitment.position): errors.append(Text.MISSION1_SCHEDULE_S_DESTINATION_HAS_NO_CONNECTED_ROUTE % id)
 	return errors
 
 static func reachable(data: Dictionary, origin_room: String, origin: Array, target_room: String, target: Array) -> bool:
@@ -265,37 +266,37 @@ static func reachable(data: Dictionary, origin_room: String, origin: Array, targ
 
 static func validate_conditions(items: Variant, data: Dictionary) -> Array[String]:
 	var errors: Array[String] = []
-	if not items is Array: return ["Conditions must be a list"]
+	if not items is Array: return [Text.MISSION1_CONDITIONS_MUST_BE_A_LIST]
 	for item in items:
-		if not item is Dictionary: errors.append("Condition must be an object"); continue
+		if not item is Dictionary: errors.append(Text.MISSION1_CONDITION_MUST_BE_AN_OBJECT); continue
 		var known := false
 		for key in ["flag","has_flag","actor","prop","safe","dead","distance"]:
 			if item.has(key): known = true
-		if not known: errors.append("Unknown condition; use flag, has_flag, actor, prop, safe, dead or distance")
+		if not known: errors.append(Text.MISSION1_UNKNOWN_CONDITION_USE_FLAG_HAS_FLAG_ACTOR_PROP_SAFE_DEAD_OR_DISTA)
 		for key in ["actor","prop","safe","dead"]:
-			if item.has(key) and not data.instances.has(item[key]): errors.append("Condition references missing entity " + str(item[key]))
+			if item.has(key) and not data.instances.has(item[key]): errors.append(Text.MISSION1_CONDITION_REFERENCES_MISSING_ENTITY + str(item[key]))
 		if item.has("distance"):
-			if not item.distance is Array or item.distance.size() != 2 or not data.instances.has(item.distance[0]) or not data.instances.has(item.distance[1]) or not _number(item.get("maximum")): errors.append("Distance condition needs two entities and a maximum distance")
+			if not item.distance is Array or item.distance.size() != 2 or not data.instances.has(item.distance[0]) or not data.instances.has(item.distance[1]) or not _number(item.get("maximum")): errors.append(Text.MISSION1_DISTANCE_CONDITION_NEEDS_TWO_ENTITIES_AND_A_MAXIMUM_DISTANCE)
 	return errors
 
 static func validate_effects(items: Variant, data: Dictionary) -> Array[String]:
 	var errors: Array[String] = []
-	if not items is Array: return ["Effects must be a list"]
+	if not items is Array: return [Text.MISSION1_EFFECTS_MUST_BE_A_LIST]
 	for item in items:
-		if not item is Dictionary: errors.append("Effect must be an object"); continue
+		if not item is Dictionary: errors.append(Text.MISSION1_EFFECT_MUST_BE_AN_OBJECT); continue
 		match item.get("command"):
 			"flag":
-				if not item.get("key") is String: errors.append("Flag effect needs a key")
+				if not item.get("key") is String: errors.append(Text.MISSION1_FLAG_EFFECT_NEEDS_A_KEY)
 			"prop":
-				if not data.instances.has(item.get("entity","")) or not item.get("state") is String: errors.append("Prop effect needs an entity and state")
-				elif not resolve(data,item.entity).get("states",{}).has(item.state): errors.append("Prop effect references an unknown state")
+				if not data.instances.has(item.get("entity","")) or not item.get("state") is String: errors.append(Text.MISSION1_PROP_EFFECT_NEEDS_AN_ENTITY_AND_STATE)
+				elif not resolve(data,item.entity).get("states",{}).has(item.state): errors.append(Text.MISSION1_PROP_EFFECT_REFERENCES_AN_UNKNOWN_STATE)
 			"say":
-				if not data.instances.has(item.get("actor","")) or not item.get("text") is String: errors.append("Say effect needs an actor and text")
+				if not data.instances.has(item.get("actor","")) or not item.get("text") is String: errors.append(Text.MISSION1_SAY_EFFECT_NEEDS_AN_ACTOR_AND_TEXT)
 			"note":
-				if not item.get("key") is String or not item.get("text") is String: errors.append("Note effect needs a key and text")
+				if not item.get("key") is String or not item.get("text") is String: errors.append(Text.MISSION1_NOTE_EFFECT_NEEDS_A_KEY_AND_TEXT)
 			"mission":
-				if item.get("operation") not in ["luggage_routine","party_routine","steam_trap","steam_fatal","steam_alarm","chandelier_warning","chandelier_drop","chandelier_impact"]: errors.append("Unknown Mission 1 operation")
-			_: errors.append("Unknown effect command")
+				if item.get("operation") not in ["luggage_routine","party_routine","steam_trap","steam_fatal","steam_alarm","chandelier_warning","chandelier_drop","chandelier_impact"]: errors.append(Text.MISSION1_UNKNOWN_MISSION_1_OPERATION)
+			_: errors.append(Text.MISSION1_UNKNOWN_EFFECT_COMMAND)
 	return errors
 
 static func _number(value: Variant) -> bool:

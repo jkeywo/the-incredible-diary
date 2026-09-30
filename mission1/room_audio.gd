@@ -1,4 +1,5 @@
 extends Node
+const Text = preload("res://localisation/source_text.gd")
 ## Room beds follow elapsed game time, including time spent in other rooms.
 
 const Settings = preload("res://mission1/room_audio_settings.gd")

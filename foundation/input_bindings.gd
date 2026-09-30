@@ -1,13 +1,14 @@
 extends Node
+const Text = preload("res://localisation/source_text.gd")
 signal bindings_changed
 const ACTIONS := {
-	"move_left": "Move left", "move_right": "Move right", "move_up": "Move up", "move_down": "Move down",
-	"wait": "Wait (hold)", "highlight": "Highlight", "diary": "Open/close diary", "reset_loop": "Reset loop",
-	"cancel_action": "Cancel action", "interaction_one": "Interaction 1", "interaction_two": "Interaction 2",
-	"interaction_3": "Interaction 3", "interaction_4": "Interaction 4", "interaction_5": "Interaction 5",
-	"interaction_6": "Interaction 6", "interaction_7": "Interaction 7", "interaction_8": "Interaction 8",
-	"wheel_confirm": "Confirm selected interaction", "submit_code": "Submit code", "clear_code": "Clear code",
-	"continue_ending": "Continue after ending", "diary_previous": "Previous diary page", "diary_next": "Next diary page"
+	"move_left": Text.UI_MOVE_LEFT, "move_right": Text.UI_MOVE_RIGHT, "move_up": Text.UI_MOVE_UP, "move_down": Text.UI_MOVE_DOWN,
+	"wait": Text.UI_WAIT_HOLD, "highlight": Text.UI_HIGHLIGHT, "diary": Text.UI_OPEN_CLOSE_DIARY, "reset_loop": Text.UI_RESET_LOOP,
+	"cancel_action": Text.UI_CANCEL_ACTION, "interaction_one": Text.UI_INTERACTION_1, "interaction_two": Text.UI_INTERACTION_2,
+	"interaction_3": Text.UI_INTERACTION_3, "interaction_4": Text.UI_INTERACTION_4, "interaction_5": Text.UI_INTERACTION_5,
+	"interaction_6": Text.UI_INTERACTION_6, "interaction_7": Text.UI_INTERACTION_7, "interaction_8": Text.UI_INTERACTION_8,
+	"wheel_confirm": Text.UI_CONFIRM_SELECTED_INTERACTION, "submit_code": Text.UI_SUBMIT_CODE, "clear_code": Text.UI_CLEAR_CODE,
+	"continue_ending": Text.UI_CONTINUE_AFTER_ENDING, "diary_previous": Text.UI_PREVIOUS_DIARY_PAGE, "diary_next": Text.UI_NEXT_DIARY_PAGE
 }
 const SLOTS := ["interaction_one", "interaction_two", "interaction_3", "interaction_4", "interaction_5", "interaction_6", "interaction_7", "interaction_8"]
 var defaults: Dictionary = {}
@@ -65,8 +66,8 @@ func valid(record: Variant, device: String) -> bool:
 	return reserved(record).is_empty()
 
 func reserved(record: Dictionary) -> String:
-	if record.get("kind") == "key" and record.get("code") in [KEY_SPACE, KEY_PERIOD, KEY_F8]: return "This key is reserved for pause/editor controls."
-	if record.get("kind") == "button" and record.get("code") in [JOY_BUTTON_START, JOY_BUTTON_BACK]: return "This button is reserved for Settings or pause/editor controls."
+	if record.get("kind") == "key" and record.get("code") in [KEY_SPACE, KEY_PERIOD, KEY_F8]: return Text.UI_THIS_KEY_IS_RESERVED_FOR_PAUSE_EDITOR_CONTROLS
+	if record.get("kind") == "button" and record.get("code") in [JOY_BUTTON_START, JOY_BUTTON_BACK]: return Text.UI_THIS_BUTTON_IS_RESERVED_FOR_SETTINGS_OR_PAUSE_EDITOR_CONTROLS
 	return ""
 
 func to_event(record: Dictionary) -> InputEvent:
@@ -148,7 +149,7 @@ func label(record: Dictionary) -> String:
 		var code: int = record.code if DisplayServer.get_name() == "headless" else DisplayServer.keyboard_get_keycode_from_physical(record.code)
 		return OS.get_keycode_string((code if code != 0 else record.code) | record.modifiers)
 	if record.kind == "trigger": return "LT" if record.code == JOY_AXIS_TRIGGER_LEFT else "RT"
-	return {JOY_BUTTON_A: "A", JOY_BUTTON_B: "B", JOY_BUTTON_X: "X", JOY_BUTTON_Y: "Y", JOY_BUTTON_LEFT_SHOULDER: "LB", JOY_BUTTON_RIGHT_SHOULDER: "RB", JOY_BUTTON_LEFT_STICK: "L3", JOY_BUTTON_RIGHT_STICK: "R3", JOY_BUTTON_DPAD_UP: "D-pad Up", JOY_BUTTON_DPAD_DOWN: "D-pad Down", JOY_BUTTON_DPAD_LEFT: "D-pad Left", JOY_BUTTON_DPAD_RIGHT: "D-pad Right"}.get(record.code, "Button %d" % record.code)
+	return {JOY_BUTTON_A: "A", JOY_BUTTON_B: "B", JOY_BUTTON_X: "X", JOY_BUTTON_Y: "Y", JOY_BUTTON_LEFT_SHOULDER: "LB", JOY_BUTTON_RIGHT_SHOULDER: "RB", JOY_BUTTON_LEFT_STICK: "L3", JOY_BUTTON_RIGHT_STICK: "R3", JOY_BUTTON_DPAD_UP: Text.UI_D_PAD_UP, JOY_BUTTON_DPAD_DOWN: Text.UI_D_PAD_DOWN, JOY_BUTTON_DPAD_LEFT: Text.UI_D_PAD_LEFT, JOY_BUTTON_DPAD_RIGHT: Text.UI_D_PAD_RIGHT}.get(record.code, Text.UI_BUTTON_D % record.code)
 
 func prompt(action: String, controller := false) -> String:
 	for record in bindings[action]["controller" if controller else "keyboard"]:

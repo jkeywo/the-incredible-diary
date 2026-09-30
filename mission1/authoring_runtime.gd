@@ -1,4 +1,5 @@
 extends RefCounted
+const Text = preload("res://localisation/source_text.gd")
 ## Authored rules execute within the existing Mission 1 simulation.
 const Content = preload("res://mission1/authoring_content.gd")
 const Grid = preload("res://mission1/authoring_grid.gd")
@@ -26,12 +27,12 @@ static func conditions(items: Array, state: Dictionary) -> Array:
 
 static func eligible(story: Dictionary, state: Dictionary) -> Dictionary:
 	var checks := conditions(story.get("conditions", []), state)
-	checks.append({"condition":"time window", "passed":int(state.tick) >= int(story.get("start_tick", 0)) and int(state.tick) <= int(story.get("end_tick", 10800))})
-	checks.append({"condition":"not already completed", "passed":story.get("repeat", false) or not state.get("completed_storylets", []).has(story.id)})
+	checks.append({"condition":Text.MISSION1_TIME_WINDOW, "passed":int(state.tick) >= int(story.get("start_tick", 0)) and int(state.tick) <= int(story.get("end_tick", 10800))})
+	checks.append({"condition":Text.MISSION1_NOT_ALREADY_COMPLETED, "passed":story.get("repeat", false) or not state.get("completed_storylets", []).has(story.id)})
 	for id in story.get("participants", []):
 		var present: bool = id == "amelia" or state.get("actors", {}).has(id)
 		var room: String = state.room if id == "amelia" else str(state.get("actors", {}).get(id, {}).get("room", ""))
-		checks.append({"condition":"participant " + str(id), "passed":present and (str(story.get("room", "")).is_empty() or room == story.room) and not state.dead.has(id)})
+		checks.append({"condition":Text.MISSION1_PARTICIPANT + str(id), "passed":present and (str(story.get("room", "")).is_empty() or room == story.room) and not state.dead.has(id)})
 	var allowed := true
 	for check in checks: allowed = allowed and check.passed
 	return {"eligible":allowed, "conditions":checks}
@@ -131,7 +132,7 @@ static func play_conversations(run) -> void:
 		if source.is_empty(): continue
 		var parsed := Dialogue.parse(source,ids)
 		var lines := []
-		for step in parsed.steps: lines.append([str(step.speaker).to_lower(),step.text,step.commands_before])
+		for step in parsed.steps: lines.append([str(step.speaker).to_lower(),step.text,step.commands_before,step.message_id])
 		Speech.start(run,story.scene,lines,story.participants)
 		if not run.s.has("completed_storylets"): run.s.completed_storylets = []
 		run.s.completed_storylets.append(story.id)
@@ -174,22 +175,22 @@ static func compatibility(content: Dictionary, run, state: Dictionary) -> Array[
 	occupied.amelia = {"room":state.room, "pos":state.pos}
 	for id in occupied:
 		var actor: Dictionary = occupied[id]
-		if not content.instances.has(id): errors.append("Restart required: active entity %s was removed" % id)
-		if not content.rooms.has(actor.room) or not Grid.contains(content.rooms[actor.room], Vector2(actor.pos[0], actor.pos[1])): errors.append("Restart required: %s occupies changed collision geometry" % id)
+		if not content.instances.has(id): errors.append(Text.MISSION1_RESTART_REQUIRED_ACTIVE_ENTITY_S_WAS_REMOVED % id)
+		if not content.rooms.has(actor.room) or not Grid.contains(content.rooms[actor.room], Vector2(actor.pos[0], actor.pos[1])): errors.append(Text.MISSION1_RESTART_REQUIRED_S_OCCUPIES_CHANGED_COLLISION_GEOMETRY % id)
 		var previous: Dictionary = run.authored_content.get("instances",{}).get(id,{})
 		if not previous.is_empty() and content.instances.has(id):
 			var next: Dictionary = content.instances[id]
-			if next.room != previous.room or not equivalent(next.position,previous.position): errors.append("Restart required: %s starting placement changed" % id)
+			if next.room != previous.room or not equivalent(next.position,previous.position): errors.append(Text.MISSION1_RESTART_REQUIRED_S_STARTING_PLACEMENT_CHANGED % id)
 	if not run.authored_content.is_empty() and (not state.get("action", {}).is_empty() or not state.get("conversation", {}).is_empty()):
 		var conversation: Dictionary = state.get("conversation",{})
 		var scene_id := str(conversation.get("id",""))
-		if content.scenes.get(scene_id) != run.authored_content.scenes.get(scene_id): errors.append("Restart required: active scene %s changed" % scene_id)
+		if content.scenes.get(scene_id) != run.authored_content.scenes.get(scene_id): errors.append(Text.MISSION1_RESTART_REQUIRED_ACTIVE_SCENE_S_CHANGED % scene_id)
 		var participants: Array = conversation.get("people",[]).duplicate()
 		var action_id := str(state.get("action",{}).get("id",""))
 		if action_id.begins_with("authored:"): participants.append(action_id.split(":")[1])
 		elif not action_id.is_empty(): participants.append(run.interaction_target(action_id))
 		for id in participants:
-			if not equivalent(Content.resolve(content,id),Content.resolve(run.authored_content,id)): errors.append("Restart required: active participant %s changed" % id)
+			if not equivalent(Content.resolve(content,id),Content.resolve(run.authored_content,id)): errors.append(Text.MISSION1_RESTART_REQUIRED_ACTIVE_PARTICIPANT_S_CHANGED % id)
 	return errors
 
 static func equivalent(left: Variant, right: Variant) -> bool:

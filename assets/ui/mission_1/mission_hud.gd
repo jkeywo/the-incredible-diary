@@ -1,5 +1,7 @@
 @tool
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## First-playable visual HUD; simulation owns time and supplies these values.
 
 @export_range(1, 6, 1) var hour := 1:
@@ -33,9 +35,9 @@ func _draw() -> void:
 	var hand := Vector2.from_angle(-PI / 2.0 + hour_progress * TAU)
 	draw_line(face, face + hand * 30, Color("f5e5b9"), 3.0)
 	draw_circle(face, 4, Color("f5e5b9"))
-	draw_string(font, Vector2(119, 43), "HOUR %d" % hour,
+	draw_string(font, Vector2(119, 43),Messages.ui(Text.UI_HOUR_D % hour),
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 23, Color("f1d49a"))
-	draw_string(font, Vector2(120, 72), "THE VOYAGE", HORIZONTAL_ALIGNMENT_LEFT,
+	draw_string(font, Vector2(120, 72),Messages.ui(Text.MISSION1_THE_VOYAGE), HORIZONTAL_ALIGNMENT_LEFT,
 		-1, 14, Color("fff1d0"))
 	if diary_cue:
 		draw_rect(Rect2(272, 20, 30, 39), Color("c59549"))

@@ -1,4 +1,5 @@
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
 ## Device-aware keycaps and left-stick glyph anchored beneath Boy.
 var controller := false:
  set(value):
@@ -14,7 +15,7 @@ func _draw() -> void:
   draw_arc(Vector2(45,28),23,0,TAU,32,Color("bd9149"),2,true)
   draw_line(Vector2(45,32),Vector2(45,18),ink,5,true)
   draw_circle(Vector2(45,17),8,ink)
-  draw_string(ThemeDB.fallback_font,Vector2(77,34),"L",HORIZONTAL_ALIGNMENT_LEFT,-1,18,ink)
+  draw_string(ThemeDB.fallback_font,Vector2(77,34),Messages.ui("L"),HORIZONTAL_ALIGNMENT_LEFT,-1,18,ink)
  else:
   for item in [["move_up",Vector2(34,0)],["move_left",Vector2(0,30)],["move_down",Vector2(34,30)],["move_right",Vector2(68,30)]]:
    var style := StyleBoxFlat.new()
@@ -23,4 +24,4 @@ func _draw() -> void:
    style.set_border_width_all(2)
    style.set_corner_radius_all(4)
    draw_style_box(style,Rect2(item[1],Vector2(29,27)))
-   draw_string(ThemeDB.fallback_font,item[1]+Vector2(7,19),get_node("/root/InputBindings").prompt(item[0]),HORIZONTAL_ALIGNMENT_LEFT,65,12,ink)
+   draw_string(ThemeDB.fallback_font,item[1]+Vector2(7,19),Messages.ui(get_node("/root/InputBindings").prompt(item[0])),HORIZONTAL_ALIGNMENT_LEFT,65,12,ink)

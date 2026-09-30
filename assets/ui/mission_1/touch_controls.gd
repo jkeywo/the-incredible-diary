@@ -1,9 +1,11 @@
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Independent finger capture prevents one thumb from releasing the other.
 signal action_pressed(action: String)
 const FRAME = preload("res://assets/ui/popup/nine_piece_style.gd")
 const ACTIONS := ["diary","wait","highlight","cancel"]
-const LABELS := ["Diary","Wait","Highlight","Cancel"]
+const LABELS := [Text.UI_DIARY,Text.UI_WAIT,Text.UI_HIGHLIGHT,Text.UI_CANCEL]
 const GAME_SIZE := Vector2(1160,740)
 var active := false
 var gameplay_enabled := false
@@ -26,7 +28,7 @@ var _owns_layout := false
 
 static func supported() -> bool:
  if OS.has_feature("web"):
-  return DisplayServer.is_touchscreen_available() or bool(JavaScriptBridge.eval("navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches"))
+  return DisplayServer.is_touchscreen_available() or bool(JavaScriptBridge.eval(Text.UI_NAVIGATOR_MAXTOUCHPOINTS_0_MATCHMEDIA_POINTER_COARSE_MATCHES))
  return OS.has_feature("android") or OS.has_feature("ios")
 
 func _ready() -> void:
@@ -45,7 +47,7 @@ func _resize() -> void:
  size = view
  var window := get_tree().root.size
  portrait = window.y>window.x
- if OS.has_feature("web"): portrait = bool(JavaScriptBridge.eval("matchMedia('(orientation: portrait)').matches"))
+ if OS.has_feature("web"): portrait = bool(JavaScriptBridge.eval(Text.UI_MATCHMEDIA_ORIENTATION_PORTRAIT_MATCHES))
  radius = minf(110 if portrait else 72,view.x*0.14)
  var available_margin := (float(window.x)*view.y/maxf(window.y,1)-view.x)/2
  side_margin = available_margin if active and not portrait and available_margin >= radius*2+36 else 0.0
@@ -166,7 +168,7 @@ func _draw() -> void:
    draw_circle(center,radius,Color(0.04,0.09,0.15,0.68))
    draw_arc(center,radius,0,TAU,48,Color("cba261"),3,true)
    draw_circle(center+item[1]*radius*0.65,radius*0.36,Color(0.82,0.65,0.38,0.85))
-   draw_string(font,center+Vector2(-40,radius+26),item[2],HORIZONTAL_ALIGNMENT_CENTER,80,18,Color("fff1d6"))
+   draw_string(font,center+Vector2(-40,radius+26),Messages.ui(item[2]),HORIZONTAL_ALIGNMENT_CENTER,80,18,Color("fff1d6"))
  for i in ACTIONS.size():
   var action: String = ACTIONS[i]
   if not _allowed(action): continue
@@ -175,4 +177,4 @@ func _draw() -> void:
   if fingers.values().has(action): draw_rect(rect,Color(1.0,0.8,0.4,0.18))
   if action == tutorial_action: draw_rect(rect.grow(3),Color("ffd578"),false,3)
   var color := Color("ffd578") if fingers.values().has(action) else Color("fff1d6")
-  draw_string(font,rect.position+Vector2(4,rect.size.y/2+12 if portrait else rect.size.y/2+6),LABELS[i],HORIZONTAL_ALIGNMENT_CENTER,rect.size.x-8,36 if portrait else 18,color)
+  draw_string(font,rect.position+Vector2(4,rect.size.y/2+12 if portrait else rect.size.y/2+6),Messages.ui(LABELS[i]),HORIZONTAL_ALIGNMENT_CENTER,rect.size.x-8,36 if portrait else 18,color)

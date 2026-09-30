@@ -1,4 +1,6 @@
 extends VBoxContainer
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Device sections share one scroll area; unavailable devices retain their data.
 var keyboard_available := false
 var touch_available := false
@@ -36,11 +38,11 @@ func _ready() -> void:
 		body.add_child(section)
 		sections[device] = section
 		var heading := Label.new()
-		heading.text = device.capitalize()
+		Messages.assign(heading,"text",device.capitalize())
 		section.add_child(heading)
 		if device == "touch":
 			var hint := Label.new()
-			hint.text = "Movement joystick position"
+			Messages.assign(hint,"text",Text.UI_MOVEMENT_JOYSTICK_POSITION)
 			section.add_child(hint)
 			stick_side = OptionButton.new()
 			stick_side.add_item("Left")
@@ -52,16 +54,18 @@ func _ready() -> void:
 				settings.set_stick_on_right(index == 1)
 				settings.save_settings())
 			var note := Label.new()
-			note.text = "Buttons appear on the opposite side."
+			Messages.assign(note,"text",Text.UI_BUTTONS_APPEAR_ON_THE_OPPOSITE_SIDE)
 			section.add_child(note)
 			continue
 		for action in bindings.ACTIONS:
 			if device == "controller" and action in ["diary_previous", "diary_next"]: continue
 			var title := Label.new()
-			title.text = bindings.ACTIONS[action]
-			section.add_child(title)
+			Messages.assign(title,"text",bindings.ACTIONS[action])
 			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
 			section.add_child(row)
+			title.custom_minimum_size.x = 240
+			row.add_child(title)
 			for slot in 2:
 				var button := Button.new()
 				button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -71,13 +75,13 @@ func _ready() -> void:
 				binding_buttons.append([button, action, device, slot])
 				button.pressed.connect(func(): begin_capture(action, device, slot))
 				var clear := Button.new()
-				clear.text = "×"
-				clear.tooltip_text = "Clear %s %s binding" % [bindings.ACTIONS[action], "primary" if slot == 0 else "alternate"]
+				Messages.assign(clear,"text","×")
+				Messages.assign(clear,"tooltip_text",Text.UI_CLEAR_S_S_BINDING % [bindings.ACTIONS[action], "primary" if slot == 0 else "alternate"])
 				row.add_child(clear)
 				buttons.append(clear)
 				clear.pressed.connect(func(): bindings.assign(action, device, slot, {}))
 		var reset := Button.new()
-		reset.text = "Restore %s defaults" % device
+		Messages.assign(reset,"text",Text.UI_RESTORE_S_DEFAULTS % device)
 		section.add_child(reset)
 		buttons.append(reset)
 		reset.pressed.connect(func(): bindings.reset_device(device))
@@ -85,11 +89,11 @@ func _ready() -> void:
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(status)
 	cancel = Button.new()
-	cancel.text = "Cancel binding"
+	Messages.assign(cancel,"text",Text.UI_CANCEL_BINDING)
 	cancel.pressed.connect(cancel_capture)
 	add_child(cancel)
 	confirm = Button.new()
-	confirm.text = "Assign anyway"
+	Messages.assign(confirm,"text",Text.UI_ASSIGN_ANYWAY)
 	confirm.pressed.connect(_accept)
 	add_child(confirm)
 	bindings.bindings_changed.connect(refresh_labels)
@@ -102,8 +106,8 @@ func _ready() -> void:
 func refresh_labels() -> void:
 	for item in binding_buttons:
 		var text: String = bindings.label(bindings.bindings[item[1]][item[2]][item[3]])
-		item[0].text = ("1: " if item[3] == 0 else "2: ") + text
-		item[0].tooltip_text = "%s — %s: %s" % [bindings.ACTIONS[item[1]], "Primary" if item[3] == 0 else "Alternate", text]
+		Messages.assign_ref(item[0],"text",Messages.make_ref("UI_BINDING_SLOT",{"slot":int(item[3])+1,"binding":Messages.capture(text)}))
+		Messages.assign_ref(item[0],"tooltip_text",Messages.make_ref("UI_BINDING_TOOLTIP",{"action":Messages.capture(bindings.ACTIONS[item[1]]),"slot":Messages.capture(Text.UI_PRIMARY if item[3] == 0 else Text.UI_ALTERNATE),"binding":Messages.capture(text)}))
 
 func refresh_devices() -> void:
 	if sections.is_empty(): return
@@ -138,7 +142,7 @@ func begin_capture(action: String, device: String, slot: int) -> void:
 	timeout = 10.0
 	armed = false
 	bindings.capture_active = true
-	status.text = "Release held inputs, then press a %s input (10 seconds)." % device
+	Messages.assign(status,"text",Text.UI_RELEASE_HELD_INPUTS_THEN_PRESS_A_S_INPUT_10_SECONDS % device)
 	cancel.show()
 	confirm.hide()
 	cancel.grab_focus()
@@ -151,7 +155,7 @@ func cancel_capture() -> void:
 	bindings.guard_release()
 	cancel.hide()
 	confirm.hide()
-	status.text = ""
+	Messages.assign(status,"text","")
 	for button in buttons: button.set("disabled", false)
 	var available := choices()
 	if not available.is_empty(): available[0].grab_focus()
@@ -168,7 +172,7 @@ func _process(delta: float) -> void:
 	timeout -= delta
 	if timeout <= 0:
 		cancel_capture()
-		status.text = "Binding cancelled: no input received."
+		Messages.assign(status,"text",Text.UI_BINDING_CANCELLED_NO_INPUT_RECEIVED)
 
 func _input(event: InputEvent) -> void:
 	observe_device(event)
@@ -195,7 +199,7 @@ func _input(event: InputEvent) -> void:
 	if record.is_empty(): return
 	var reason: String = bindings.reserved(record)
 	if not reason.is_empty():
-		status.text = reason
+		Messages.assign(status,"text",reason)
 		return
 	if not bindings.valid(record, capture.device): return
 	pending = record
@@ -203,7 +207,7 @@ func _input(event: InputEvent) -> void:
 	if conflicts.is_empty():
 		_accept()
 	else:
-		status.text = "Already assigned to: %s. Assign anyway?" % ", ".join(conflicts)
+		Messages.assign(status,"text",Text.UI_ALREADY_ASSIGNED_TO_S_ASSIGN_ANYWAY % ", ".join(conflicts))
 		confirm.show()
 		confirm.grab_focus()
 

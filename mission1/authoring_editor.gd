@@ -43,6 +43,7 @@ var prepared_room := ""
 var room_request_key := ""
 
 func _ready() -> void:
+	auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 91
 	var initial: Dictionary = game.sim.authored_content

@@ -102,6 +102,7 @@ var github_review_message := ""
 var github_auth_generation := 0
 
 func _ready() -> void:
+	auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	var authoring_seed_requested := "--authoring-seed" in OS.get_cmdline_user_args()
 	var authoring_verify_requested := "--authoring-verify" in OS.get_cmdline_user_args()
 	var authoring_failure_requested := false

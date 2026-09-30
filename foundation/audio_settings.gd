@@ -1,4 +1,6 @@
 extends CanvasLayer
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 signal controls_changed
 const TouchControls = preload("res://assets/ui/mission_1/touch_controls.gd")
 const PopupSkin = preload("res://assets/ui/popup/popup_skin.gd")
@@ -6,7 +8,7 @@ const PopupSkin = preload("res://assets/ui/popup/popup_skin.gd")
 ## Future voice players should use the Dialogue bus.
 
 const MAIN_MENU := "res://assets/ui/mission_1/title_screen.tscn"
-const DEFAULTS := {"Master": 50.0, "SFX": 100.0, "Dialogue": 100.0, "Music": 100.0}
+const DEFAULTS := {Text.UI_MASTER: 50.0, "SFX": 100.0, Text.UI_DIALOGUE: 100.0, Text.MISSION1_MUSIC: 100.0}
 var settings_path: String:
 	get: return get_node("/root/Preferences").settings_path
 	set(value): get_node("/root/Preferences").settings_path = value
@@ -23,9 +25,12 @@ var _closing := false
 var stick_on_right := false
 var touch_available := false
 var tabs: TabContainer
+var general_tab: VBoxContainer
+var audio_tab: VBoxContainer
 var controls_tab: VBoxContainer
 var stick_side: OptionButton
 var controller_menu: Node
+var language_choice: OptionButton
 
 
 func _ready() -> void:
@@ -85,7 +90,7 @@ func save_settings() -> void:
 	get_node("/root/Preferences").save_settings()
 
 func _show_save_error() -> void:
-	menu_status.text = "Preferences could not be saved. Changes work for this session; closing Settings retries."
+	Messages.assign(menu_status,"text",Text.UI_PREFERENCES_COULD_NOT_BE_SAVED_CHANGES_WORK_FOR_THIS_SESSION_CLOS)
 	menu_status.show()
 
 
@@ -102,7 +107,7 @@ func open_settings() -> void:
 	menu_status.visible = get_node("/root/Preferences").last_error != OK
 	var scene := get_tree().current_scene
 	main_menu_button.disabled = scene == null or (scene.scene_file_path == MAIN_MENU and not is_instance_valid(scene.get("_game_world")))
-	dialog.popup_centered(Vector2i(440, 390))
+	dialog.popup_centered(Vector2i(740, 430))
 	_focus_tab()
 
 
@@ -138,12 +143,12 @@ func return_to_main_menu() -> void:
 	var scene := get_tree().current_scene
 	if scene == null: return
 	if not _save_before_leaving(scene):
-		menu_status.text = "The game could not be saved. You are still in the current game; try again."
+		Messages.assign(menu_status,"text",Text.UI_THE_GAME_COULD_NOT_BE_SAVED_YOU_ARE_STILL_IN_THE_CURRENT_GAME_TRY)
 		menu_status.show()
 		return
 	var result := get_tree().change_scene_to_file(MAIN_MENU)
 	if result != OK:
-		menu_status.text = "The main menu could not be opened. Please try again."
+		Messages.assign(menu_status,"text",Text.UI_THE_MAIN_MENU_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN)
 		menu_status.show()
 		return
 	# Returning from Settings or the paused editor must leave the menu running.
@@ -160,13 +165,13 @@ func _build_ui() -> void:
 	toggle = Button.new()
 	toggle.position = Vector2(8, 8)
 	toggle.size = Vector2(40, 40)
-	toggle.tooltip_text = "Settings"
+	Messages.assign(toggle,"tooltip_text",Text.UI_SETTINGS)
 	toggle.draw.connect(_draw_cog)
 	toggle.pressed.connect(open_settings)
 	overlay.add_child(toggle)
 	dialog = AcceptDialog.new()
-	dialog.title = "Settings"
-	dialog.ok_button_text = "Close"
+	Messages.assign(dialog,"title",Text.UI_SETTINGS)
+	Messages.assign(dialog,"ok_button_text",Text.UI_CLOSE)
 	dialog.exclusive = true
 	dialog.dialog_hide_on_ok = false
 	dialog.confirmed.connect(close_settings)
@@ -176,10 +181,27 @@ func _build_ui() -> void:
 	motion = preload("res://assets/ui/popup/popup_motion.gd").new()
 	motion.setup(dialog,overlay)
 	tabs = TabContainer.new()
-	tabs.custom_minimum_size = Vector2(400, 240)
+	tabs.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_ALWAYS
+	tabs.custom_minimum_size = Vector2(700, 280)
 	content.add_child(tabs)
+	general_tab = VBoxContainer.new()
+	general_tab.name = Text.UI_GENERAL
+	tabs.add_child(general_tab)
+	var language_row := HBoxContainer.new()
+	general_tab.add_child(language_row)
+	var language_label := Label.new()
+	Messages.assign(language_label,"text","Language")
+	language_row.add_child(language_label)
+	language_choice = OptionButton.new()
+	language_choice.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_ALWAYS
+	language_choice.add_item("Automatic")
+	language_choice.add_item("English")
+	language_choice.select(0 if get_node("/root/Localisation").preference == "automatic" else 1)
+	language_choice.item_selected.connect(func(index): get_node("/root/Localisation").set_language("automatic" if index == 0 else "en"))
+	language_row.add_child(language_choice)
 	var audio := VBoxContainer.new()
-	audio.name = "Audio"
+	audio_tab = audio
+	audio.name = Text.UI_AUDIO
 	audio.add_theme_constant_override("separation", 16)
 	tabs.add_child(audio)
 	for bus in DEFAULTS:
@@ -187,7 +209,7 @@ func _build_ui() -> void:
 		row.add_theme_constant_override("separation", 12)
 		audio.add_child(row)
 		var label := Label.new()
-		label.text = "Master volume" if bus == "Master" else bus
+		Messages.assign(label,"text",Text.UI_MASTER_VOLUME if bus == Text.UI_MASTER else bus)
 		label.custom_minimum_size.x = 140
 		row.add_child(label)
 		var slider := HSlider.new()
@@ -196,25 +218,25 @@ func _build_ui() -> void:
 		slider.value = volumes[bus]
 		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		slider.custom_minimum_size.x = 160
-		slider.tooltip_text = label.text
+		Messages.assign(slider,"tooltip_text",label.text)
 		row.add_child(slider)
 		var amount := Label.new()
 		amount.custom_minimum_size.x = 48
 		amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		amount.text = "%d%%" % volumes[bus]
+		Messages.assign(amount,"text","%d%%" % volumes[bus])
 		row.add_child(amount)
 		slider.value_changed.connect(func(value: float):
 			set_volume(bus, value)
-			amount.text = "%d%%" % value
+			Messages.assign(amount,"text","%d%%" % value)
 			save_settings())
 		sliders[bus] = slider
 	controls_tab = preload("res://foundation/controls_settings.gd").new()
-	controls_tab.name = "Controls"
+	controls_tab.name = Text.UI_CONTROLS
 	tabs.add_child(controls_tab)
 	stick_side = controls_tab.stick_side
 	_refresh_controls_tab()
 	main_menu_button = Button.new()
-	main_menu_button.text = "Return to main menu"
+	Messages.assign(main_menu_button,"text",Text.MISSION1_RETURN_TO_MAIN_MENU)
 	main_menu_button.pressed.connect(return_to_main_menu)
 	content.add_child(main_menu_button)
 	menu_status = Label.new()
@@ -242,7 +264,9 @@ func _draw_cog() -> void:
 
 
 func _controller_choices() -> Array:
-	var controls: Array = sliders.values() if tabs.current_tab == 0 else controls_tab.choices()
+	var controls: Array = [language_choice]
+	if tabs.get_current_tab_control() == audio_tab: controls = sliders.values()
+	elif tabs.get_current_tab_control() == controls_tab: controls = controls_tab.choices()
 	return controls + [main_menu_button,dialog.get_ok_button()]
 
 func _focus_tab() -> void:

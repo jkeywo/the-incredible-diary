@@ -1,10 +1,12 @@
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## A presentation-only camera cut; never write staged poses into voyage history.
 const Rooms = preload("res://mission1/rooms.gd")
 const Departure = preload("res://mission1/departure.gd")
 const DEPARTURE_SECONDS := 6.0
 const CANCELLED_SECONDS := 7.0
-const CANCELLATION := "A passenger dead aboard my ship... I can't sail after this. The voyage will have to be cancelled!"
+const CANCELLATION := Text.UI_A_PASSENGER_DEAD_ABOARD_MY_SHIP_I_CAN_T_SAIL_AFTER_THIS_THE_VOYAG
 var state: Dictionary = {}
 var elapsed := 0.0
 var done := false
@@ -68,7 +70,7 @@ func present() -> void:
 	if not departing:
 		var feet := Rooms.point(state.actors.captain.pos)
 		speech.position = Vector2(clampf(feet.x-215,20,710),maxf(52,feet.y-255))
-		speech.present({"name":"Captain","text":CANCELLATION},maxf(0,elapsed-0.5))
+		speech.present({"name":Text.MISSION1_CAPTAIN,"name_ref":Messages.capture(Text.MISSION1_CAPTAIN),"text":CANCELLATION,"text_ref":Messages.capture(CANCELLATION)},maxf(0,elapsed-0.5))
 		speech.point_tail_at(feet+Vector2(0,-45)-speech.position)
 	queue_redraw()
 
@@ -76,5 +78,5 @@ func _draw() -> void:
 	if not active(): return
 	draw_rect(Rect2(0,0,1160,40),Color("101820"))
 	draw_rect(Rect2(0,700,1160,40),Color("101820"))
-	var caption := "5:30 — All aboard. Cast off!" if departing else "5:30 — The voyage is cancelled"
-	draw_string(ThemeDB.fallback_font,Vector2(0,727),caption,HORIZONTAL_ALIGNMENT_CENTER,1160,19,Color("f4dfb4"))
+	var caption := Text.UI_5_30_ALL_ABOARD_CAST_OFF if departing else Text.UI_5_30_THE_VOYAGE_IS_CANCELLED
+	draw_string(ThemeDB.fallback_font,Vector2(0,727),Messages.ui(caption),HORIZONTAL_ALIGNMENT_CENTER,1160,19,Color("f4dfb4"))

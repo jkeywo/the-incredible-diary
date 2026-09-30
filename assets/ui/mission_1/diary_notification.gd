@@ -1,16 +1,18 @@
 @tool
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Names a casualty or new diary entry without adding an unwitnessed cause.
 
-@export var message := "A new entry has appeared in the diary.":
+@export var message := Text.UI_A_NEW_ENTRY_HAS_APPEARED_IN_THE_DIARY:
 	set(value):
 		message = value
 		if is_node_ready():
-			$Message.text = value
+			Messages.assign($Message,"text",value)
 
 
 func _ready() -> void:
-	$Message.text = message
+	Messages.assign($Message,"text",message)
 
 
 func _draw() -> void:

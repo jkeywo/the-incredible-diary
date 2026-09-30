@@ -1,4 +1,5 @@
 extends RefCounted
+const Text = preload("res://localisation/source_text.gd")
 ## Exploration-only second leg. Commitments are departure times, in voyage ticks.
 const Content = preload("res://mission1/authoring_content.gd")
 const Grid = preload("res://mission1/authoring_grid.gd")
@@ -16,12 +17,12 @@ static func seed() -> Dictionary:
 	data.storylets = []
 	data.scenes = {}
 	data.texts = {}
-	data.rooms.passage.title = "Service corridor · crew cabins"
+	data.rooms.passage.title = Text.MISSION2_SERVICE_CORRIDOR_CREW_CABINS
 	data.rooms.passage.scene = "07_crew_cabins"
 	data.rooms.salon.scene = "09_salon_open"
 	data.rooms.passage.floor_regions = [[40,415,1060,125],[0,375,45,100],[40,410,55,65],[130,235,220,65],[490,235,240,65],[870,235,220,65],[190,290,30,140],[565,290,30,140],[945,290,30,140],[675,530,90,150]]
 	data.rooms.passage.blocked = Grid.migrate(data.rooms.passage.floor_regions)
-	data.rooms.foredeck = {"title":"Foredeck","scene":"08_foredeck","background_asset":"","size":[1175,700],"blocked":Grid.migrate([[170,260,840,340],[330,210,570,100],[975,365,85,100]])}
+	data.rooms.foredeck = {"title":Text.MISSION2_FOREDECK,"scene":"08_foredeck","background_asset":"","size":[1175,700],"blocked":Grid.migrate([[170,260,840,340],[330,210,570,100],[975,365,85,100]])}
 	for door in data.connections:
 		if door.a == "passage" and door.b == "controls":
 			door.ap = [720,650]
@@ -38,7 +39,7 @@ static func seed() -> Dictionary:
 	data.templates.janitor = {"kind":"prop","name":"Janitor","appearance":"janitor","initial_state":"sweeping","states":{"sweeping":{"appearance":"sweeping","visible":true,"solid":true,"bounds":[-10,-12,20,18]}},"transitions":[],"interactions":[]}
 	data.instances.janitor = {"template":"janitor","room":"foyer","position":[675,385],"overrides":{},"builtin":true}
 	for id in CREW_DOORS:
-		data.templates[id] = {"kind":"door","name":"Crew cabin door","appearance":"crew_door","initial_state":"closed","states":{"closed":{"appearance":"closed","visible":true,"solid":true,"bounds":[-35,-75,70,80]},"open":{"appearance":"open","visible":false,"solid":false}},"transitions":[{"state":"closed","conditions":[]},{"state":"open","conditions":[{"flag":id,"equals":true}]}],"interactions":[]}
+		data.templates[id] = {"kind":"door","name":Text.MISSION2_CREW_CABIN_DOOR,"appearance":"crew_door","initial_state":"closed","states":{"closed":{"appearance":"closed","visible":true,"solid":true,"bounds":[-35,-75,70,80]},"open":{"appearance":"open","visible":false,"solid":false}},"transitions":[{"state":"closed","conditions":[]},{"state":"open","conditions":[{"flag":id,"equals":true}]}],"interactions":[]}
 		data.instances[id] = {"template":id,"room":"passage","position":[CREW_DOORS[id],405],"overrides":{},"builtin":true}
 	data.instances.amelia.room = "passage"
 	data.instances.amelia.position = [205,275]

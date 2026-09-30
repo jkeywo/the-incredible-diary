@@ -7,7 +7,7 @@ const source = html.slice(html.indexOf('const GODOT_CONFIG'), html.lastIndexOf('
   .replace('$GODOT_CONFIG', '{}').replace('$GODOT_THREADS_ENABLED', 'false');
 
 async function scenario({ first = 'engine', reduced = false, fail = false, missing = false } = {}) {
-  const elements = Object.fromEntries(['loading-label', 'status', 'status-progress', 'status-notice'].map(id => [id, {
+  const elements = Object.fromEntries(['loading-label', 'status', 'status-progress', 'status-notice', 'loading-tagline', 'loading-title', 'loading-credit'].map(id => [id, {
     style: {}, removed: false, textContent: '', classList: { add() {} },
     remove() { this.removed = true; }, removeAttribute() {}, appendChild() {},
   }]));
@@ -21,7 +21,7 @@ async function scenario({ first = 'engine', reduced = false, fail = false, missi
     setTimeout: (fn, ms) => { timers.push({ fn, ms }); },
   };
   const context = {
-    window, navigator: {}, console: { error() {} },
+    window, navigator: { languages: ['en'] }, console: { error() {} },
     document: { getElementById: id => elements[id], createTextNode: text => ({ text }), createElement: () => ({}) },
     Engine: class {
       static getMissingFeatures() { return []; }
@@ -29,6 +29,13 @@ async function scenario({ first = 'engine', reduced = false, fail = false, missi
     },
   };
   if (missing) delete context.Engine;
+  const generated = readFileSync('assets/ui/loading/shell.html', 'utf8');
+  const start = generated.indexOf('window.DIARY_TRANSLATIONS =');
+  const bootstrap = generated.slice(start, generated.indexOf('</script>', start));
+  // Browsers expose window as their global object; mirror it in this VM fixture.
+  vm.runInNewContext(bootstrap, context);
+  context.DIARY_TRANSLATIONS = context.window.DIARY_TRANSLATIONS;
+  context.window.DiaryLocalisation = context.DiaryLocalisation;
   vm.runInNewContext(source, context);
   const ready = () => { window.diaryTitleReady = true; events['diary-title-ready'](); };
   if (missing) {

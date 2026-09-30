@@ -24,6 +24,7 @@ func checks():
  title._game_world = game
  game.set_physics_process(false)
  game.sim.s.message = "Saved before returning to the menu."
+ game.sim.record_current_frame()
  var expected: Dictionary = game.sim.s.duplicate(true)
  # A failed save keeps the existing game paused and available.
  game.save_path = "res://build/missing-save-directory/cannot-save.json"

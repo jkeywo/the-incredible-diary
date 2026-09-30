@@ -1,4 +1,6 @@
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Decorative UI time is separate from the voyage clock and recorded history.
 var halo := 0.0
 var waiting := false
@@ -41,9 +43,9 @@ func _draw() -> void:
 	if strength > 0:
 		for i in 3:
 			draw_arc(Vector2(1076,130),54.0+i*2.0,0,TAU,64,Color(0.91,0.72,0.39,strength/(i+1)),1.0,true)
-	var caption := hour_text if hour_age < 1.2 else "Waiting · 20×" if waiting else ""
+	var caption := hour_text if hour_age < 1.2 else Text.UI_WAITING_20 if waiting else ""
 	if not caption.is_empty():
-		draw_string(ThemeDB.fallback_font,Vector2(992,222),caption,HORIZONTAL_ALIGNMENT_CENTER,160,16,Color("f4dfb4"))
+		draw_string(ThemeDB.fallback_font,Vector2(992,222),Messages.ui(caption),HORIZONTAL_ALIGNMENT_CENTER,160,16,Color("f4dfb4"))
 	if rewinding:
 		for side in 2:
 			var x := 0.0 if side == 0 else size.x-12.0

@@ -67,7 +67,7 @@ func checks() -> void:
 	check(prefs.volumes.Master == 50 and prefs.volumes.Music == 27, "Invalid audio falls back independently")
 	check(bindings.bindings.highlight.keyboard[0] == key(KEY_H) and bindings.bindings.highlight.keyboard[1] == key(KEY_L), "Invalid slots fall back independently")
 	settings.open_settings()
-	settings.tabs.current_tab = 1
+	settings.tabs.current_tab = settings.controls_tab.get_index()
 	await process_frame
 	var controls = settings.controls_tab
 	if "--screenshots" in OS.get_cmdline_user_args():

@@ -1,5 +1,6 @@
 @tool
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
 ## Reusable page tab; new_entry is the subtle actionable-knowledge cue.
 
 @export var label_text := "PEOPLE":
@@ -23,7 +24,7 @@ func _draw() -> void:
 	panel.set_border_width_all(2)
 	panel.set_corner_radius_all(5)
 	draw_style_box(panel, Rect2(Vector2.ZERO, size))
-	draw_string(ThemeDB.fallback_font, Vector2(12, size.y * 0.65), label_text,
+	draw_string(ThemeDB.fallback_font, Vector2(12, size.y * 0.65),Messages.ui(label_text),
 		HORIZONTAL_ALIGNMENT_LEFT, size.x - 35, 16,
 		Color("17243a") if selected else Color("f2dcad"))
 	if new_entry:

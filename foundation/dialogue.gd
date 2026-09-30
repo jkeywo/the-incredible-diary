@@ -40,7 +40,13 @@ static func parse(source: String, actor_ids: Array[String]) -> Dictionary:
 		var speaker := line.substr(0, colon)
 		if not actor_ids.has(speaker.to_lower()):
 			errors.append("Dialogue speaker has no actor: " + speaker)
-		steps.append({"speaker": speaker, "text": line.substr(colon + 1).strip_edges(), "commands_before": pending_commands.duplicate(true)})
+		var spoken := line.substr(colon + 1).strip_edges()
+		var message_id := ""
+		var marker := spoken.rfind(" [ID:")
+		if marker >= 0 and spoken.ends_with("]"):
+			message_id = spoken.substr(marker + 5).trim_suffix("]")
+			spoken = spoken.left(marker)
+		steps.append({"speaker": speaker, "text": spoken, "message_id":message_id, "commands_before": pending_commands.duplicate(true)})
 		pending_commands.clear()
 	if not pending_commands.is_empty():
 		errors.append("World command after last spoken line has no step boundary")

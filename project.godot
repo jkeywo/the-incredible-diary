@@ -12,6 +12,7 @@ config/custom_user_dir_name="AmeliaAuthoringProbe"
 
 [autoload]
 Preferences="*res://foundation/preferences.gd"
+Localisation="*res://foundation/localisation.gd"
 InputBindings="*res://foundation/input_bindings.gd"
 ResourceStream="*res://assets/ui/loading/resource_stream.gd"
 DialogueManager="*res://addons/dialogue_manager/dialogue_manager.gd"
@@ -79,3 +80,7 @@ textures/default_filters/use_nearest_mipmap_filter=false
 
 [editor_plugins]
 enabled=PackedStringArray()
+
+[internationalization]
+locale/fallback="en"
+locale/translations=PackedStringArray("res://localisation/plurals.en.translation", "res://localisation/ui.en.translation", "res://localisation/mission1.en.translation", "res://localisation/mission2.en.translation", "res://localisation/mission3.en.translation")

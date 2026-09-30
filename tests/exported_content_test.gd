@@ -4,6 +4,8 @@ const Plan = preload("res://mission1/content_plan.gd")
 func _initialize() -> void:
 	call_deferred("checks")
 func checks() -> void:
+	assert(TranslationServer.translate("UI_LANGUAGE") == "Language")
+	assert(TranslationServer.translate_plural("UI_GUEST_COUNT","UI_GUEST_COUNT_MANY",3) == "{count} guests")
 	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("../web-content-manifest.json"))
 	assert(load("res://assets/ui/mission_1/title_screen.tscn") != null)
 	var mounted := {}

@@ -1,4 +1,5 @@
 extends RefCounted
+const Text = preload("res://localisation/source_text.gd")
 ## Authored screen geometry. Coordinates are at characters' feet.
 const CHANDELIER_FLOOR := Vector2(580,380)
 const CHANDELIER_GUEST := Vector2(580,412)
@@ -9,12 +10,12 @@ const BAR_GUEST := Vector2(950,215)
 const STEAM_EXIT := Rect2(970,240,110,100)
 const LUGGAGE := Vector2(145,390)
 const ROOMS := {
- "docks": {"title": "The docks", "scene": "01_docks", "floor": [[170,235,820,440],[125,325,90,140],[525,90,110,160]]},
- "foyer": {"title": "Grand foyer", "scene": "02_foyer", "floor": [[155,250,850,425],[155,230,740,25],[505,115,150,130],[95,190,100,100],[765,165,115,90],[990,455,110,100]]},
- "cabins": {"title": "Cabin corridor", "scene": "03_cabin_corridor", "floor": [[-40,445,1145,165],[185,340,80,115],[90,240,250,125],[535,340,80,115],[440,240,250,125],[895,340,80,115],[800,240,265,125]]},
- "controls": {"title": "Steam room", "scene": "04_controls_and_steam", "floor": [[110,265,440,400],[60,565,65,105],[640,265,440,400]]},
- "passage": {"title": "Service corridor", "scene": "06_service_passage", "floor": [[40,415,1060,125],[0,375,45,100],[40,410,55,65],[675,530,90,150]]},
- "salon": {"title": "Salon", "scene": "05_party_salon", "floor": [[190,195,805,350],[40,480,955,105],[525,530,110,155]]}
+ "docks": {"title": Text.MISSION1_THE_DOCKS, "scene": "01_docks", "floor": [[170,235,820,440],[125,325,90,140],[525,90,110,160]]},
+ "foyer": {"title": Text.MISSION1_GRAND_FOYER, "scene": "02_foyer", "floor": [[155,250,850,425],[155,230,740,25],[505,115,150,130],[95,190,100,100],[765,165,115,90],[990,455,110,100]]},
+ "cabins": {"title": Text.MISSION1_CABIN_CORRIDOR, "scene": "03_cabin_corridor", "floor": [[-40,445,1145,165],[185,340,80,115],[90,240,250,125],[535,340,80,115],[440,240,250,125],[895,340,80,115],[800,240,265,125]]},
+ "controls": {"title": Text.MISSION1_STEAM_ROOM, "scene": "04_controls_and_steam", "floor": [[110,265,440,400],[60,565,65,105],[640,265,440,400]]},
+ "passage": {"title": Text.MISSION1_SERVICE_CORRIDOR, "scene": "06_service_passage", "floor": [[40,415,1060,125],[0,375,45,100],[40,410,55,65],[675,530,90,150]]},
+ "salon": {"title": Text.MISSION1_SALON, "scene": "05_party_salon", "floor": [[190,195,805,350],[40,480,955,105],[525,530,110,155]]}
 }
 # Cabins end at the foyer. The salon stair is open from the start.
 const CABIN_DOORS := {"cabin_left":225.0, "cabin_middle":580.0, "cabin_right":935.0}
@@ -169,7 +170,7 @@ static func arrival_open(room: String, p: Vector2, flags: Dictionary) -> bool:
 static func locked_doors(room: String, mission_two := false, at_sea := true) -> Array:
  if room == "foyer":
   var doors := [{"point":[135,230],"bounds":Rect2(95,190,100,100)}]
-  if mission_two and at_sea: doors.append({"point":[580,650],"bounds":Rect2(515,620,130,100),"message":"We're at sea. I don't want to go overboard."})
+  if mission_two and at_sea: doors.append({"point":[580,650],"bounds":Rect2(515,620,130,100),"message":Text.MISSION1_WE_RE_AT_SEA_I_DON_T_WANT_TO_GO_OVERBOARD})
   return doors
  if room == "salon" and not mission_two: return [{"point":[80,520],"bounds":Rect2(40,480,100,105)}]
  if room == "passage" and not mission_two:

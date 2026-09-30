@@ -1,4 +1,6 @@
 extends Node2D
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 const Depth = preload("res://mission1/render_depth.gd")
 ## Mission 1 presentation; all consequential state lives in the deterministic simulation.
 const ContentPlan = preload("res://mission1/content_plan.gd")
@@ -108,6 +110,7 @@ func configure(saved: Dictionary = {}, enable_save := true) -> void:
  save_enabled = enable_save
 
 func _ready() -> void:
+ get_node("/root/Localisation").language_changed.connect(_language_changed)
  if stream_resources and character_ticket.is_empty():
   character_ticket = get_node("/root/ResourceStream").request_resources(ContentPlan.level_characters(),false,2)
  texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -171,7 +174,7 @@ func _build_hud() -> void:
  notice = _label(Vector2(25,62), Vector2(870,85), 17)
  message = _label(Vector2(25,620), Vector2(900,65), 18)
  help = _label(Vector2(25,696), Vector2(1110,36), 15)
- help.text = ""
+ Messages.assign(help,"text","")
  help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
  help.size = Vector2(320,60)
  movement_prompt = preload("res://assets/ui/mission_1/movement_prompt.gd").new()
@@ -204,7 +207,7 @@ func _build_hud() -> void:
  column.add_theme_constant_override("separation", 18)
  var title := Label.new()
  diary_title = title
- title.text = "VOYAGE NOTEBOOK"
+ Messages.assign(title,"text",Text.MISSION1_VOYAGE_NOTEBOOK)
  title.add_theme_color_override("font_color", Color("342f29"))
  title.add_theme_font_size_override("font_size", 24)
  column.add_child(title)
@@ -222,7 +225,7 @@ func _build_hud() -> void:
  right_page.add_theme_constant_override("separation", 18)
  var page_title := Label.new()
  diary_page_title = page_title
- page_title.text = "THE VOYAGE"
+ Messages.assign(page_title,"text",Text.MISSION1_THE_VOYAGE)
  page_title.add_theme_color_override("font_color", Color("342f29"))
  page_title.add_theme_font_size_override("font_size", 24)
  right_page.add_child(page_title)
@@ -234,7 +237,7 @@ func _build_hud() -> void:
  right_page.add_child(diary_right_text)
  var instructions := Label.new()
  diary_instructions = instructions
- instructions.text = "Observations from the current voyage, recorded as they happen."
+ Messages.assign(instructions,"text",Text.MISSION1_OBSERVATIONS_FROM_THE_CURRENT_VOYAGE_RECORDED_AS_THEY_HAPPEN)
  instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
  instructions.add_theme_color_override("font_color", Color("342f29"))
  instructions.add_theme_font_size_override("font_size", 18)
@@ -246,9 +249,9 @@ func _build_hud() -> void:
  right_page.theme = preload("res://assets/ui/mission_1/diary_buttons.gd").make_theme()
  var close := Button.new()
  diary_close = close
- close.text = "X"
- close.tooltip_text = "Close diary (%s / %s)" % [get_node("/root/InputBindings").prompt("diary"), get_node("/root/InputBindings").prompt("diary", true)]
- get_node("/root/InputBindings").bindings_changed.connect(func(): close.tooltip_text = "Close diary (%s / %s)" % [get_node("/root/InputBindings").prompt("diary"), get_node("/root/InputBindings").prompt("diary", true)])
+ Messages.assign(close,"text","X")
+ Messages.assign(close,"tooltip_text",Text.MISSION1_CLOSE_DIARY_S_S % [get_node("/root/InputBindings").prompt("diary"), get_node("/root/InputBindings").prompt("diary", true)])
+ get_node("/root/InputBindings").bindings_changed.connect(func(): Messages.assign(close,"tooltip_text",Text.MISSION1_CLOSE_DIARY_S_S % [get_node("/root/InputBindings").prompt("diary"), get_node("/root/InputBindings").prompt("diary", true)]))
  close.position = Vector2(970,65)
  close.size = Vector2(44,40)
  close.theme = right_page.theme
@@ -258,16 +261,16 @@ func _build_hud() -> void:
  var reset := Button.new()
  diary_reset = reset
  reset.theme = right_page.theme
- reset.text = "Turn back to the start (R)"
+ Messages.assign(reset,"text",Text.MISSION1_TURN_BACK_TO_THE_START_R)
  reset.pressed.connect(_begin_reset)
  right_page.add_child(reset)
  reset.add_child(preload("res://assets/ui/mission_1/diary_sparkles.gd").new())
  diary_next = Button.new()
- diary_next.text = "Turn the Page"
+ Messages.assign(diary_next,"text",Text.MISSION1_TURN_THE_PAGE)
  diary_next.pressed.connect(_next_mission)
  right_page.add_child(diary_next)
  diary_menu = Button.new()
- diary_menu.text = "Return to main menu"
+ Messages.assign(diary_menu,"text",Text.MISSION1_RETURN_TO_MAIN_MENU)
  diary_menu.pressed.connect(_return_to_menu)
  right_page.add_child(diary_menu)
  var page_navigation := HBoxContainer.new()
@@ -276,7 +279,7 @@ func _build_hud() -> void:
  page_navigation.theme = right_page.theme
  diary.add_child(page_navigation)
  diary_previous_page = Button.new()
- diary_previous_page.text = "‹ Previous"
+ Messages.assign(diary_previous_page,"text",Text.MISSION1_PREVIOUS)
  diary_previous_page.pressed.connect(func(): _turn_diary(-1))
  page_navigation.add_child(diary_previous_page)
  diary_page_numbers = Label.new()
@@ -285,7 +288,7 @@ func _build_hud() -> void:
  diary_page_numbers.add_theme_color_override("font_color",Color("342f29"))
  page_navigation.add_child(diary_page_numbers)
  diary_following_page = Button.new()
- diary_following_page.text = "Next ›"
+ Messages.assign(diary_following_page,"text",Text.MISSION1_NEXT)
  diary_following_page.pressed.connect(func(): _turn_diary(1))
  page_navigation.add_child(diary_following_page)
  for page_button in [diary_previous_page,diary_following_page]:
@@ -322,7 +325,7 @@ func _touch_action(action: String) -> void:
     sim.s.action = {}
     sim.s.code_open = false
     sim.s.hospitality.menu = ""
-    sim.s.message = "Action cancelled."
+    sim.s.message = Text.MISSION1_ACTION_CANCELLED
   "highlight":
    if not diary_open and rewind_index<0: highlight = not highlight
  _refresh()
@@ -455,7 +458,7 @@ func _unhandled_input(event: InputEvent) -> void:
   sim.s.action = {}
   sim.s.code_open = false
   sim.s.hospitality.menu = ""
-  sim.s.message = "Action cancelled."
+  sim.s.message = Text.MISSION1_ACTION_CANCELLED
  elif interaction_slot >= 0:
   wheel.activate_slot(interaction_slot)
  elif bindings.pressed(event, "submit_code") and sim.s.code_open:
@@ -495,9 +498,11 @@ func _refresh(direction := Vector2.INF) -> void:
  _ensure_actor("amelia")
  if shown_room != state.room: _show_room(state.room)
  watch.elapsed_seconds = float(state.tick)/10.0
- heading.text = ("Mission %d  ·  " % sim.mission_number() if sim.exploration() else "All Aboard  ·  ") + str(sim.room_definition(state.room).title)
- message.text = state.message
- notice.text = state.get("notice", "") if int(state.tick) < int(state.get("notice_until",0)) else ""
+ Messages.assign(heading,"text",Messages.source("UI_MISSION_HEADING" if sim.exploration() else "UI_VOYAGE_HEADING", {"number":sim.mission_number(),"room":str(sim.room_definition(state.room).title)}))
+ message.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+ message.text = Messages.field(state,"message")
+ notice.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+ notice.text = Messages.field(state,"notice") if int(state.tick) < int(state.get("notice_until",0)) else ""
  room_audio.set_game_time(int(state.tick)*100)
  actors.amelia.position = _display_position(state, "amelia", Rooms.point(state.pos))
  actors.amelia.visible = rewind_index >= 0 or state.room == sim.s.room
@@ -528,7 +533,7 @@ func _refresh(direction := Vector2.INF) -> void:
   for i in 6: choices.append({"label":str(i+1)})
   choices.append({"label":"Commit"})
   choices.append({"label":"Clear"})
-  message.text = ""
+  Messages.assign(message,"text","")
  _sync_authored_props(state)
  _sync_props(state)
  _sync_prop_occlusion()
@@ -569,13 +574,13 @@ func _refresh(direction := Vector2.INF) -> void:
   if not end_presented:
    diary_seek_end = true
    diary_presentation.set_open(true)
-  message.text = ""
+  Messages.assign(message,"text","")
   help.hide()
   if not end_presented:
    end_presented = true
    (diary_menu if sim.exploration() else diary_next if sim.succeeded() else diary_reset).call_deferred("grab_focus")
  elif rewind_index >= 0:
-  message.text = "The pages turn backwards…  R to skip"
+  Messages.assign(message,"text",Text.MISSION1_THE_PAGES_TURN_BACKWARDS_R_TO_SKIP)
  _refresh_bubble(state)
  if diary_open: _refresh_diary()
 
@@ -596,7 +601,7 @@ func _refresh_bubble(state: Dictionary) -> void:
   return
  var font: Font = bubble.message_label.get_theme_font("font")
  var font_size: int = bubble.message_label.get_theme_font_size("font_size")
- var text_height := font.get_multiline_string_size(str(line.text),HORIZONTAL_ALIGNMENT_LEFT,298,font_size).y
+ var text_height := font.get_multiline_string_size(Messages.field(line,"text"),HORIZONTAL_ALIGNMENT_LEFT,298,font_size).y
  bubble.bubble_size = Vector2(350,maxf(154,text_height+94))
  var anchor := actor.position-Vector2(0,52)
  var identity := "%s:%s:%s:%s" % [line.room,line.speaker,line.started,line.text]
@@ -615,10 +620,10 @@ func _refresh_bubble(state: Dictionary) -> void:
  var hint: String = line.get("hint","")
  touch_controls.tutorial_action = hint
  hint_prompt.visible = not hint.is_empty()
- hint_prompt.text = Simulation.Hints.prompt(hint,using_controller,touch_controls.active)
+ Messages.assign(hint_prompt,"text",Simulation.Hints.prompt(hint,using_controller,touch_controls.active))
  hint_prompt.position = Vector2(bubble.position.x,clampf(bubble.position.y+bubble.size.y,12,680))
  # Dialogue belongs to the character; keep the status strip for controls/results.
- if not state.code_open: message.text = ""
+ if not state.code_open: Messages.assign(message,"text","")
 
 func _refresh_prompt(state: Dictionary) -> void:
  var visible_now: bool = not diary_open and rewind_index < 0 and not state.finished
@@ -636,20 +641,20 @@ func _refresh_prompt(state: Dictionary) -> void:
  movement_prompt.position = help.position+Vector2(111,0)
  movement_prompt.controller = using_controller
  if phase == "approach":
-  help.text = "Nearby actions: right stick to choose, X to report for duty" if using_controller else "Nearby actions appear here.\nClick the action or press 1: Report for duty"
+  Messages.assign(help,"text",Text.MISSION1_NEARBY_ACTIONS_RIGHT_STICK_TO_CHOOSE_X_TO_REPORT_FOR_DUTY if using_controller else Text.MISSION1_NEARBY_ACTIONS_APPEAR_HERE_CLICK_THE_ACTION_OR_PRESS_1_REPORT_FOR)
   if choices.is_empty():
    help.position.y += 60
-   help.text = "Report to the captain for duty."
- elif phase == "briefing": help.text = ""
- else: help.text = ("Right stick + X: interact" if using_controller else "Click an action or press its number") if not choices.is_empty() else ""
+   Messages.assign(help,"text",Text.MISSION1_REPORT_TO_THE_CAPTAIN_FOR_DUTY)
+ elif phase == "briefing": Messages.assign(help,"text","")
+ else: Messages.assign(help,"text",(Text.MISSION1_RIGHT_STICK_X_INTERACT if using_controller else Text.MISSION1_CLICK_AN_ACTION_OR_PRESS_ITS_NUMBER) if not choices.is_empty() else "")
  if int(sim.memory.get("interactions",0)) >= 3: help.hide()
  var drink: String = state.get("hospitality",{}).get("carried","")
  carrying.visible = visible_now and drink != ""
- carrying.text = "Carrying: "+Simulation.Hospitality.DRINKS.get(drink,"")
+ Messages.assign(carrying,"text",Messages.source("UI_CARRYING",{"item":Simulation.Hospitality.DRINKS.get(drink,"")}))
  if touch_controls.active:
   movement_prompt.hide()
-  help.text = "Use the left stick to reach the captain." if phase == "approach" and choices.is_empty() else "Tap an action to interact." if not choices.is_empty() else ""
-  if state.finished: help.text = "Open Diary to read your notes or turn back the pages."
+  Messages.assign(help,"text",Text.MISSION1_USE_THE_LEFT_STICK_TO_REACH_THE_CAPTAIN if phase == "approach" and choices.is_empty() else Text.MISSION1_TAP_AN_ACTION_TO_INTERACT if not choices.is_empty() else "")
+  if state.finished: Messages.assign(help,"text",Text.MISSION1_OPEN_DIARY_TO_READ_YOUR_NOTES_OR_TURN_BACK_THE_PAGES)
   carrying.position.y = touch_controls.top_edge-52
   message.position = Vector2(220,touch_controls.top_edge-28)
   if help.position.y > touch_controls.top_edge-64: help.position.y = touch_controls.top_edge-64
@@ -806,12 +811,12 @@ func _prepare_visible(state: Dictionary) -> bool:
    _content_error.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
    _content_diary.add_child(_content_error)
    var retry := Button.new()
-   retry.text = "Retry"
+   Messages.assign(retry,"text",Text.MISSION1_RETRY)
    retry.position = Vector2(470,700)
    retry.pressed.connect(func(): _content_key = "")
    _content_diary.add_child(retry)
    var back := Button.new()
-   back.text = "Main menu"
+   Messages.assign(back,"text",Text.MISSION1_MAIN_MENU)
    back.position = Vector2(585,700)
    back.pressed.connect(_return_to_menu)
    _content_diary.add_child(back)
@@ -822,7 +827,7 @@ func _prepare_visible(state: Dictionary) -> bool:
    _content_diary.add_child(navigator)
    _content_failure_shown = false
   _content_diary.progress = _content_ticket.progress
-  _content_error.text = _content_ticket.error
+  Messages.assign(_content_error,"text",_content_ticket.error)
   for button in _content_diary.get_children():
    if button is Button:
     button.visible = not str(_content_ticket.error).is_empty()
@@ -1022,9 +1027,9 @@ func _return_to_menu() -> void:
 func _refresh_diary() -> void:
  var ended: bool = sim.s.finished
  var victory: bool = ended and sim.succeeded()
- var text := "\n\n".join(sim.memory.notes)
- var outcome := "5:30 · The unmooring party is over.\n\n"+sim.summary().replace(" · ","\n") if ended else ""
- if ended and sim.exploration(): outcome = "7:00 · Six hours %s.\n\nEnd of the exploration schedule." % ("in Greece" if sim.mission_number() == 3 else "aboard")
+ var text := sim.notebook_text()
+ var outcome := Messages.resolve(Messages.make_ref("UI_DIARY_OUTCOME",{"summary":sim.summary(true).replace(" · ","\n")})) if ended else ""
+ if ended and sim.exploration(): outcome = Messages.ui(Text.MISSION1_7_00_SIX_HOURS_S_END_OF_THE_EXPLORATION_SCHEDULE % (Text.MISSION1_IN_GREECE if sim.mission_number() == 3 else "aboard"))
  if text+outcome != diary_cached_text or diary_pages.pages.is_empty():
   diary_cached_text = text+outcome
   diary_pages.rebuild(text,diary_text.get_theme_font("normal_font"),18,334,340,outcome)
@@ -1032,14 +1037,16 @@ func _refresh_diary() -> void:
   diary_pages.spread = diary_pages.last_spread()
   diary_seek_end = false
  var final_page: bool = diary_pages.spread == diary_pages.last_spread()
- diary_title.text = "VOYAGE COMPLETE" if victory and final_page else "VOYAGE ENDED" if ended and final_page else "VOYAGE NOTEBOOK"
- diary_page_title.text = ("THE NEXT PAGE" if victory else "THE VOYAGE") if final_page else "THE VOYAGE"
+ Messages.assign(diary_title,"text",Text.MISSION1_VOYAGE_COMPLETE if victory and final_page else Text.MISSION1_VOYAGE_ENDED if ended and final_page else Text.MISSION1_VOYAGE_NOTEBOOK)
+ Messages.assign(diary_page_title,"text",(Text.MISSION1_THE_NEXT_PAGE if victory else Text.MISSION1_THE_VOYAGE) if final_page else Text.MISSION1_THE_VOYAGE)
+ diary_text.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+ diary_right_text.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
  diary_text.text = diary_pages.left_text()
  diary_right_text.text = diary_pages.right_text()
  diary_right_text.visible = not final_page
  diary_instructions.visible = final_page and victory
  diary_space.visible = final_page
- diary_instructions.text = "Everyone survived. Now I can turn to the next page." if victory else ""
+ Messages.assign(diary_instructions,"text",Text.MISSION1_EVERYONE_SURVIVED_NOW_I_CAN_TURN_TO_THE_NEXT_PAGE if victory else "")
  diary_close.visible = not ended
  var reset_parent: Node = diary_text.get_parent() if diary_pages.spread == 0 else diary_right_text.get_parent()
  if diary_reset.get_parent() != reset_parent: diary_reset.reparent(reset_parent)
@@ -1050,12 +1057,12 @@ func _refresh_diary() -> void:
  if sim.exploration():
   diary_reset.hide()
   diary_instructions.hide()
-  if ended: diary_title.text = "SCHEDULE COMPLETE"
+  if ended: Messages.assign(diary_title,"text",Text.MISSION1_SCHEDULE_COMPLETE)
   diary_next.visible = final_page and ended and sim.mission_number() == 2
  diary_menu.visible = final_page and ended
  diary_previous_page.disabled = diary_pages.spread == 0
  diary_following_page.disabled = final_page
- diary_page_numbers.text = "%d–%d / %d    ·    Left / Right · LB / RB" % [diary_pages.spread*2+1,diary_pages.spread*2+2,diary_pages.pages.size()+1]
+ Messages.assign(diary_page_numbers,"text",Text.MISSION1_D_D_D_LEFT_RIGHT_LB_RB % [diary_pages.spread*2+1,diary_pages.spread*2+2,diary_pages.pages.size()+1])
 
 func _turn_diary(direction: int) -> void:
  if not diary_open or not diary_presentation.wanted: return
@@ -1074,7 +1081,7 @@ func _begin_reset() -> void:
  if ending.active(): return
  if time_presentation.finish_remaining > 0.0: return
  if not sim.memory.reset and not sim.s.finished:
-  sim.s.message = "The diary has no earlier pages to turn to yet."
+  sim.s.message = Text.MISSION1_THE_DIARY_HAS_NO_EARLIER_PAGES_TO_TURN_TO_YET
   return
  if rewind_index >= 0:
   _finish_reset()
@@ -1108,14 +1115,14 @@ func _finish_reset() -> void:
  ending.clear()
  end_presented = false
  accumulator = 0.0
- help.text = ""
+ Messages.assign(help,"text","")
  _refresh()
  _persist()
 func save_before_leaving() -> bool:
  if not save_enabled: return true
  var result := journal.save_run(sim,save_path)
  if not result.ok:
-  message.text = result.reason
+  Messages.assign(message,"text",result.reason)
   return false
  return true
 
@@ -1123,7 +1130,7 @@ func _persist() -> void:
  if not save_enabled: return
  var result := journal.save_run(sim, save_path)
  if not result.ok:
-  message.text = result.reason
+  Messages.assign(message,"text",result.reason)
   push_warning(result.reason)
 func _restore_initial() -> void:
  idle_seconds = 0.0
@@ -1234,3 +1241,24 @@ func _sync_authored_props(state: Dictionary) -> void:
   var definition: Dictionary = entity.get("states",{}).get(state.prop_states[id],{})
   props[id].visible = definition.get("visible",true)
   if props[id].has_method("set_state"): props[id].set_state(str(definition.get("appearance",state.prop_states[id])))
+
+func _language_changed() -> void:
+ if not is_node_ready(): return
+ var entry_index := 0
+ if diary_open and not diary_pages.pages.is_empty():
+  var marker := diary_pages.left_text().left(30)
+  var offset := diary_cached_text.find(marker)
+  if offset >= 0: entry_index = diary_cached_text.left(offset).split("\n\n").size()-1
+ diary_cached_text = ""
+ bubble_identity = ""
+ _refresh()
+ if diary_open:
+  _refresh_diary()
+  var entries := sim.notebook_text().split("\n\n")
+  if entry_index < entries.size():
+   var marker := entries[entry_index].left(30)
+   for index in diary_pages.pages.size():
+    if diary_pages.pages[index].contains(marker):
+     diary_pages.spread = index / 2
+     break
+  _refresh_diary()

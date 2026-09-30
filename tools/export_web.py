@@ -50,6 +50,7 @@ def main():
     roots += [str(p.relative_to(ROOT)).replace("\\", "/")
               for p in (ROOT / "addons").rglob("*.gd")]
     boot_sources = dependencies(roots)
+    boot_sources.update("localisation/" + p.name for p in (ROOT / "localisation").glob("*.csv"))
     with zipfile.ZipFile(archive) as source:
         names = set(source.namelist())
         boot = {name for name in names if not name.startswith(".godot/imported/")}

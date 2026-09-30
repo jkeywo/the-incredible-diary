@@ -1,4 +1,6 @@
 extends RefCounted
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Lay out plain notebook text with the same font as the visible pages.
 var pages: Array[String] = []
 var spread := 0
@@ -22,7 +24,7 @@ func rebuild(text: String, font: Font, font_size: int, width: float, height: flo
 			if boundary > 0: fit = boundary
 		pages.append(rest.left(fit).strip_edges())
 		rest = rest.substr(fit).strip_edges()
-	if pages.is_empty() and final_text.is_empty(): pages.append("Observations are recorded here as you explore.")
+	if pages.is_empty() and final_text.is_empty(): pages.append(Messages.ui(Text.UI_OBSERVATIONS_ARE_RECORDED_HERE_AS_YOU_EXPLORE))
 	# Reserve the final right-hand page for the magic and actions. Balance the
 	# last text page into two when needed, instead of inserting a blank spread.
 	if not pages.is_empty() and pages.size()%2 == (0 if final_text.is_empty() else 1):

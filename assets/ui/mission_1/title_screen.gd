@@ -1,4 +1,6 @@
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Startup menu and book-to-world transition. The live Mission 1 opening is
 ## placed beneath the diary before the pages become a transparent window.
 
@@ -57,6 +59,7 @@ func is_pause_editor_available() -> bool:
 
 
 func _ready() -> void:
+	$Menu/DevMenuButton.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	var depth = preload("res://mission1/render_depth.gd")
 	depth.assign($Backdrop,depth.SHELL_BACKGROUND)
 	level_loader = LevelLoader.new()
@@ -65,7 +68,7 @@ func _ready() -> void:
 	level_loader.failed.connect(_level_failed)
 	PopupSkin.decorate(new_confirm)
 	_error_message = PopupSkin.add_message(PopupSkin.decorate(error_dialog), "")
-	if OS.has_feature("web") and bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('github_integration_test') && new URLSearchParams(location.search).get('github_web_smoke') === 'read'")):
+	if OS.has_feature("web") and bool(JavaScriptBridge.eval(Text.UI_NEW_URLSEARCHPARAMS_LOCATION_SEARCH_HAS_GITHUB_INTEGRATION_TEST_N)):
 		call_deferred("_on_test_level")
 		return
 	continue_button.pressed.connect(_on_continue)
@@ -103,9 +106,9 @@ func _refresh_continue() -> void:
 			var state: Dictionary = loaded.data.current
 			var room_name: String = _preview_content.get("rooms",Rooms.ROOMS).get(str(state.get("room","docks")),Rooms.ROOMS.docks).title
 			var detail := Simulation.observation_time(int(state.get("tick",0)))
-			if state.get("finished",false): room_name = "Voyage complete" if state.get("dead",[]).is_empty() else "Voyage ended"
-			if state.get("finished",false) and state.get("flags",{}).get("missed_boat",false): room_name = "Mission failed — missed the boat"
-			preview.text = "All Aboard · %s\n%s" % [detail,room_name]
+			if state.get("finished",false): room_name = Text.UI_VOYAGE_COMPLETE if state.get("dead",[]).is_empty() else Text.UI_VOYAGE_ENDED
+			if state.get("finished",false) and state.get("flags",{}).get("missed_boat",false): room_name = Text.UI_MISSION_FAILED_MISSED_THE_BOAT
+			Messages.assign(preview,"text",Text.UI_ALL_ABOARD_S_S % [detail,room_name])
 	if not _opening:
 		_preview_state = loaded.data.current if loaded.ok else Simulation.new().s
 		if level_loader.is_prepared or _preview_state.room == "docks": _preview_destination(_preview_state)
@@ -137,7 +140,7 @@ func _on_continue() -> void:
 	var loaded: Dictionary = Save.load_saved(mission_save_path)
 	if not loaded.ok:
 		_refresh_continue()
-		_show_error("The saved voyage could not be loaded. Its files have been kept.")
+		_show_error(Text.UI_THE_SAVED_VOYAGE_COULD_NOT_BE_LOADED_ITS_FILES_HAVE_BEEN_KEPT)
 		return
 	_launch_mission(loaded.data)
 
@@ -261,14 +264,15 @@ func _on_mission_three(resume_saved := true) -> void:
 func _build_dev_menu() -> void:
 	dev_menu = AcceptDialog.new()
 	dev_menu.name = "DevMenu"
-	dev_menu.title = "Dev Menu"
+	dev_menu.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	dev_menu.title = Text.UI_DEV_MENU
 	dev_menu.exclusive = true
-	dev_menu.ok_button_text = "Back"
+	dev_menu.ok_button_text = Text.MISSION1_BACK
 	dev_menu.dialog_hide_on_ok = false
 	add_child(dev_menu)
 	var content := PopupSkin.decorate(dev_menu)
 	var actions: Array[Callable] = [_on_new,_on_mission_two,_on_mission_three,_on_test_level]
-	var labels := ["Mission 1 — All Aboard","Mission 2","Mission 3 — Landing in Greece","Test Level"]
+	var labels := [Text.UI_MISSION_1_ALL_ABOARD,Text.UI_MISSION_2,Text.UI_MISSION_3_LANDING_IN_GREECE,Text.UI_TEST_LEVEL]
 	for i in labels.size():
 		var choice := Button.new()
 		choice.text = labels[i]
@@ -314,7 +318,7 @@ func _on_quit() -> void:
 
 
 func _show_error(message: String) -> void:
-	_error_message.text = message
+	Messages.assign(_error_message,"text",message)
 	error_dialog.popup_centered()
 
 
@@ -388,7 +392,7 @@ func _build_polish() -> void:
 	menu.position.y = 290
 	settings_button = $Menu/NewButton.duplicate(0)
 	settings_button.name = "SettingsButton"
-	settings_button.text = "SETTINGS"
+	Messages.assign(settings_button,"text","SETTINGS")
 	# Duplicate appearance only; do not inherit the New action or feedback metadata.
 	for key in settings_button.get_meta_list(): settings_button.remove_meta(key)
 	menu.add_child(settings_button)
@@ -439,7 +443,7 @@ func _finish_entrance() -> void:
 func _signal_web_ready() -> void:
 	if not OS.has_feature("web"): return
 	await RenderingServer.frame_post_draw
-	JavaScriptBridge.eval("window.diaryTitleReady = true; window.dispatchEvent(new Event('diary-title-ready'));",true)
+	JavaScriptBridge.eval(Text.UI_WINDOW_DIARYTITLEREADY_TRUE_WINDOW_DISPATCHEVENT_NEW_EVENT_DIARY,true)
 
 
 func _on_settings() -> void:

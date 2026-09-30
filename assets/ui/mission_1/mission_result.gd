@@ -1,5 +1,7 @@
 @tool
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Outcome wording is supplied by the game from witnessed facts only.
 
 @export var success := false:
@@ -7,17 +9,17 @@ extends Control
 		success = value
 		if is_node_ready():
 			_refresh()
-@export var heading := "VOYAGE SUMMARY":
+@export var heading := Text.UI_VOYAGE_SUMMARY:
 	set(value):
 		heading = value
 		if is_node_ready():
 			_refresh()
-@export_multiline var outcome := "The six Hours have ended.":
+@export_multiline var outcome := Text.UI_THE_SIX_HOURS_HAVE_ENDED:
 	set(value):
 		outcome = value
 		if is_node_ready():
 			_refresh()
-@export_multiline var witnessed_note := "Only what Amelia witnessed is recorded here.":
+@export_multiline var witnessed_note := Text.UI_ONLY_WHAT_AMELIA_WITNESSED_IS_RECORDED_HERE:
 	set(value):
 		witnessed_note = value
 		if is_node_ready():
@@ -29,9 +31,9 @@ func _ready() -> void:
 
 
 func _refresh() -> void:
-	$Heading.text = heading
-	$Outcome.text = outcome
-	$WitnessedNote.text = witnessed_note
+	Messages.assign($Heading,"text",heading)
+	Messages.assign($Outcome,"text",outcome)
+	Messages.assign($WitnessedNote,"text",witnessed_note)
 	queue_redraw()
 
 

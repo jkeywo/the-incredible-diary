@@ -1,5 +1,7 @@
 @tool
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Two banks of four textured choices, with cyclic paging for longer menus.
 signal option_confirmed(index: int, label: String)
 const FRAME = preload("res://assets/ui/popup/nine_piece_style.gd")
@@ -9,7 +11,7 @@ var page := 0
 var buttons: Array[Button] = []
 var indices: Array[int] = []
 var character_bounds: Array[Rect2] = []
-@export var options := PackedStringArray(["Inspect", "Talk", "Hide Bag"]):
+@export var options := PackedStringArray([Text.UI_INSPECT, Text.UI_TALK, Text.UI_HIDE_BAG]):
  set(value):
   if options == value: return
   options = value.duplicate()
@@ -64,8 +66,8 @@ func _rebuild() -> void:
   if not Engine.is_editor_hint():
    var service := get_node("/root/InputBindings")
    binding = service.prompt(service.SLOTS[slot])
-  button.text = caption if caption == binding else "%s  %s" % [binding,caption]
-  button.tooltip_text = "More…" if indices[slot]<0 else options[indices[slot]]
+  Messages.assign_ref(button,"text",Messages.capture(caption) if caption == binding else Messages.make_ref("UI_ACTION_BINDING",{"binding":binding,"action":Messages.capture(caption)}))
+  Messages.assign(button,"tooltip_text","More…" if indices[slot]<0 else options[indices[slot]])
   button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
   button.pressed.connect(func(): activate_slot(slot))
   button.mouse_entered.connect(func(): selected_index = slot)

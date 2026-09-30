@@ -8,6 +8,7 @@ var legacy_path := "user://audio_settings.cfg"
 var volumes := DEFAULTS.duplicate()
 var stick_on_right := false
 var bindings: Dictionary = {}
+var language := "automatic"
 var last_error := OK
 
 func _ready() -> void:
@@ -23,6 +24,7 @@ func load_settings() -> void:
 		volumes[bus] = clampf(float(value), 0, 100) if (value is float or value is int) and is_finite(float(value)) else DEFAULTS[bus]
 	var side: Variant = config.get_value("controls", "stick_on_right", false)
 	stick_on_right = side if side is bool else false
+	language = str(config.get_value("localisation", "language", "automatic"))
 	bindings = {}
 	if config.has_section("bindings"):
 		for action in config.get_section_keys("bindings"):
@@ -35,7 +37,9 @@ func save_settings() -> Error:
 	var config := ConfigFile.new()
 	for bus in DEFAULTS: config.set_value("audio", bus, volumes[bus])
 	config.set_value("controls", "stick_on_right", stick_on_right)
+	config.set_value("localisation", "language", language)
 	for action in bindings: config.set_value("bindings", action, bindings[action])
 	last_error = config.save(settings_path)
 	if last_error != OK: save_failed.emit()
+	elif OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
 	return last_error

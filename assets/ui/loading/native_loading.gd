@@ -1,4 +1,6 @@
 extends Control
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Keep the native window responsive while the title's resources load.
 const TITLE := "res://assets/ui/mission_1/title_screen.tscn"
 const DIARY = preload("res://assets/ui/loading/diary.png")
@@ -27,8 +29,8 @@ func _draw() -> void:
  draw_rect(Rect2(Vector2(18,18),size-Vector2(36,36)),Color("967442"),false)
  draw_rect(Rect2(Vector2(24,24),size-Vector2(48,48)),Color("473e2f"),false)
  var center := size.x/2
- draw_string(font,Vector2(center-250,150),"A VOYAGE BETWEEN THE PAGES",HORIZONTAL_ALIGNMENT_CENTER,500,14,Color("c8a669"))
- draw_string(font,Vector2(center-450,205),"THE INCREDIBLE DIARY",HORIZONTAL_ALIGNMENT_CENTER,900,36,Color("eedbb5"))
+ draw_string(font,Vector2(center-250,150),Messages.ui(Text.UI_A_VOYAGE_BETWEEN_THE_PAGES),HORIZONTAL_ALIGNMENT_CENTER,500,14,Color("c8a669"))
+ draw_string(font,Vector2(center-450,205),Messages.ui(Text.UI_THE_INCREDIBLE_DIARY),HORIZONTAL_ALIGNMENT_CENTER,900,36,Color("eedbb5"))
  var spine := Vector2(center,310)
  var source := Vector2(DIARY.get_size())
  draw_set_transform_matrix(Transform2D(Vector2(0.78,0.415),Vector2.DOWN,spine))
@@ -44,9 +46,9 @@ func _draw() -> void:
   draw_rect(Rect2(0,0,162,168),Color("b89a65"),false)
   for line in 8: draw_line(Vector2(20,30+line*14),Vector2(140,30+line*14),Color(0.5,0.4,0.25,0.22))
  draw_set_transform_matrix(Transform2D.IDENTITY)
- var text := "Unable to load the diary. Please restart." if failed else "Loading the diary… %d%%" % int(progress*100)
- draw_string(font,Vector2(center-300,595),text,HORIZONTAL_ALIGNMENT_CENTER,600,18,Color("dcc99f"))
+ var text := Text.UI_UNABLE_TO_LOAD_THE_DIARY_PLEASE_RESTART if failed else Text.UI_LOADING_THE_DIARY_D % int(progress*100)
+ draw_string(font,Vector2(center-300,595),Messages.ui(text),HORIZONTAL_ALIGNMENT_CENTER,600,18,Color("dcc99f"))
  draw_rect(Rect2(center-170,620,340,19),Color("bb9655"),false)
  draw_rect(Rect2(center-165,625,330*progress,9),Color("d2ae70"))
- draw_string(font,Vector2(size.x-235,size.y-35),"MADE WITH GODOT",HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color("bca77e"))
+ draw_string(font,Vector2(size.x-235,size.y-35),Messages.ui(Text.UI_MADE_WITH_GODOT),HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color("bca77e"))
  draw_texture_rect(GODOT_ICON,Rect2(size.x-68,size.y-62,38,38),false)

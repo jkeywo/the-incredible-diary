@@ -1,8 +1,10 @@
 extends RefCounted
+const Text = preload("res://localisation/source_text.gd")
 ## Append-only transactions retain the entire recorded leg without rewriting it each second.
 ## A checksum protects each transaction; an interrupted tail is ignored and repaired on load.
 const DEFAULT_PATH := "user://mission1_v2.journal"
-const SCHEMA := 4
+const SCHEMA := 5
+const Messages = preload("res://foundation/message_text.gd")
 const Rooms = preload("res://mission1/rooms.gd")
 var saved_count := 0
 var generation := -1
@@ -18,7 +20,7 @@ static func clear(path: String = DEFAULT_PATH) -> Dictionary:
  for suffix in ["", ".next", ".bak"]:
   if FileAccess.file_exists(path+suffix):
    var err := DirAccess.remove_absolute(ProjectSettings.globalize_path(path+suffix))
-   if err != OK: return {"ok":false, "reason":"Could not clear Mission 1 save (%d)" % err}
+   if err != OK: return {"ok":false, "reason":Text.MISSION1_COULD_NOT_CLEAR_MISSION_1_SAVE_D % err}
  return {"ok":true}
 
 func restore_run(run: RefCounted, record: Dictionary) -> void:
@@ -43,23 +45,23 @@ func save_run(run: RefCounted, path: String = DEFAULT_PATH) -> Dictionary:
  var line := JSON.stringify({"body":body,"sha256":body.sha256_text()})+"\n"
  var target := path+".next" if rewrite else path
  var file := FileAccess.open(target, FileAccess.WRITE if rewrite else FileAccess.READ_WRITE)
- if file == null: return {"ok":false,"reason":"Could not write voyage journal."}
+ if file == null: return {"ok":false,"reason":Text.MISSION1_COULD_NOT_WRITE_VOYAGE_JOURNAL}
  if not rewrite: file.seek_end()
  file.store_string(line)
  file.flush()
  var error := file.get_error()
  file.close()
- if error != OK: return {"ok":false,"reason":"Could not flush voyage journal."}
+ if error != OK: return {"ok":false,"reason":Text.MISSION1_COULD_NOT_FLUSH_VOYAGE_JOURNAL}
  if rewrite:
   var absolute := ProjectSettings.globalize_path(path)
   if FileAccess.file_exists(path+".bak"):
    error = DirAccess.remove_absolute(absolute+".bak")
-   if error != OK: return {"ok":false,"reason":"Could not rotate voyage backup."}
+   if error != OK: return {"ok":false,"reason":Text.MISSION1_COULD_NOT_ROTATE_VOYAGE_BACKUP}
   if FileAccess.file_exists(path):
    error = DirAccess.rename_absolute(absolute, absolute+".bak")
-   if error != OK: return {"ok":false,"reason":"Could not protect previous voyage."}
+   if error != OK: return {"ok":false,"reason":Text.MISSION1_COULD_NOT_PROTECT_PREVIOUS_VOYAGE}
   error = DirAccess.rename_absolute(absolute+".next", absolute)
-  if error != OK: return {"ok":false,"reason":"Could not promote voyage journal."}
+  if error != OK: return {"ok":false,"reason":Text.MISSION1_COULD_NOT_PROMOTE_VOYAGE_JOURNAL}
  saved_content_version = str(run.authored_content.get("version", ""))
  saved_count = run.history.size()
  generation = int(run.s.loop)
@@ -72,7 +74,7 @@ static func load_saved(path: String = DEFAULT_PATH) -> Dictionary:
   var candidate := _read(path+suffix)
   if candidate.get("ok",false) and (best.is_empty() or int(candidate.data.sequence)>int(best.data.sequence)):
    best = candidate
- return best if not best.is_empty() else {"ok":false,"reason":"No valid Mission 1 journal."}
+ return best if not best.is_empty() else {"ok":false,"reason":Text.MISSION1_NO_VALID_MISSION_1_JOURNAL}
 
 static func _read(path: String) -> Dictionary:
  if not FileAccess.file_exists(path): return {}
@@ -102,6 +104,11 @@ static func _read(path: String) -> Dictionary:
 
 static func _valid_state(state: Variant, rooms: Dictionary = Rooms.ROOMS) -> bool:
  if not state is Dictionary: return false
+ for field in ["message_ref","notice_ref"]:
+  if state.has(field) and not Messages.valid(state[field]): return false
+ if state.get("dialogue") is Dictionary:
+  for field in ["text_ref","name_ref"]:
+   if state.dialogue.has(field) and not Messages.valid(state.dialogue[field]): return false
  for key in ["tick","loop","room","pos","facing","code","flags","dead","safe","action","entry","code_open","dialogue","observed","message","finished","door_cooldown"]:
   if not state.has(key): return false
  if not rooms.has(state.room) or not state.pos is Array or state.pos.size()!=2: return false
@@ -117,7 +124,7 @@ static func _valid_state(state: Variant, rooms: Dictionary = Rooms.ROOMS) -> boo
  return true
 
 static func _valid_batch(batch: Dictionary, count: int, prior_content: Dictionary = {}, prior_versions: Dictionary = {}) -> bool:
- if int(batch.get("schema",-1)) not in [2,3,SCHEMA] or int(batch.get("start",-1))!=count or not batch.get("history") is Array: return false
+ if int(batch.get("schema",-1)) not in [2,3,4,SCHEMA] or int(batch.get("start",-1))!=count or not batch.get("history") is Array: return false
  var content: Variant = batch.get("authored_content",prior_content)
  if not content is Dictionary: return false
  if batch.has("authored_content") and not content.is_empty() and not preload("res://mission1/authoring_content.gd").validate(content).is_empty(): return false
@@ -136,6 +143,12 @@ static func _valid_batch(batch: Dictionary, count: int, prior_content: Dictionar
  for key in ["notes","bag","procedure","shortcut","reset","completed"]:
   if not batch.memory.has(key): return false
  if not batch.memory.notes is Array: return false
+ if batch.memory.has("note_records"):
+  if not batch.memory.note_records is Array or batch.memory.note_records.size() != batch.memory.notes.size(): return false
+  for entry in batch.memory.note_records:
+   if not entry is Dictionary: return false
+   if entry.is_empty(): continue
+   if not entry.get("fallback") is String or not (entry.get("tick") is int or entry.get("tick") is float) or not Messages.valid(entry.get("text_ref")): return false
  for i in batch.history.size():
   if not _valid_state(batch.history[i],recorded_rooms) or int(batch.history[i].get("tick" if legacy else "frame",-1))!=count+i: return false
   if not legacy and not _valid_extension(batch.history[i]): return false

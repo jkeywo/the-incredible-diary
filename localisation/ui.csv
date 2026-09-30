@@ -1,0 +1,171 @@
+keys,en,_notes,_source
+UI_LOADING_THE_VOYAGE_D,Loading the voyage… {arg1}%,assets/ui/loading/level_wait.gd,Loading the voyage… %d%%
+UI_A_VOYAGE_BETWEEN_THE_PAGES,A VOYAGE BETWEEN THE PAGES,assets/ui/loading/native_loading.gd,A VOYAGE BETWEEN THE PAGES
+UI_THE_INCREDIBLE_DIARY,THE INCREDIBLE DIARY,assets/ui/loading/native_loading.gd,THE INCREDIBLE DIARY
+UI_UNABLE_TO_LOAD_THE_DIARY_PLEASE_RESTART,Unable to load the diary. Please restart.,assets/ui/loading/native_loading.gd,Unable to load the diary. Please restart.
+UI_LOADING_THE_DIARY_D,Loading the diary… {arg1}%,assets/ui/loading/native_loading.gd,Loading the diary… %d%%
+UI_MADE_WITH_GODOT,MADE WITH GODOT,assets/ui/loading/native_loading.gd,MADE WITH GODOT
+UI_JSON_STRINGIFY_WINDOW_DIARY_CONTENT_NULL,JSON.stringify(window.DIARY_CONTENT || null),assets/ui/loading/resource_stream.gd,JSON.stringify(window.DIARY_CONTENT || null)
+UI_RESOURCE_DOWNLOADS_COULD_NOT_START_PLEASE_RELOAD_THE_PAGE,Resource downloads could not start. Please reload the page.,assets/ui/loading/resource_stream.gd,Resource downloads could not start. Please reload the page.
+UI_A_RESOURCE_COULD_NOT_BE_PREPARED_PLEASE_TRY_AGAIN,A resource could not be prepared. Please try again.,assets/ui/loading/resource_stream.gd,A resource could not be prepared. Please try again.
+UI_A_RESOURCE_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN,A resource could not be opened. Please try again.,assets/ui/loading/resource_stream.gd,A resource could not be opened. Please try again.
+UI_THERE_IS_NOT_ENOUGH_SPACE_TO_OPEN_THIS_RESOURCE_PLEASE_TRY_AGAIN,There is not enough space to open this resource. Please try again.,assets/ui/loading/resource_stream.gd,There is not enough space to open this resource. Please try again.
+UI_A_DOWNLOADED_RESOURCE_COULD_NOT_BE_OPENED_PLEASE_RELOAD_AND_TRY_A,A downloaded resource could not be opened. Please reload and try again.,assets/ui/loading/resource_stream.gd,A downloaded resource could not be opened. Please reload and try again.
+UI_INSPECT,Inspect,assets/ui/mission_1/action_wheel.gd,Inspect
+UI_TALK,Talk,assets/ui/mission_1/action_wheel.gd,Talk
+UI_HIDE_BAG,Hide Bag,assets/ui/mission_1/action_wheel.gd,Hide Bag
+UI_STEAM_CONTROL,STEAM CONTROL,assets/ui/mission_1/code_entry_panel.gd,STEAM CONTROL
+UI_A_NEW_ENTRY_HAS_APPEARED_IN_THE_DIARY,A new entry has appeared in the diary.,assets/ui/mission_1/diary_notification.gd,A new entry has appeared in the diary.
+UI_OBSERVATIONS_ARE_RECORDED_HERE_AS_YOU_EXPLORE,Observations are recorded here as you explore.,assets/ui/mission_1/diary_pages.gd,Observations are recorded here as you explore.
+UI_A_PASSENGER_DEAD_ABOARD_MY_SHIP_I_CAN_T_SAIL_AFTER_THIS_THE_VOYAG,A passenger dead aboard my ship... I can't sail after this. The voyage will have to be cancelled!,assets/ui/mission_1/ending_sequence.gd,A passenger dead aboard my ship... I can't sail after this. The voyage will have to be cancelled!
+UI_5_30_ALL_ABOARD_CAST_OFF,5:30 — All aboard. Cast off!,assets/ui/mission_1/ending_sequence.gd,5:30 — All aboard. Cast off!
+UI_5_30_THE_VOYAGE_IS_CANCELLED,5:30 — The voyage is cancelled,assets/ui/mission_1/ending_sequence.gd,5:30 — The voyage is cancelled
+UI_HOUR_D,HOUR {arg1},assets/ui/mission_1/mission_hud.gd,HOUR %d
+UI_VOYAGE_SUMMARY,VOYAGE SUMMARY,assets/ui/mission_1/mission_result.gd,VOYAGE SUMMARY
+UI_THE_SIX_HOURS_HAVE_ENDED,The six Hours have ended.,assets/ui/mission_1/mission_result.gd,The six Hours have ended.
+UI_ONLY_WHAT_AMELIA_WITNESSED_IS_RECORDED_HERE,Only what Amelia witnessed is recorded here.,assets/ui/mission_1/mission_result.gd,Only what Amelia witnessed is recorded here.
+UI_PASSENGER,Passenger,assets/ui/mission_1/speech_bubble.gd,Passenger
+UI_WE_SHOULD_LOOK_MORE_CLOSELY,We should look more closely.,assets/ui/mission_1/speech_bubble.gd,We should look more closely.
+UI_WAITING_20,Waiting · 20×,assets/ui/mission_1/time_presentation.gd,Waiting · 20×
+UI_NEW_URLSEARCHPARAMS_LOCATION_SEARCH_HAS_GITHUB_INTEGRATION_TEST_N,new URLSearchParams(location.search).has('github_integration_test') && new URLSearchParams(location.search).get('github_web_smoke') === 'read',assets/ui/mission_1/title_screen.gd,new URLSearchParams(location.search).has('github_integration_test') && new URLSearchParams(location.search).get('github_web_smoke') === 'read'
+UI_VOYAGE_COMPLETE,Voyage complete,assets/ui/mission_1/title_screen.gd,Voyage complete
+UI_VOYAGE_ENDED,Voyage ended,assets/ui/mission_1/title_screen.gd,Voyage ended
+UI_MISSION_FAILED_MISSED_THE_BOAT,Mission failed — missed the boat,assets/ui/mission_1/title_screen.gd,Mission failed — missed the boat
+UI_ALL_ABOARD_S_S,"All Aboard · {arg1}
+{arg2}",assets/ui/mission_1/title_screen.gd,"All Aboard · %s
+%s"
+UI_THE_SAVED_VOYAGE_COULD_NOT_BE_LOADED_ITS_FILES_HAVE_BEEN_KEPT,The saved voyage could not be loaded. Its files have been kept.,assets/ui/mission_1/title_screen.gd,The saved voyage could not be loaded. Its files have been kept.
+UI_DEV_MENU,Dev Menu,assets/ui/mission_1/title_screen.gd,Dev Menu
+UI_MISSION_1_ALL_ABOARD,Mission 1 — All Aboard,assets/ui/mission_1/title_screen.gd,Mission 1 — All Aboard
+UI_MISSION_2,Mission 2,assets/ui/mission_1/title_screen.gd,Mission 2
+UI_MISSION_3_LANDING_IN_GREECE,Mission 3 — Landing in Greece,assets/ui/mission_1/title_screen.gd,Mission 3 — Landing in Greece
+UI_TEST_LEVEL,Test Level,assets/ui/mission_1/title_screen.gd,Test Level
+UI_WINDOW_DIARYTITLEREADY_TRUE_WINDOW_DISPATCHEVENT_NEW_EVENT_DIARY,window.diaryTitleReady = true; window.dispatchEvent(new Event('diary-title-ready'));,assets/ui/mission_1/title_screen.gd,window.diaryTitleReady = true; window.dispatchEvent(new Event('diary-title-ready'));
+UI_DIARY,Diary,assets/ui/mission_1/touch_controls.gd,Diary
+UI_WAIT,Wait,assets/ui/mission_1/touch_controls.gd,Wait
+UI_HIGHLIGHT,Highlight,assets/ui/mission_1/touch_controls.gd,Highlight
+UI_CANCEL,Cancel,assets/ui/mission_1/touch_controls.gd,Cancel
+UI_NAVIGATOR_MAXTOUCHPOINTS_0_MATCHMEDIA_POINTER_COARSE_MATCHES,navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches,assets/ui/mission_1/touch_controls.gd,navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches
+UI_MATCHMEDIA_ORIENTATION_PORTRAIT_MATCHES,matchMedia('(orientation: portrait)').matches,assets/ui/mission_1/touch_controls.gd,matchMedia('(orientation: portrait)').matches
+UI_MASTER,Master,foundation/audio_settings.gd,Master
+UI_DIALOGUE,Dialogue,foundation/audio_settings.gd,Dialogue
+UI_PREFERENCES_COULD_NOT_BE_SAVED_CHANGES_WORK_FOR_THIS_SESSION_CLOS,Preferences could not be saved. Changes work for this session; closing Settings retries.,foundation/audio_settings.gd,Preferences could not be saved. Changes work for this session; closing Settings retries.
+UI_THE_GAME_COULD_NOT_BE_SAVED_YOU_ARE_STILL_IN_THE_CURRENT_GAME_TRY,The game could not be saved. You are still in the current game; try again.,foundation/audio_settings.gd,The game could not be saved. You are still in the current game; try again.
+UI_THE_MAIN_MENU_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN,The main menu could not be opened. Please try again.,foundation/audio_settings.gd,The main menu could not be opened. Please try again.
+UI_SETTINGS,Settings,foundation/audio_settings.gd,Settings
+UI_CLOSE,Close,foundation/audio_settings.gd,Close
+UI_AUDIO,Audio,foundation/audio_settings.gd,Audio
+UI_MASTER_VOLUME,Master volume,foundation/audio_settings.gd,Master volume
+UI_CONTROLS,Controls,foundation/audio_settings.gd,Controls
+UI_MOVEMENT_JOYSTICK_POSITION,Movement joystick position,foundation/controls_settings.gd,Movement joystick position
+UI_BUTTONS_APPEAR_ON_THE_OPPOSITE_SIDE,Buttons appear on the opposite side.,foundation/controls_settings.gd,Buttons appear on the opposite side.
+UI_CLEAR_S_S_BINDING,Clear {arg1} {arg2} binding,foundation/controls_settings.gd,Clear %s %s binding
+UI_RESTORE_S_DEFAULTS,Restore {arg1} defaults,foundation/controls_settings.gd,Restore %s defaults
+UI_CANCEL_BINDING,Cancel binding,foundation/controls_settings.gd,Cancel binding
+UI_ASSIGN_ANYWAY,Assign anyway,foundation/controls_settings.gd,Assign anyway
+UI_PRIMARY,Primary,foundation/controls_settings.gd,Primary
+UI_ALTERNATE,Alternate,foundation/controls_settings.gd,Alternate
+UI_RELEASE_HELD_INPUTS_THEN_PRESS_A_S_INPUT_10_SECONDS,"Release held inputs, then press a {arg1} input (10 seconds).",foundation/controls_settings.gd,"Release held inputs, then press a %s input (10 seconds)."
+UI_BINDING_CANCELLED_NO_INPUT_RECEIVED,Binding cancelled: no input received.,foundation/controls_settings.gd,Binding cancelled: no input received.
+UI_ALREADY_ASSIGNED_TO_S_ASSIGN_ANYWAY,Already assigned to: {arg1}. Assign anyway?,foundation/controls_settings.gd,Already assigned to: %s. Assign anyway?
+UI_MOVE_LEFT,Move left,foundation/input_bindings.gd,Move left
+UI_MOVE_RIGHT,Move right,foundation/input_bindings.gd,Move right
+UI_MOVE_UP,Move up,foundation/input_bindings.gd,Move up
+UI_MOVE_DOWN,Move down,foundation/input_bindings.gd,Move down
+UI_WAIT_HOLD,Wait (hold),foundation/input_bindings.gd,Wait (hold)
+UI_OPEN_CLOSE_DIARY,Open/close diary,foundation/input_bindings.gd,Open/close diary
+UI_RESET_LOOP,Reset loop,foundation/input_bindings.gd,Reset loop
+UI_CANCEL_ACTION,Cancel action,foundation/input_bindings.gd,Cancel action
+UI_INTERACTION_1,Interaction 1,foundation/input_bindings.gd,Interaction 1
+UI_INTERACTION_2,Interaction 2,foundation/input_bindings.gd,Interaction 2
+UI_INTERACTION_3,Interaction 3,foundation/input_bindings.gd,Interaction 3
+UI_INTERACTION_4,Interaction 4,foundation/input_bindings.gd,Interaction 4
+UI_INTERACTION_5,Interaction 5,foundation/input_bindings.gd,Interaction 5
+UI_INTERACTION_6,Interaction 6,foundation/input_bindings.gd,Interaction 6
+UI_INTERACTION_7,Interaction 7,foundation/input_bindings.gd,Interaction 7
+UI_INTERACTION_8,Interaction 8,foundation/input_bindings.gd,Interaction 8
+UI_CONFIRM_SELECTED_INTERACTION,Confirm selected interaction,foundation/input_bindings.gd,Confirm selected interaction
+UI_SUBMIT_CODE,Submit code,foundation/input_bindings.gd,Submit code
+UI_CLEAR_CODE,Clear code,foundation/input_bindings.gd,Clear code
+UI_CONTINUE_AFTER_ENDING,Continue after ending,foundation/input_bindings.gd,Continue after ending
+UI_PREVIOUS_DIARY_PAGE,Previous diary page,foundation/input_bindings.gd,Previous diary page
+UI_NEXT_DIARY_PAGE,Next diary page,foundation/input_bindings.gd,Next diary page
+UI_THIS_KEY_IS_RESERVED_FOR_PAUSE_EDITOR_CONTROLS,This key is reserved for pause/editor controls.,foundation/input_bindings.gd,This key is reserved for pause/editor controls.
+UI_THIS_BUTTON_IS_RESERVED_FOR_SETTINGS_OR_PAUSE_EDITOR_CONTROLS,This button is reserved for Settings or pause/editor controls.,foundation/input_bindings.gd,This button is reserved for Settings or pause/editor controls.
+UI_D_PAD_UP,D-pad Up,foundation/input_bindings.gd,D-pad Up
+UI_D_PAD_DOWN,D-pad Down,foundation/input_bindings.gd,D-pad Down
+UI_D_PAD_LEFT,D-pad Left,foundation/input_bindings.gd,D-pad Left
+UI_D_PAD_RIGHT,D-pad Right,foundation/input_bindings.gd,D-pad Right
+UI_BUTTON_D,Button {arg1},foundation/input_bindings.gd,Button %d
+UI_SPOKEN_LINE,{speaker}: {line},Shared player interface,{speaker}: {line}
+UI_LANGUAGE,Language,Shared player interface,Language
+UI_AUTOMATIC,Automatic,Shared player interface,Automatic
+UI_ENGLISH,English,Shared player interface,English
+UI_LOADING_PREPARING,Preparing the diary…,Shared player interface,Preparing the diary…
+UI_LOADING_OPENING,Opening the diary…,Shared player interface,Opening the diary…
+UI_LOADING_PROGRESS,Loading the diary… {percent}%,Shared player interface,Loading the diary… {percent}%
+UI_LOADING_FAILED,The diary could not be opened.,Shared player interface,The diary could not be opened.
+UI_LOADING_UNKNOWN,An unknown error occurred.,Shared player interface,An unknown error occurred.
+UI_LOADING_UNSUPPORTED,Your browser does not support the features needed to open the diary.,Shared player interface,Your browser does not support the features needed to open the diary.
+UI_CARRYING,Carrying: {item},Shared player interface,Carrying: {item}
+UI_MISSION_HEADING,Mission {number}  ·  {room},Shared player interface,Mission {number}  ·  {room}
+UI_VOYAGE_HEADING,All Aboard  ·  {room},Shared player interface,All Aboard  ·  {room}
+UI_CONTINUE,CONTINUE,assets\ui\mission_1\title_screen.tscn,CONTINUE
+UI_NEW,NEW,assets\ui\mission_1\title_screen.tscn,NEW
+UI_QUIT,QUIT,assets\ui\mission_1\title_screen.tscn,QUIT
+UI_START_A_NEW_VOYAGE,Start a new voyage?,assets\ui\mission_1\title_screen.tscn,Start a new voyage?
+UI_STARTING_NEW_WILL_PERMANENTLY_CLEAR_THE_CURRENT_MISSION_1_SAVE_AN,Starting New will permanently clear the current Mission 1 save and its recorded history. Continue?,assets\ui\mission_1\title_screen.tscn,Starting New will permanently clear the current Mission 1 save and its recorded history. Continue?
+UI_CLEAR_SAVE_AND_START,Clear save and start,assets\ui\mission_1\title_screen.tscn,Clear save and start
+UI_VOYAGE_UNAVAILABLE,Voyage unavailable,assets\ui\mission_1\title_screen.tscn,Voyage unavailable
+UI_GET_DRINK,Get {drink},Runtime formatted text,Get {drink}
+UI_PREFERS_DRINK,Prefers {drink},Runtime formatted text,Prefers {drink}
+UI_OFFER_DRINK,Offer {drink},Runtime formatted text,Offer {drink}
+UI_VISITED_ROOM,I visited {room}.,Runtime formatted text,I visited {room}.
+UI_ACTOR_ROOM,{actor} is in {room}.,Runtime formatted text,{actor} is in {room}.
+UI_ACTION_BINDING,{binding}  {action},Runtime formatted text,{binding}  {action}
+UI_MARKET,Market,Player interface,Market
+UI_LEMONADE,Lemonade,Player interface,Lemonade
+UI_WINE,Wine,Player interface,Wine
+UI_CHAMPAGNE,Champagne,Player interface,Champagne
+UI_BRANDY,Brandy,Player interface,Brandy
+UI_WHISKY,Whisky,Player interface,Whisky
+UI_CLEAR,Clear,Player interface,Clear
+UI_ENTER,Enter,Player interface,Enter
+UI_UNBOUND,Unbound,Player interface,Unbound
+UI_CONTROLLER,Controller,Player interface,Controller
+UI_KEYBOARD,Keyboard,Player interface,Keyboard
+UI_TOUCH,Touch,Player interface,Touch
+UI_SFX,SFX,Player interface,SFX
+UI_SUMMARY_SURVIVED,{name}: survived,Voyage outcome,{name}: survived
+UI_SUMMARY_DIED,{name}: died,Voyage outcome,{name}: died
+UI_SUMMARY_SUCCESS,"EVERYONE SURVIVED · ALL ABOARD COMPLETE
+{outcomes}
+The next page reveals a new gift: location rewriting.",Voyage outcome,"EVERYONE SURVIVED · ALL ABOARD COMPLETE
+{outcomes}
+The next page reveals a new gift: location rewriting."
+UI_SUMMARY_FAILED,"THE PARTY HAS ENDED
+{outcomes}
+Your diary records what you witnessed on this voyage. Turn back the pages to try again.",Voyage outcome,"THE PARTY HAS ENDED
+{outcomes}
+Your diary records what you witnessed on this voyage. Turn back the pages to try again."
+UI_DIARY_OUTCOME,"5:30 · The unmooring party is over.
+
+{summary}",Voyage outcome,"5:30 · The unmooring party is over.
+
+{summary}"
+UI_SETTINGS_UPPER,SETTINGS,Main menu,SETTINGS
+UI_CONTROL_LEFT,Left,Control settings or schedule location,Left
+UI_CONTROL_RIGHT,Right,Control settings or schedule location,Right
+UI_CONTROL_KEYBOARD,keyboard,Control settings or schedule location,keyboard
+UI_CONTROL_CONTROLLER,controller,Control settings or schedule location,controller
+UI_CONTROL_TOUCH,touch,Control settings or schedule location,touch
+UI_CONTROL_PRIMARY,primary,Control settings or schedule location,primary
+UI_CONTROL_ALTERNATE,alternate,Control settings or schedule location,alternate
+UI_CONTROL_ABOARD,aboard,Control settings or schedule location,aboard
+UI_BINDING_SLOT,{slot}: {binding},Control settings,{slot}: {binding}
+UI_BINDING_TOOLTIP,{action} — {slot}: {binding},Control settings,{action} — {slot}: {binding}
+UI_GENERAL,General,Player interface,General
+UI_CONFIRM,CONFIRM,Player interface,CONFIRM
+UI_PEOPLE,PEOPLE,Player interface,PEOPLE
+UI_MOVE,Move,Player interface,Move
+UI_TEA,Tea,Player interface,Tea

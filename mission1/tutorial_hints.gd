@@ -1,6 +1,7 @@
 extends RefCounted
+const Text = preload("res://localisation/source_text.gd")
 const Speech = preload("res://mission1/conversations.gd")
-const TEXT := {"highlight":"I wonder what I should do?", "wait":"Hurry up and wait…", "diary":"Something has changed in the diary. I should open it."}
+const TEXT := {"highlight":Text.MISSION1_I_WONDER_WHAT_I_SHOULD_DO, "wait":Text.MISSION1_HURRY_UP_AND_WAIT, "diary":Text.MISSION1_SOMETHING_HAS_CHANGED_IN_THE_DIARY_I_SHOULD_OPEN_IT}
 
 static func queue(run, id: String) -> void:
  if run.memory.get("hints",{}).get(id,false): return
@@ -18,7 +19,7 @@ static func update(run) -> void:
  var bodies: Array = run.s.get("body_thought_queue",[])
  if not bodies.is_empty():
   var victim: String = str(bodies.pop_front())
-  var text := "What a tragedy. Hmmm, my diary is shaking, I feel like I should take a look."
+  var text := Text.MISSION1_WHAT_A_TRAGEDY_HMMM_MY_DIARY_IS_SHAKING_I_FEEL_LIKE_I_SHOULD_TAKE
   Speech.say(run,"amelia",text,"thought","diary_magic_"+victim)
   run.s.dialogue.hint = "diary"
   run.s.dialogue.victim = victim
@@ -35,11 +36,11 @@ static func update(run) -> void:
  run.s.dialogue.hint = id
 
 static func prompt(id: String, controller: bool, touch: bool) -> String:
- if touch: return {"highlight":"Tap Highlight", "wait":"Hold Wait", "diary":"Tap Diary"}.get(id,"")
+ if touch: return {"highlight":Text.MISSION1_TAP_HIGHLIGHT, "wait":Text.MISSION1_HOLD_WAIT, "diary":Text.MISSION1_TAP_DIARY}.get(id,"")
  var bindings = Engine.get_main_loop().root.get_node("InputBindings")
  if id not in ["highlight", "wait", "diary"]: return ""
  var key: String = bindings.prompt(id, controller)
- return {"highlight": "%s — Highlight" % key, "wait": "Hold %s — Wait" % key, "diary": "%s — Open diary" % key}.get(id, "")
+ return {"highlight": Text.MISSION1_S_HIGHLIGHT % key, "wait": Text.MISSION1_HOLD_S_WAIT % key, "diary": Text.MISSION1_S_OPEN_DIARY % key}.get(id, "")
 
 
 static func see_body(run, victim: String) -> void:

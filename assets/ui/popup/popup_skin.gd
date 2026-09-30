@@ -1,4 +1,5 @@
 extends RefCounted
+const Messages = preload("res://foundation/message_text.gd")
 ## Applied locally to player-facing dialogs only; never set as the project theme.
 const Frame = preload("res://assets/ui/popup/nine_piece_style.gd")
 const TAB = preload("res://assets/ui/popup/tab.png")
@@ -53,7 +54,7 @@ static func decorate(dialog: AcceptDialog) -> VBoxContainer:
 	content.add_theme_constant_override("separation", 20)
 	dialog.add_child(content)
 	var heading := Label.new()
-	heading.text = dialog.title
+	Messages.assign(heading,"text",dialog.title)
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	heading.add_theme_font_size_override("font_size", 26)
 	content.add_child(heading)
@@ -66,7 +67,7 @@ static func add_message(content: VBoxContainer, message: String) -> Label:
 	label.name = "Message"
 	label.custom_minimum_size.x = 430
 	label.size.x = 430
-	label.text = message
+	Messages.assign(label,"text",message)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(label)
 	return label

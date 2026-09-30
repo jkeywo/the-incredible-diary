@@ -1,5 +1,7 @@
 extends RefCounted
+const Text = preload("res://localisation/source_text.gd")
 ## Deterministic 10 Hz Mission 1 simulation. No rendering or wall clock dependencies.
+const Messages = preload("res://foundation/message_text.gd")
 const Rooms = preload("res://mission1/rooms.gd")
 const Routines = preload("res://mission1/routines.gd")
 const Conversations = preload("res://mission1/conversations.gd")
@@ -10,7 +12,7 @@ const Operator = preload("res://mission1/operator.gd")
 const Hints = preload("res://mission1/tutorial_hints.gd")
 const Departure = preload("res://mission1/departure.gd")
 const CAPTAIN := Vector2(650,280)
-const BRIEFING := [["captain","Boy! Report for duty."],["amelia","Yes, Captain."],["captain","Explore the ship and make sure our guests are comfortable. Help with their luggage, bring refreshments, and show them to their cabins."],["amelia","Very good, Captain."],["captain","Passengers are coming aboard. Get to it."]]
+const BRIEFING := [["captain",Text.MISSION1_BOY_REPORT_FOR_DUTY],["amelia",Text.MISSION1_YES_CAPTAIN],["captain",Text.MISSION1_EXPLORE_THE_SHIP_AND_MAKE_SURE_OUR_GUESTS_ARE_COMFORTABLE_HELP_WI],["amelia",Text.MISSION1_VERY_GOOD_CAPTAIN],["captain",Text.MISSION1_PASSENGERS_ARE_COMING_ABOARD_GET_TO_IT]]
 const Authored = preload("res://mission1/authoring_runtime.gd")
 var authored_content: Dictionary = {}
 var content_versions: Dictionary = {}
@@ -45,6 +47,7 @@ func reset() -> void:
   _reset_exploration_content()
   return
  memory.notes = []
+ memory.note_records = []
  var loop := int(s.get("loop", -1)) + 1
  var previous_code: String = s.get("code","")
  var value := randi_range(0,215)
@@ -58,7 +61,7 @@ func reset() -> void:
   value = int(value / 6)
  s = {"tick":0, "loop":loop, "room":"docks", "pos":[580.0,490.0], "facing":"down", "code":code,
   "flags":{"shortcut":true}, "dead":[], "safe":[], "action":{}, "entry":"", "code_open":false,
-  "dialogue":{}, "observed":[], "message":"A new posting. An unmooring party. What could possibly go wrong?",
+  "dialogue":{}, "observed":[], "message":Text.MISSION1_A_NEW_POSTING_AN_UNMOORING_PARTY_WHAT_COULD_POSSIBLY_GO_WRONG,
  "finished":false, "door_cooldown":0}
  s.frame = 0
  s.tutorial = "approach" if opening_enabled and loop == 0 else "done"
@@ -75,6 +78,7 @@ func reset() -> void:
   for id in authored_content.instances:
    var entity := preload("res://mission1/authoring_content.gd").resolve(authored_content,id)
    if entity.kind != "character": s.prop_states[id] = entity.get("initial_state","idle")
+ _record_text_fields(true)
  history = [s.duplicate(true)]
  events.clear()
 
@@ -84,21 +88,28 @@ func tutorial_active() -> bool:
 func display_name(id: String) -> String:
  var entity := preload("res://mission1/authoring_content.gd").resolve(authored_content,id)
  if not entity.is_empty(): return str(entity.get("name",id))
- if id.begins_with("sendoff_guest_"): return "Guest"
- if id.begins_with("incidental_"): return "Sailor" if id.contains("sailor") else "Guest"
+ if id.begins_with("sendoff_guest_"): return Text.MISSION1_GUEST
+ if id.begins_with("incidental_"): return Text.MISSION1_SAILOR if id.contains("sailor") else Text.MISSION1_GUEST
  if Hospitality.GUESTS.has(id): return Hospitality.GUESTS[id].name
- return {"amelia":"Boy","captain":"Captain","crew":"Sailor","dock_sailor":"Sailor","porter":"Porter"}.get(id,id)
+ return {"amelia":Text.MISSION1_BOY,"captain":Text.MISSION1_CAPTAIN,"crew":Text.MISSION1_SAILOR,"dock_sailor":Text.MISSION1_SAILOR,"porter":Text.MISSION1_PORTER}.get(id,id)
 
 func flag(key: String) -> bool:
  return bool(s.flags.get(key, false))
 
-func note(key: String, text: String, permanent := true, show_message := true) -> void:
+func note(key: String, text: String, permanent := true, show_message := true, message_ref: Dictionary = {}) -> void:
+ var original := text
  text = str(authored_content.get("texts",{}).get(text,text))
+ if message_ref.is_empty(): message_ref = Messages.capture(text) if text == original else Messages.literal(text)
  if s.observed.has(key): return
  s.observed.append(key)
  var line := "%s — %s" % [observation_time(int(s.tick)), text]
- if permanent: memory.notes.append(line)
- if show_message: s.message = text
+ if permanent:
+  while memory.get_or_add("note_records",[]).size() < memory.notes.size(): memory.note_records.append({})
+  memory.notes.append(line)
+  memory.note_records.append({"tick":int(s.tick),"text_ref":message_ref.duplicate(true),"fallback":line})
+ if show_message:
+  s.message = text
+  s.message_ref = message_ref.duplicate(true)
  if key in ["bag_inspect","bag_reminder","poison_evidence","stair_reminder"]:
   s.message = ""
   Conversations.say(self,"amelia",text,"thought")
@@ -133,24 +144,24 @@ func _authored_options(local := true) -> Array[Dictionary]:
    var occupied: bool = s.room == "passage" and bounds.has_point(Rooms.point(s.pos))
    for actor in s.actors.values():
     if actor.room == "passage" and bounds.grow(8).has_point(Rooms.point(actor.pos)): occupied = true
-   _option(result,id,"Close door" if flag(id) else "Open door","passage",Vector2(x,385),local,not (flag(id) and occupied))
+   _option(result,id,Text.MISSION1_CLOSE_DOOR if flag(id) else Text.MISSION1_OPEN_DOOR,"passage",Vector2(x,385),local,not (flag(id) and occupied))
   return nearest_options(result) if local else result
  if not s.action.is_empty() or s.finished: return result
  if tutorial_active():
-  _option(result,"report","Report for duty","docks",CAPTAIN,local,s.tutorial == "approach")
+  _option(result,"report",Text.MISSION1_REPORT_FOR_DUTY,"docks",CAPTAIN,local,s.tutorial == "approach")
   return result
  Hospitality.defaults(self)
  if s.hospitality.menu != "":
   Hospitality.options(self,result,local)
   return result
- _option(result, "inspect_bag", "Inspect luggage", "docks", Rooms.LUGGAGE, local, not flag("bag_found"))
- _option(result, "retrieve_bag", "Retrieve bag", "docks", Rooms.LUGGAGE, local, not flag("bag_found"))
- _option(result, "hide_bag", "Hide bag", "docks", Rooms.LUGGAGE, local, not flag("bag_found") and not flag("bag_hidden") and s.tick < 700)
+ _option(result, "inspect_bag", Text.MISSION1_INSPECT_LUGGAGE, "docks", Rooms.LUGGAGE, local, not flag("bag_found"))
+ _option(result, "retrieve_bag", Text.MISSION1_RETRIEVE_BAG, "docks", Rooms.LUGGAGE, local, not flag("bag_found"))
+ _option(result, "hide_bag", Text.MISSION1_HIDE_BAG, "docks", Rooms.LUGGAGE, local, not flag("bag_found") and not flag("bag_hidden") and s.tick < 700)
  for id in Rooms.CABIN_DOORS:
   var occupied: bool = s.room == "cabins" and Rooms.door_bounds(id).has_point(Rooms.point(s.pos))
   for actor in s.actors.values():
    if actor.room == "cabins" and Rooms.door_bounds(id).grow(8).has_point(Rooms.point(actor.pos)): occupied = true
-  _option(result, id, "Close door" if flag(id) else "Open door", "cabins", Vector2(Rooms.CABIN_DOORS[id],405), local, not (flag(id) and occupied))
+  _option(result, id, Text.MISSION1_CLOSE_DOOR if flag(id) else Text.MISSION1_OPEN_DOOR, "cabins", Vector2(Rooms.CABIN_DOORS[id],405), local, not (flag(id) and occupied))
  _rescue_options(result, local)
  Hospitality.options(self,result,local)
  return nearest_options(result) if local else result
@@ -217,6 +228,7 @@ func _authored_step(direction := Vector2.ZERO, cancel := false) -> void:
  if tutorial_active():
   _tutorial_step(direction)
   Authored.update(self)
+  _record_text_fields()
   history.append(s.duplicate(true))
   return
  var player_before := {"room":s.room,"pos":s.pos.duplicate()}
@@ -240,7 +252,7 @@ func _authored_step(direction := Vector2.ZERO, cancel := false) -> void:
   var action: Dictionary = s.action
   if cancel or not nearby(action.room, Rooms.point(action.pos)) or not _still_valid(action.id):
    s.action = {}
-   s.message = "Action interrupted. Unfinished progress lost."
+   s.message = Text.MISSION1_ACTION_INTERRUPTED_UNFINISHED_PROGRESS_LOST
   else:
    action.progress += 1
    if action.progress >= action.duration:
@@ -278,8 +290,9 @@ func _authored_step(direction := Vector2.ZERO, cancel := false) -> void:
   s.flags.missed_boat = s.dead.is_empty() and s.room == "docks"
   memory.completed = bool(memory.completed) or succeeded()
   if succeeded(): memory.location_rewriting = true
-  events.append({"kind":"end", "text":"The unmooring party has ended."})
+  events.append({"kind":"end", "text":Text.MISSION1_THE_UNMOORING_PARTY_HAS_ENDED})
  Authored.update(self)
+ _record_text_fields()
  history.append(s.duplicate(true))
 
 func exploration() -> bool:
@@ -310,7 +323,7 @@ func _reset_exploration_content() -> void:
  s.pos = player.position.duplicate()
  s.tutorial = "done"
  s.arrivals = false
- s.message = "Welcome to Greece. Explore the dock, restaurant, market and ship." if mission_number() == 3 else "A new day aboard. Explore the ship."
+ s.message = Text.MISSION1_WELCOME_TO_GREECE_EXPLORE_THE_DOCK_RESTAURANT_MARKET_AND_SHIP if mission_number() == 3 else Text.MISSION1_A_NEW_DAY_ABOARD_EXPLORE_THE_SHIP
  s.flags = {"shortcut":true,"cabin_left":true,"cabin_middle":true,"cabin_right":true}
  s.actors = {}
  for id in authored_content.instances:
@@ -318,12 +331,13 @@ func _reset_exploration_content() -> void:
   if entity.kind == "character" and id != "amelia":
    s.actors[id] = {"room":entity.room,"pos":entity.position.duplicate(),"action":"idle","facing":"down"}
  Authored.update(self)
+ _record_text_fields(true)
  history = [s.duplicate(true)]
 
 func _locked_door_feedback(p: Vector2) -> void:
  for door in Rooms.locked_doors(s.room,exploration(),mission_number() == 2):
   if door.bounds.has_point(p):
-   var text: String = door.get("message","The door is locked.")
+   var text: String = door.get("message",Text.MISSION1_THE_DOOR_IS_LOCKED)
    s.message = text
    var key: String = s.room+str(door.point)
    if s.get("locked_door","") != key or int(s.get("locked_notice_until",0)) <= int(s.frame):
@@ -375,7 +389,8 @@ func _exploration_step(direction: Vector2, cancel := false) -> void:
  Authored.update(self)
  if s.tick >= timing("end",10800):
   s.finished = true
-  s.message = "Six hours in Greece. End of the exploration schedule." if mission_number() == 3 else "Six hours aboard. End of the exploration schedule."
+  s.message = Text.MISSION1_SIX_HOURS_IN_GREECE_END_OF_THE_EXPLORATION_SCHEDULE if mission_number() == 3 else Text.MISSION1_SIX_HOURS_ABOARD_END_OF_THE_EXPLORATION_SCHEDULE
+ _record_text_fields()
  history.append(s.duplicate(true))
 
 func _tutorial_step(direction: Vector2) -> void:
@@ -410,19 +425,19 @@ func _complete(id: String) -> void:
  if Hospitality.complete(self,id): return
  if Rooms.CABIN_DOORS.has(id):
   s.flags[id] = not flag(id)
-  s.message = "I opened the cabin door." if flag(id) else "I closed the cabin door."
+  s.message = Text.MISSION1_I_OPENED_THE_CABIN_DOOR if flag(id) else Text.MISSION1_I_CLOSED_THE_CABIN_DOOR
   return
  match id:
   "inspect_bag":
    if memory.bag:
     s.flags.bag_lead = true
-    note("bag_reminder", "The same monogram. He still refuses to board without this bag.")
+    note("bag_reminder", Text.MISSION1_THE_SAME_MONOGRAM_HE_STILL_REFUSES_TO_BOARD_WITHOUT_THIS_BAG)
    else:
-    note("bag_inspect", "A monogrammed suitcase tucked among the trunks.")
+    note("bag_inspect", Text.MISSION1_A_MONOGRAMMED_SUITCASE_TUCKED_AMONG_THE_TRUNKS)
   "hide_bag":
    s.flags.bag_hidden = true
    s.flags.bag_delayed = true
-   note("bag_hidden", "I tucked the suitcase behind the baggage screen.")
+   note("bag_hidden", Text.MISSION1_I_TUCKED_THE_SUITCASE_BEHIND_THE_BAGGAGE_SCREEN)
    events.append({"kind":"sound", "text":"baggage_move"})
   "retrieve_bag":
    var deadline := boarding_time()
@@ -433,16 +448,16 @@ func _complete(id: String) -> void:
    s.flags.bag_delayed = false
    s.flags.bag_found_tick = s.tick
    s.flags.boarding_tick = mini(s.tick + 80, deadline)
-   note("bag_retrieved", "I brought the suitcase back to its owner.")
-   Conversations.start(self,"bag_thanks",[["guest","My suitcase! At last. Thank you."]],["guest"])
+   note("bag_retrieved", Text.MISSION1_I_BROUGHT_THE_SUITCASE_BACK_TO_ITS_OWNER)
+   Conversations.start(self,"bag_thanks",[["guest",Text.MISSION1_MY_SUITCASE_AT_LAST_THANK_YOU]],["guest"])
    events.append({"kind":"sound", "text":"baggage_move"})
   "porter":
    s.flags.shortcut_lead = true
    memory.shortcut = true
-   note("stair_lead", "Porter: The centre stair is only latched. Release the brass catch at its foot.")
+   note("stair_lead", Text.MISSION1_PORTER_THE_CENTRE_STAIR_IS_ONLY_LATCHED_RELEASE_THE_BRASS_CATCH_A)
   "latch":
    s.flags.shortcut = true
-   note("stair_open", "I released the latch. The centre stair leads straight to the salon.")
+   note("stair_open", Text.MISSION1_I_RELEASED_THE_LATCH_THE_CENTRE_STAIR_LEADS_STRAIGHT_TO_THE_SALON)
   _: _complete_rescue(id)
 
 func _legacy_schedule() -> void:
@@ -454,18 +469,18 @@ func _legacy_schedule() -> void:
    _steam_rescue()
   else: s.flags.trapped = true
   if not flag("steam_off") and s.room == "controls":
-   note("trapped", "Steam blocks the far room's normal exit. The talkative passenger is trapped.")
+   note("trapped", Text.MISSION1_STEAM_BLOCKS_THE_FAR_ROOM_S_NORMAL_EXIT_THE_TALKATIVE_PASSENGER_I)
    events.append({"kind":"sound", "text":"steam_hiss"})
  if s.tick == timing("steam_fatal", STEAM_FATAL) and not s.safe.has("chatterbox"):
-  _death("chatterbox", "The passenger collapsed behind the steam.", "controls")
+  _death("chatterbox", Text.MISSION1_THE_PASSENGER_COLLAPSED_BEHIND_THE_STEAM, "controls")
  if s.tick == timing("steam_fatal", STEAM_FATAL) + 30 and s.dead.has("chatterbox"):
   # The late public alarm is audible throughout the ship, but reveals no cause.
-  note("alarm", "Crew: A passenger needs help in the steam passage!", true)
+  note("alarm", Text.MISSION1_CREW_A_PASSENGER_NEEDS_HELP_IN_THE_STEAM_PASSAGE, true)
   events.append({"kind":"sound", "text":"crew_alarm"})
  if s.tick == timing("creak", CREAK):
   s.flags.chandelier_warning = true
   if s.room == "foyer":
-   note("creak", "The chandelier creaks and trembles above the guest.")
+   note("creak", Text.MISSION1_THE_CHANDELIER_CREAKS_AND_TREMBLES_ABOVE_THE_GUEST)
    events.append({"kind":"sound", "text":"chandelier_creak"})
  if s.tick == timing("fall", FALL)-DROP_TICKS and not s.flags.has("chandelier_drop_tick"):
   s.flags.chandelier_drop_tick = s.tick
@@ -475,8 +490,8 @@ func _legacy_schedule() -> void:
   s.flags.chandelier_impact_frame = s.frame
   s.flags.chandelier_fallen = true
   s.flags.chandelier_warning = false
-  if not s.safe.has("chandelier_guest"): _death("chandelier_guest", "The chandelier fell on the guest.", "foyer")
-  elif s.room == "foyer": note("fall_safe", "The chandelier crashed onto the place where the guest had been standing.")
+  if not s.safe.has("chandelier_guest"): _death("chandelier_guest", Text.MISSION1_THE_CHANDELIER_FELL_ON_THE_GUEST, "foyer")
+  elif s.room == "foyer": note("fall_safe", Text.MISSION1_THE_CHANDELIER_CRASHED_ONTO_THE_PLACE_WHERE_THE_GUEST_HAD_BEEN_ST)
   if s.room == "foyer":
    events.append({"kind":"sound", "text":"chandelier_impact"})
    events.append({"kind":"sound", "text":"chandelier_glass"})
@@ -489,45 +504,45 @@ func _death(id: String, witnessed: String, room: String) -> void:
   s.flags.glass_drop = [p.x+28,p.y+8]
   s.flags.guest_collapse = s.actors.guest.duplicate(true)
  if s.room == room: note("death_" + id, witnessed)
- s.message = witnessed if s.room == room else "The diary shivers."
+ s.message = witnessed if s.room == room else Text.MISSION1_THE_DIARY_SHIVERS
  memory.reset = true
  s.notice = s.message
  s.notice_until = s.tick+150
  events.append({"kind":"death", "text":id})
 
 func _observe() -> void:
- note("room_"+s.room, "I visited " + str(room_definition(s.room).title) + ".")
+ note("room_"+s.room, Messages.source("UI_VISITED_ROOM",{"room":str(room_definition(s.room).title)}))
  var positions: Dictionary = s.actors
  if flag("bag_retrieved_by_boy") and not flag("sailor_thanked") and s.dialogue.is_empty() and s.get("conversation",{}).is_empty():
   var sailor: Dictionary = positions.get("dock_sailor",{})
   if not sailor.is_empty() and nearby(sailor.room,Rooms.point(sailor.pos)):
    s.flags.sailor_thanked = true
-   Conversations.say(self,"dock_sailor","You found the bag! Thank you, Boy. Saved me a search.","speech","sailor_thanks")
+   Conversations.say(self,"dock_sailor",Text.MISSION1_YOU_FOUND_THE_BAG_THANK_YOU_BOY_SAVED_ME_A_SEARCH,"speech","sailor_thanks")
  for id in positions:
   if id.begins_with("incidental_") or id.begins_with("sendoff_guest_"): continue
   var actor: Dictionary = positions[id]
   if actor.room == s.room:
    var name := display_name(id)
-   note("seen_%s_%d_%s" % [id,int(s.tick/HOUR),s.room], name + " is in " + str(room_definition(s.room).title) + ".")
+   note("seen_%s_%d_%s" % [id,int(s.tick/HOUR),s.room], Messages.source("UI_ACTOR_ROOM",{"actor":name,"room":str(room_definition(s.room).title)}))
  if nearby("docks", Vector2(390,430), 110) and not flag("bag_found"):
   memory.bag = true
   s.flags.bag_lead = true
 
  if memory.shortcut and s.tick >= 3*HOUR and nearby("foyer", Vector2(580,250)) and not flag("shortcut_lead"):
   s.flags.shortcut_lead = true
-  note("stair_reminder", "The stair's brass catch is still here.")
+  note("stair_reminder", Text.MISSION1_THE_STAIR_S_BRASS_CATCH_IS_STILL_HERE)
  if s.tick >= 3500 and s.tick < timing("creak", CREAK) and int(s.tick)%180 == 0 and s.dialogue.is_empty() and s.get("conversation",{}).is_empty() and nearby("foyer",Rooms.point(s.actors.chandelier_guest.pos),180):
-  Conversations.say(self,"chandelier_guest","I do wish they would get on with it. Such a wait!","speech","fretting_%d" % s.tick)
+  Conversations.say(self,"chandelier_guest",Text.MISSION1_I_DO_WISH_THEY_WOULD_GET_ON_WITH_IT_SUCH_A_WAIT,"speech","fretting_%d" % s.tick)
  _observe_rescues()
 
 func _rescue_options(_result: Array[Dictionary], _local: bool) -> void:
- _option(_result, "bump", "Bump into guest", "salon", Rooms.BAR_GUEST, _local, flag("spiked") and not s.safe.has("guest") and not s.dead.has("guest"))
- _option(_result, "glass", "Inspect glass", "salon", Rooms.point(s.flags.get("glass_drop",[Rooms.BAR_GUEST.x+28,Rooms.BAR_GUEST.y+8])), _local, s.dead.has("guest"))
- _option(_result, "panel", "Use controls", "controls", Vector2(350,300), _local, true)
+ _option(_result, "bump", Text.MISSION1_BUMP_INTO_GUEST, "salon", Rooms.BAR_GUEST, _local, flag("spiked") and not s.safe.has("guest") and not s.dead.has("guest"))
+ _option(_result, "glass", Text.MISSION1_INSPECT_GLASS, "salon", Rooms.point(s.flags.get("glass_drop",[Rooms.BAR_GUEST.x+28,Rooms.BAR_GUEST.y+8])), _local, s.dead.has("guest"))
+ _option(_result, "panel", Text.MISSION1_USE_CONTROLS, "controls", Vector2(350,300), _local, true)
  _option(_result, "shove", "Shove", "foyer", Rooms.point(s.actors.get("chandelier_guest",{}).get("pos",[Rooms.CHANDELIER_GUEST.x,Rooms.CHANDELIER_GUEST.y])), _local, flag("chandelier_warning") and not s.safe.has("chandelier_guest"))
  var guest: Dictionary = s.actors.get("guest",{})
  _option(_result,"apologise","Apologise","cabins",Rooms.point(guest.get("pos",[580,315])),_local,flag("spilled") and guest.get("room","") == "cabins" and not flag("apologised"))
- _option(_result, "wreckage", "Inspect wreckage", "foyer", Vector2(580,420), _local, flag("chandelier_fallen"))
+ _option(_result, "wreckage", Text.MISSION1_INSPECT_WRECKAGE, "foyer", Vector2(580,420), _local, flag("chandelier_fallen"))
 func _complete_rescue(_id: String) -> void:
  match _id:
   "bump":
@@ -537,13 +552,13 @@ func _complete_rescue(_id: String) -> void:
    s.flags.spill_frame = s.frame
    var spill_position := Rooms.point(s.actors.guest.pos)+Vector2(28,8)
    s.flags.glass_drop = [spill_position.x,spill_position.y]
-   note("spill", "My elbow caught the glass. His drink soaked his suit.")
-   Conversations.start(self,"spill_reply",[["guest","My suit! Do watch where you are going!"]],["guest"])
+   note("spill", Text.MISSION1_MY_ELBOW_CAUGHT_THE_GLASS_HIS_DRINK_SOAKED_HIS_SUIT)
+   Conversations.start(self,"spill_reply",[["guest",Text.MISSION1_MY_SUIT_DO_WATCH_WHERE_YOU_ARE_GOING]],["guest"])
    events.append({"kind":"sound", "text":"drink_spill"})
-  "glass": note("poison_evidence", "A sharp chemical residue in the glass. The drink was poisoned; nothing here identifies who did it.")
+  "glass": note("poison_evidence", Text.MISSION1_A_SHARP_CHEMICAL_RESIDUE_IN_THE_GLASS_THE_DRINK_WAS_POISONED_NOTH)
   "apologise":
    s.flags.apologised = true
-   Conversations.start(self,"spill_apology",[["amelia","I wanted to apologise about your drink, sir."],["guest","You ruined my suit. I have no interest in your excuses. Now leave me alone."]],["amelia","guest"])
+   Conversations.start(self,"spill_apology",[["amelia",Text.MISSION1_I_WANTED_TO_APOLOGISE_ABOUT_YOUR_DRINK_SIR],["guest",Text.MISSION1_YOU_RUINED_MY_SUIT_I_HAVE_NO_INTEREST_IN_YOUR_EXCUSES_NOW_LEAVE_M]],["amelia","guest"])
   "shove":
    _begin_shove()
    s.safe.append("chandelier_guest")
@@ -551,13 +566,13 @@ func _complete_rescue(_id: String) -> void:
    s.flags.chandelier_drop_tick = s.tick
    s.flags.chandelier_drop_frame = s.frame
    s.flags.chandelier_impact_tick = s.tick+DROP_TICKS
-   note("shove", "I shoved the guest out from beneath the chandelier.")
-   Conversations.start(self,"shove_reply",[["chandelier_guest","How dare you! What do you think you are doing?"]],["chandelier_guest"])
+   note("shove", Text.MISSION1_I_SHOVED_THE_GUEST_OUT_FROM_BENEATH_THE_CHANDELIER)
+   Conversations.start(self,"shove_reply",[["chandelier_guest",Text.MISSION1_HOW_DARE_YOU_WHAT_DO_YOU_THINK_YOU_ARE_DOING]],["chandelier_guest"])
    events.append({"kind":"sound", "text":"shove"})
   "wreckage":
-   var text := "She is dead, beneath the chandelier. Broken glass everywhere, and a snapped suspension pin."
+   var text := Text.MISSION1_SHE_IS_DEAD_BENEATH_THE_CHANDELIER_BROKEN_GLASS_EVERYWHERE_AND_A
    if not s.dead.has("chandelier_guest"):
-    text = "Broken glass and a snapped suspension pin. Thank goodness I got her out of the way."
+    text = Text.MISSION1_BROKEN_GLASS_AND_A_SNAPPED_SUSPENSION_PIN_THANK_GOODNESS_I_GOT_HE
    # Inspection always responds, even when this evidence is already in the diary.
    note("wreckage",text,true,false)
    s.message = ""
@@ -565,20 +580,20 @@ func _complete_rescue(_id: String) -> void:
 func _observe_rescues() -> void:
  if s.room == "salon":
   if flag("party_arrived") and not s.dead.has("guest") and not s.safe.has("guest"):
-   note("party_arrival", "The luggage owner is waiting at the bar.")
+   note("party_arrival", Text.MISSION1_THE_LUGGAGE_OWNER_IS_WAITING_AT_THE_BAR)
   if s.dead.has("guest"):
-   note("guest_body", "The luggage owner has collapsed beside his glass.")
+   note("guest_body", Text.MISSION1_THE_LUGGAGE_OWNER_HAS_COLLAPSED_BESIDE_HIS_GLASS)
    Hints.see_body(self,"guest")
  if s.room == "controls":
   if flag("trapped") and not s.safe.has("chatterbox") and not s.dead.has("chatterbox"):
-   note("trapped", "Steam blocks the far room's normal exit. The talkative passenger is trapped.")
+   note("trapped", Text.MISSION1_STEAM_BLOCKS_THE_FAR_ROOM_S_NORMAL_EXIT_THE_TALKATIVE_PASSENGER_I)
   if s.dead.has("chatterbox"):
-   note("steam_body", "The passenger lies motionless beyond the steam leak.")
+   note("steam_body", Text.MISSION1_THE_PASSENGER_LIES_MOTIONLESS_BEYOND_THE_STEAM_LEAK)
    Hints.see_body(self,"chatterbox")
  if s.room == "foyer":
   if s.dead.has("chandelier_guest"): Hints.see_body(self,"chandelier_guest")
-  if flag("chandelier_warning"): note("creak", "The chandelier creaks and trembles above the guest.")
-  if flag("chandelier_fallen"): note("fallen_seen", "The guest lies dead beneath the fallen chandelier." if s.dead.has("chandelier_guest") else "The fallen chandelier lies in pieces. The guest is safe.")
+  if flag("chandelier_warning"): note("creak", Text.MISSION1_THE_CHANDELIER_CREAKS_AND_TREMBLES_ABOVE_THE_GUEST)
+  if flag("chandelier_fallen"): note("fallen_seen", Text.MISSION1_THE_GUEST_LIES_DEAD_BENEATH_THE_FALLEN_CHANDELIER if s.dead.has("chandelier_guest") else Text.MISSION1_THE_FALLEN_CHANDELIER_LIES_IN_PIECES_THE_GUEST_IS_SAFE)
 
 func actor_positions() -> Dictionary:
  if exploration(): return s.get("actors",{}).duplicate(true)
@@ -700,8 +715,8 @@ func _open_passenger_doors(planned: Dictionary) -> void:
 
 func _witness_departures(previous: Dictionary) -> void:
  if s.safe.has("chatterbox") and previous.get("chatterbox",{}).get("room","") == "controls" and s.actors.chatterbox.room != "controls":
-  if s.room == "controls": note("escape_departure", "The passenger leaves through the cleared steam passage.")
-  elif s.room == s.actors.chatterbox.room: note("escape_departure", "The passenger emerges from the steam room.")
+  if s.room == "controls": note("escape_departure", Text.MISSION1_THE_PASSENGER_LEAVES_THROUGH_THE_CLEARED_STEAM_PASSAGE)
+  elif s.room == s.actors.chatterbox.room: note("escape_departure", Text.MISSION1_THE_PASSENGER_EMERGES_FROM_THE_STEAM_ROOM)
 
 func _travel(from: Vector2, to: Vector2, time: int, start_tick: int, end_tick: int) -> Array:
  var p := from.lerp(to,clampf(float(time-start_tick)/float(end_tick-start_tick),0,1))
@@ -722,7 +737,7 @@ func _party_schedule() -> void:
  var arrival := party_arrival()
  if s.tick >= arrival and not flag("party_arrived"):
   s.flags.party_arrived = true
-  if s.room == "salon": note("party_arrival", "The luggage owner is waiting at the bar.")
+  if s.room == "salon": note("party_arrival", Text.MISSION1_THE_LUGGAGE_OWNER_IS_WAITING_AT_THE_BAR)
  # Poison follows attendance; 5:15 is earned by preserving Mabel's routine.
  var interval := 80 if luggage_delayed() else 40
  if s.tick >= arrival and not flag("spiked") and not s.safe.has("guest") and not s.dead.has("guest"):
@@ -731,26 +746,24 @@ func _party_schedule() -> void:
   s.flags.spike_frame = s.frame
   s.flags.drink_tick = s.tick+interval
   if s.room == "salon":
-   note("spike", "An obscured hand tips something into the guest's glass.")
+   note("spike", Text.MISSION1_AN_OBSCURED_HAND_TIPS_SOMETHING_INTO_THE_GUEST_S_GLASS)
    events.append({"kind":"spike", "text":""})
  var drink := int(s.flags.get("drink_tick",int(s.flags.get("spike_tick",arrival))+interval))
  if flag("spiked") and s.tick >= drink and not s.safe.has("guest") and not s.dead.has("guest"):
-  _death("guest", "The guest drank, then collapsed beside the poisoned glass.", "salon")
+  _death("guest", Text.MISSION1_THE_GUEST_DRANK_THEN_COLLAPSED_BESIDE_THE_POISONED_GLASS, "salon")
 
 func succeeded() -> bool:
  return s.dead.is_empty() and not flag("missed_boat")
 
-func summary() -> String:
+func summary(localised := false) -> String:
  var lines: Array[String] = []
- var names := {}
- for id in Hospitality.GUESTS: names[id] = display_name(id)
- for id in names:
-  lines.append("%s: %s" % [names[id], "died" if s.dead.has(id) else "survived"])
+ for id in Hospitality.GUESTS:
+  var message := Messages.make_ref("UI_SUMMARY_DIED" if s.dead.has(id) else "UI_SUMMARY_SURVIVED", {"name":Messages.capture(display_name(id))})
+  lines.append(Messages.resolve(message) if localised else str(message.fallback))
  if flag("missed_boat"):
-  return "MISSED THE BOAT · MISSION FAILED\nEveryone survived, but you were still on the docks when the ship sailed. Turn back the pages and get aboard before 5:30."
- if succeeded():
-  return "EVERYONE SURVIVED · ALL ABOARD COMPLETE\n" + " · ".join(lines) + "\nThe next page reveals a new gift: location rewriting."
- return "THE PARTY HAS ENDED\n" + " · ".join(lines) + "\nYour diary records what you witnessed on this voyage. Turn back the pages to try again."
+  return Messages.ui(Text.MISSION1_MISSED_THE_BOAT_MISSION_FAILED_EVERYONE_SURVIVED_BUT_YOU_WERE_STI) if localised else Text.MISSION1_MISSED_THE_BOAT_MISSION_FAILED_EVERYONE_SURVIVED_BUT_YOU_WERE_STI
+ var message := Messages.make_ref("UI_SUMMARY_SUCCESS" if succeeded() else "UI_SUMMARY_FAILED",{"outcomes":" · ".join(lines)})
+ return Messages.resolve(message) if localised else str(message.fallback)
 
 func _demonstration() -> void:
  if s.tick < timing("demo_start", DEMO_START) or s.tick > timing("demo_end", DEMO_END): return
@@ -768,7 +781,7 @@ func _demonstration() -> void:
   return
  s.flags.demo_progress += 1
  if close:
-  var lines := ["Pressure must be running for the controls to respond.", "Enter three digits, then press Commit. Clear starts your entry again.", "Today's shutoff code is %s." % s.code]
+  var lines := [Text.MISSION1_PRESSURE_MUST_BE_RUNNING_FOR_THE_CONTROLS_TO_RESPOND, Text.MISSION1_ENTER_THREE_DIGITS_THEN_PRESS_COMMIT_CLEAR_STARTS_YOUR_ENTRY_AGAI, Text.MISSION1_TODAY_S_SHUTOFF_CODE_IS_S % s.code]
   if not s.flags.get("demo_spoken",[]).has(cursor):
    if not s.flags.has("demo_spoken"): s.flags.demo_spoken = []
    s.flags.demo_spoken.append(cursor)
@@ -788,7 +801,7 @@ func submit_code() -> bool:
  events.clear()
  if not s.code_open or not nearby("controls", Vector2(350,300)): return false
  if s.entry.length() != 3 or s.entry != s.code:
-  s.message = "Code rejected. Clear and try again."
+  s.message = Text.MISSION1_CODE_REJECTED_CLEAR_AND_TRY_AGAIN
   s.flags.panel_rejected = true
   return false
  s.flags.panel_rejected = false
@@ -796,7 +809,7 @@ func submit_code() -> bool:
  s.flags.steam_shutdown_visible = Rooms.steam_blocked(s.flags)
  s.flags.steam_off = true
  s.code_open = false
- note("shutoff_%d" % s.tick, "I stopped the steam.")
+ note("shutoff_%d" % s.tick, Text.MISSION1_I_STOPPED_THE_STEAM)
  events.append({"kind":"sound", "text":"steam_valve"})
  if flag("trapped") and s.tick < timing("steam_fatal", STEAM_FATAL) and not s.dead.has("chatterbox"):
   _steam_rescue()
@@ -820,7 +833,7 @@ func _luggage_schedule() -> void:
   s.flags.boarding_tick = s.tick + 80
   if s.room == "docks":
    s.conversation = {}
-   Conversations.say(self,"dock_sailor","Found it! Brown leather, just as you said.","speech","bag_found")
+   Conversations.say(self,"dock_sailor",Text.MISSION1_FOUND_IT_BROWN_LEATHER_JUST_AS_YOU_SAID,"speech","bag_found")
 
 func dock_sailor_position() -> Dictionary:
  var t := int(s.tick)
@@ -891,6 +904,7 @@ func restore_record(record: Dictionary) -> void:
   s.content_version = authored_content.version
   Authored.update(self)
   # Keep every recorded old-layout frame available for scrubbing.
+  _record_text_fields()
   history.append(s.duplicate(true))
  if authored_content.get("version","") != record.get("authored_content",{}).get("version",""):
   # Keep occupants clear of the new corridor end wall after a stock-layout upgrade.
@@ -923,12 +937,20 @@ func _corridor_floor_position(position: Array) -> Array:
  return [nearest.x,nearest.y]
 
 func record_current_frame() -> void:
+ _record_text_fields()
  history[-1] = s.duplicate(true)
 
 func restore_notebook() -> void:
+ var records: Array = memory.get("note_records",[])
+ if not records.is_empty():
+  var matching: bool = records.size() == memory.notes.size()
+  for index in mini(records.size(),memory.notes.size()):
+   if not records[index].is_empty() and records[index].get("fallback","") != memory.notes[index]: matching = false
+  if matching: return
+  memory.erase("note_records")
  # Old saves mixed previous loops and unwitnessed death notices into memory.
  # Keep only current-run text with a matching recorded observation timestamp.
- var prefix := "Loop %d · Hour " % (int(s.loop)+1)
+ var prefix := Text.MISSION1_LOOP_D_HOUR % (int(s.loop)+1)
  var recorded := {}
  for frame in history:
   if not recorded.has(frame.message): recorded[frame.message] = int(frame.tick)
@@ -940,7 +962,7 @@ func restore_notebook() -> void:
    var parts := text.split(" — ", true, 1)
    if parts.size() < 2 or not recorded.has(parts[1]): continue
    notes.append("%s — %s" % [observation_time(recorded[parts[1]]),parts[1]])
-  elif not text.begins_with("Hour "):
+  elif not text.begins_with(Text.MISSION1_HOUR):
    notes.append(text)
  memory.notes = notes
 
@@ -948,7 +970,7 @@ func _steam_rescue() -> void:
  if s.safe.has("chatterbox"): return
  s.safe.append("chatterbox")
  s.flags.escape_tick = s.tick
- if s.room == "controls": note("escape", "The passage is clear. The passenger starts towards the exit.")
+ if s.room == "controls": note("escape", Text.MISSION1_THE_PASSAGE_IS_CLEAR_THE_PASSENGER_STARTS_TOWARDS_THE_EXIT)
 
 func reserve_groups(planned: Dictionary) -> void:
  var used := {}
@@ -1027,7 +1049,7 @@ func apply_authored(content: Dictionary, frame_index := -1) -> Dictionary:
   s = candidate.duplicate(true)
   history = history.slice(0, frame_index + 1)
   events.clear()
- return {"ok":true,"reason":"Content applied"}
+ return {"ok":true,"reason":Text.MISSION1_CONTENT_APPLIED}
 
 func timing(key: String, fallback: int) -> int:
  return int(authored_content.get("timings",{}).get(key,fallback))
@@ -1053,21 +1075,21 @@ func _effect_steam_trap() -> void:
   _steam_rescue()
  else: s.flags.trapped = true
  if not flag("steam_off") and s.room == "controls":
-  note("trapped", "Steam blocks the far room's normal exit. The talkative passenger is trapped.")
+  note("trapped", Text.MISSION1_STEAM_BLOCKS_THE_FAR_ROOM_S_NORMAL_EXIT_THE_TALKATIVE_PASSENGER_I)
   events.append({"kind":"sound", "text":"steam_hiss"})
 
 func _effect_steam_fatal() -> void:
- _death("chatterbox", "The passenger collapsed behind the steam.", "controls")
+ _death("chatterbox", Text.MISSION1_THE_PASSENGER_COLLAPSED_BEHIND_THE_STEAM, "controls")
 
 func _effect_steam_alarm() -> void:
  # The late public alarm is audible throughout the ship, but reveals no cause.
- note("alarm", "Crew: A passenger needs help in the steam passage!", true)
+ note("alarm", Text.MISSION1_CREW_A_PASSENGER_NEEDS_HELP_IN_THE_STEAM_PASSAGE, true)
  events.append({"kind":"sound", "text":"crew_alarm"})
 
 func _effect_chandelier_warning() -> void:
  s.flags.chandelier_warning = true
  if s.room == "foyer":
-  note("creak", "The chandelier creaks and trembles above the guest.")
+  note("creak", Text.MISSION1_THE_CHANDELIER_CREAKS_AND_TREMBLES_ABOVE_THE_GUEST)
   events.append({"kind":"sound", "text":"chandelier_creak"})
 
 func _effect_chandelier_drop() -> void:
@@ -1079,8 +1101,28 @@ func _effect_chandelier_impact() -> void:
  s.flags.chandelier_impact_frame = s.frame
  s.flags.chandelier_fallen = true
  s.flags.chandelier_warning = false
- if not s.safe.has("chandelier_guest"): _death("chandelier_guest", "The chandelier fell on the guest.", "foyer")
- elif s.room == "foyer": note("fall_safe", "The chandelier crashed onto the place where the guest had been standing.")
+ if not s.safe.has("chandelier_guest"): _death("chandelier_guest", Text.MISSION1_THE_CHANDELIER_FELL_ON_THE_GUEST, "foyer")
+ elif s.room == "foyer": note("fall_safe", Text.MISSION1_THE_CHANDELIER_CRASHED_ONTO_THE_PLACE_WHERE_THE_GUEST_HAD_BEEN_ST)
  if s.room == "foyer":
   events.append({"kind":"sound", "text":"chandelier_impact"})
   events.append({"kind":"sound", "text":"chandelier_glass"})
+
+func _record_text_fields(initial := false) -> void:
+ for field in ["message", "notice"]:
+  if not s.has(field): continue
+  var value := str(s[field])
+  var previous: Dictionary = s.get(field+"_ref",{})
+  if not previous.is_empty() and previous.get("fallback","") == value: continue
+  # A restored literal remains literal until gameplay changes the field.
+  if not initial and previous.is_empty() and not history.is_empty() and history[-1].get(field,"") == value: continue
+  s[field+"_ref"] = Messages.capture(value)
+
+func notebook_text() -> String:
+ var rendered: PackedStringArray = []
+ var records: Array = memory.get("note_records",[])
+ for index in memory.notes.size():
+  var fallback := str(memory.notes[index])
+  if index < records.size() and records[index].get("fallback","") == fallback:
+   rendered.append("%s — %s" % [observation_time(int(records[index].tick)), Messages.resolve(records[index].text_ref)])
+  else: rendered.append(fallback)
+ return "\n\n".join(rendered)

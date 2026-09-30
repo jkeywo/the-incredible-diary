@@ -1,13 +1,15 @@
 extends RefCounted
+const Messages = preload("res://foundation/message_text.gd")
+const Text = preload("res://localisation/source_text.gd")
 ## Optional duties and recorded journeys to the cabin named by Boy.
 const Rooms = preload("res://mission1/rooms.gd")
 const Speech = preload("res://mission1/conversations.gd")
 const STATION := Vector2(865,205)
-const DRINKS := {"lemonade":"Lemonade", "water":"Sparkling water", "tea":"Tea"}
+const DRINKS := {"lemonade":"Lemonade", "water":Text.MISSION1_SPARKLING_WATER, "tea":"Tea"}
 const GUESTS := {
- "guest":{"name":"Mr. Felix Harcourt", "door":"cabin_middle", "number":1, "drink":"lemonade", "request":"Lemonade, please, Boy.", "thanks":"Excellent lemonade, Boy. Thank you.", "wrong":"I asked for lemonade, Boy. Do try to remember."},
- "chandelier_guest":{"name":"Miss Evelyn Vale", "door":"cabin_left", "number":2, "drink":"water", "request":"Sparkling water, please, Boy.", "thanks":"Just what I wanted. Thank you, Boy.", "wrong":"That isn't sparkling water. Perhaps someone else ordered it?"},
- "chatterbox":{"name":"Mrs. Mabel Pritchard", "door":"cabin_right", "number":3, "drink":"tea", "request":"A proper cup of tea, please, Boy.", "thanks":"Lovely. A proper cup of tea. Thank you, Boy.", "wrong":"Tea, Boy. A proper cup of tea."}
+ "guest":{"name":Text.MISSION1_MR_FELIX_HARCOURT, "door":"cabin_middle", "number":1, "drink":"lemonade", "request":Text.MISSION1_LEMONADE_PLEASE_BOY, "thanks":Text.MISSION1_EXCELLENT_LEMONADE_BOY_THANK_YOU, "wrong":Text.MISSION1_I_ASKED_FOR_LEMONADE_BOY_DO_TRY_TO_REMEMBER},
+ "chandelier_guest":{"name":Text.MISSION1_MISS_EVELYN_VALE, "door":"cabin_left", "number":2, "drink":"water", "request":Text.MISSION1_SPARKLING_WATER_PLEASE_BOY, "thanks":Text.MISSION1_JUST_WHAT_I_WANTED_THANK_YOU_BOY, "wrong":Text.MISSION1_THAT_ISN_T_SPARKLING_WATER_PERHAPS_SOMEONE_ELSE_ORDERED_IT},
+ "chatterbox":{"name":Text.MISSION1_MRS_MABEL_PRITCHARD, "door":"cabin_right", "number":3, "drink":"tea", "request":Text.MISSION1_A_PROPER_CUP_OF_TEA_PLEASE_BOY, "thanks":Text.MISSION1_LOVELY_A_PROPER_CUP_OF_TEA_THANK_YOU_BOY, "wrong":Text.MISSION1_TEA_BOY_A_PROPER_CUP_OF_TEA}
 }
 const REACTION_TICKS := 90
 
@@ -43,25 +45,25 @@ static func options(run, result: Array[Dictionary], local: bool) -> void:
   if not run.s.actors.has(id) or busy(run,id) or not can_direct(run,id): return
   var actor: Dictionary = run.s.actors[id]
   for door in Rooms.CABIN_DOORS:
-   var label := "Cabin %d" % GUESTS[owner(door)].number
+   var label := Text.MISSION1_CABIN_D % GUESTS[owner(door)].number
    run._option(result,"direct:%s:%s" % [id,door],label,actor.room,Rooms.point(actor.pos),local,true)
-  run._option(result,"duties_back","Back",actor.room,Rooms.point(actor.pos),local,true)
+  run._option(result,"duties_back",Text.MISSION1_BACK,actor.room,Rooms.point(actor.pos),local,true)
   return
  for door in Rooms.CABIN_DOORS:
-  run._option(result,"plate:"+door,"Inspect nameplate", "cabins",Vector2(Rooms.CABIN_DOORS[door],405),local,true)
+  run._option(result,"plate:"+door,Text.MISSION1_INSPECT_NAMEPLATE, "cabins",Vector2(Rooms.CABIN_DOORS[door],405),local,true)
  if state.carried == "":
-  for drink in DRINKS: run._option(result,"collect:"+drink,"Get "+DRINKS[drink],"salon",STATION,local,true)
- else: run._option(result,"return_drink","Return drink","salon",STATION,local,true)
+  for drink in DRINKS: run._option(result,"collect:"+drink,Messages.source("UI_GET_DRINK",{"drink":DRINKS[drink]}),"salon",STATION,local,true)
+ else: run._option(result,"return_drink",Text.MISSION1_RETURN_DRINK,"salon",STATION,local,true)
  for id in GUESTS:
   if not run.s.actors.has(id) or busy(run,id) or state.detours.has(id): continue
   var actor: Dictionary = run.s.actors[id]
   var outcome: Dictionary = state.outcomes.get(id,{})
-  var request_label: String = "Prefers "+DRINKS[GUESTS[id].drink] if run.memory.preferences.has(id) else "Ask about drinks"
+  var request_label: String = Messages.source("UI_PREFERS_DRINK",{"drink":DRINKS[GUESTS[id].drink]}) if run.memory.preferences.has(id) else Text.MISSION1_ASK_ABOUT_DRINKS
   run._option(result,"request:"+id,request_label,actor.room,Rooms.point(actor.pos),local,actor.room == "salon" and not outcome.get("asked",false) and not outcome.get("served",false))
   if actor.room == "salon" and state.carried != "" and not outcome.get("served",false):
    var allowed: bool = not outcome.get("wrong_drink",false) or state.carried == GUESTS[id].drink
-   run._option(result,"serve:"+id,"Offer "+DRINKS[state.carried],actor.room,Rooms.point(actor.pos),local,allowed)
-  run._option(result,"directions:"+id,"Give cabin directions",actor.room,Rooms.point(actor.pos),local,can_direct(run,id))
+   run._option(result,"serve:"+id,Messages.source("UI_OFFER_DRINK",{"drink":DRINKS[state.carried]}),actor.room,Rooms.point(actor.pos),local,allowed)
+  run._option(result,"directions:"+id,Text.MISSION1_GIVE_CABIN_DIRECTIONS,actor.room,Rooms.point(actor.pos),local,can_direct(run,id))
 
 static func can_direct(run, id: String) -> bool:
  var actor: Dictionary = run.s.actors.get(id,{})
@@ -81,7 +83,7 @@ static func complete(run, action: String) -> bool:
   "plate":
    if not run.memory.cabins.has(id): run.memory.cabins.append(id)
    var guest: Dictionary = GUESTS[owner(id)]
-   var text := "Cabin %d — %s" % [guest.number,guest.name]
+   var text := Text.MISSION1_CABIN_D_S % [guest.number,guest.name]
    run.note("plate_"+id,text,true,false)
    Speech.say(run,"amelia",text,"thought")
   "collect": state.carried = id
@@ -110,10 +112,10 @@ static func complete(run, action: String) -> bool:
     state.detours[id] = plan
     if GUESTS[id].door == door:
      outcome.directed = true
-     reply(run,id,"Cabin %d. Thank you, Boy." % GUESTS[id].number)
+     reply(run,id,Text.MISSION1_CABIN_D_THANK_YOU_BOY % GUESTS[id].number)
     else:
      outcome.wrong_cabin = true
-     reply(run,id,"Cabin %d, you say? Very well, Boy." % GUESTS[owner(door)].number)
+     reply(run,id,Text.MISSION1_CABIN_D_YOU_SAY_VERY_WELL_BOY % GUESTS[owner(door)].number)
   _: return false
  return true
 
@@ -144,9 +146,9 @@ static func update(run) -> void:
    trip.react_until = int(run.s.tick)+REACTION_TICKS
    var name: String = GUESTS[owner(door)].name
    var complaint: String = {
-    "guest":"This is %s's cabin! You sent me to the wrong door, Boy.",
-    "chandelier_guest":"%s? How curious, Boy. I seem to have become somebody else.",
-    "chatterbox":"The plate says %s! Read the names properly next time, Boy."
+    "guest":Text.MISSION1_THIS_IS_S_S_CABIN_YOU_SENT_ME_TO_THE_WRONG_DOOR_BOY,
+    "chandelier_guest":Text.MISSION1_S_HOW_CURIOUS_BOY_I_SEEM_TO_HAVE_BECOME_SOMEBODY_ELSE,
+    "chatterbox":Text.MISSION1_THE_PLATE_SAYS_S_READ_THE_NAMES_PROPERLY_NEXT_TIME_BOY
    }[id] % name
    reply(run,id,complaint)
   if trip.phase == "reaction" and int(run.s.tick) >= int(trip.react_until): trip.phase = "correct"

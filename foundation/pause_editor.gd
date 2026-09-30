@@ -17,6 +17,7 @@ var owns_pause := false
 
 
 func _ready() -> void:
+	auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 90
 	_build_ui()

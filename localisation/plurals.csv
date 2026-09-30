@@ -1,0 +1,4 @@
+keys,?plural,en,_notes,_source
+UI_GUEST_COUNT,UI_GUEST_COUNT_MANY,{count} guest,Guest count,{count} guest
+,,{count} guests,,
+UI_GUEST_COUNT_MANY,,{count} guests,Plural English fallback,{count} guests

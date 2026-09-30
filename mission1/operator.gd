@@ -1,4 +1,5 @@
 extends RefCounted
+const Text = preload("res://localisation/source_text.gd")
 const Rooms = preload("res://mission1/rooms.gd")
 const Routes = preload("res://mission1/routines.gd")
 const Speech = preload("res://mission1/conversations.gd")
@@ -26,7 +27,7 @@ static func update(run) -> void:
   elif run.s.dialogue.is_empty() and run.s.get("conversation",{}).is_empty():
    state.phase = "speak"
    state.until_frame = int(run.s.frame)+40
-   Speech.say(run,"crew","Why has this been switched off?","speech","operator_%d" % state.next_check,40)
+   Speech.say(run,"crew",Text.MISSION1_WHY_HAS_THIS_BEEN_SWITCHED_OFF,"speech","operator_%d" % state.next_check,40)
  if state.phase == "speak" and run.s.frame >= state.until_frame:
   state.phase = "operate"
   state.until_frame = int(run.s.frame)+15

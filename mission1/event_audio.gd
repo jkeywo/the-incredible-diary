@@ -1,4 +1,5 @@
 extends Node
+const Text = preload("res://localisation/source_text.gd")
 ## One-shot Mission 1 sound cues. Add this node to a gameplay scene and call
 ## play_cue(&"baggage_move"), etc. Players pause with the scene tree.
 
@@ -43,7 +44,7 @@ var _next_variant: Dictionary = {}
 
 func play_cue(cue: StringName) -> AudioStreamPlayer:
 	if not CUES.has(cue):
-		push_warning("Unknown Mission 1 sound cue: %s" % cue)
+		push_warning(Text.MISSION1_UNKNOWN_MISSION_1_SOUND_CUE_S % cue)
 		return null
 	var variants: Array = CUES[cue]
 	var index: int = _next_variant.get(cue, 0)
